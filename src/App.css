@@ -1,0 +1,54 @@
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-toolbar {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 100;
+}
+
+.app-toolbar-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 16px;
+  padding: 0;
+  transition: background 0.15s;
+}
+
+.app-toolbar-btn:hover {
+  background: var(--border);
+}
+
+.app-toolbar-select {
+  height: 36px;
+  padding: 0 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+}
+
+.app-toolbar-select:hover {
+  background: var(--border);
+}
+
+.app-toolbar-select option {
+  background: var(--surface);
+  color: var(--text);
+}

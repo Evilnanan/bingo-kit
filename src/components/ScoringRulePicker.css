@@ -1,0 +1,147 @@
+/* ── root ────────────────────────────────────────────────────────── */
+
+.srp-root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.srp-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── radio options ───────────────────────────────────────────────── */
+
+.srp-options {
+  display: flex;
+  gap: 20px;
+}
+
+.srp-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.srp-radio input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* ── custom section ──────────────────────────────────────────────── */
+
+.srp-custom-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 4px;
+  padding-left: 12px;
+  border-left: 3px solid var(--accent);
+}
+
+.srp-select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  max-width: 280px;
+}
+
+.srp-select:focus {
+  border-color: var(--accent);
+}
+
+/* ── actions ─────────────────────────────────────────────────────── */
+
+.srp-custom-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.srp-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.srp-btn:hover {
+  background: var(--border);
+}
+
+.srp-btn--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.srp-btn--danger:hover {
+  background: #fef2f2;
+}
+
+[data-theme="dark"] .srp-btn--danger:hover {
+  background: rgba(220, 38, 38, 0.1);
+}
+
+/* ── preview ─────────────────────────────────────────────────────── */
+
+.srp-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.78rem;
+}
+
+.srp-preview-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.srp-preview-target {
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 50px;
+}
+
+.srp-preview-points {
+  font-family: var(--mono);
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+.srp-preview-cond {
+  font-family: var(--mono);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+/* Disabled state */
+.srp-radio:has(input:disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.srp-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(30%);
+}
+
+.srp-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(30%);
+}

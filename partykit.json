@@ -1,0 +1,6 @@
+{
+  "name": "bingo-kit",
+  "main": "party/server.ts",
+  "port": 1999,
+  "compatibilityDate": "2025-01-01"
+}

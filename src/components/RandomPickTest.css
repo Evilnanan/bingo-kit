@@ -1,0 +1,231 @@
+.rptest {
+  padding: 16px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.rptest h2 {
+  margin: 0 0 12px;
+}
+
+.rptest-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.rptest-bar button {
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.rptest-pool {
+  margin-bottom: 16px;
+}
+
+.rptest-pool textarea {
+  width: 100%;
+  height: 120px;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 8px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.rptest-presets {
+  margin-bottom: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.rptest-presets span {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.rptest-presets button {
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+/* ── algorithm sections ── */
+
+.rptest-algos {
+  display: flex;
+  gap: 16px;
+}
+
+.rptest-algo {
+  flex: 1;
+  min-width: 320px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.rptest-algo h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.rptest-algo-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.rptest-algo-controls label {
+  font-size: 12px;
+}
+
+.rptest-algo-controls input[type="number"] {
+  width: 44px;
+  text-align: center;
+  padding: 3px;
+}
+
+.rptest-algo-controls input[type="text"] {
+  width: 80px;
+  padding: 3px 5px;
+}
+
+.rptest-algo-controls input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* ── result grid ── */
+
+.rptest-grid-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.rptest-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 56px);
+  grid-template-rows: repeat(5, 56px);
+  gap: 3px;
+}
+
+.rptest-cell {
+  border: 1px solid var(--border-color, #555);
+  border-radius: 4px;
+  font-size: 9px;
+  text-align: center;
+  word-break: break-all;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.15;
+  padding: 1px;
+  cursor: default;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.rptest-cell .diff-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.rptest-grid-with-rows {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.rptest-row-sums {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rptest-row-sums span {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.7;
+  min-width: 24px;
+}
+
+.rptest-col-sums {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.rptest-col-sums span {
+  width: 56px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.rptest-stats {
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.rptest-info {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-top: 4px;
+}
+
+.rptest-error {
+  color: #e88;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.rptest-seq-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.8;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-primary, #1e1e1e);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+.rptest-seq-meta div {
+  line-height: 1.5;
+}
+
+/* ── relaxed cell indicator ── */
+
+.rptest-cell.relaxed {
+  outline: 2px dashed #f44336;
+  outline-offset: -2px;
+}
+
+.rptest-cell.relaxed::after {
+  content: "⚠";
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 8px;
+  opacity: 0.9;
+}

@@ -1,0 +1,238 @@
+/* Shared layout for BingoRoom and HexRoom */
+
+.room {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 2000px;
+  height: 100vh;
+  overflow: hidden;
+  margin: 0 auto;
+  padding: 16px 24px 24px;
+}
+
+.room-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.room-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.room-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.room-back {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.room-back:hover {
+  background: var(--accent-focus);
+}
+
+.room-restart {
+  background: none;
+  border: 1px solid var(--danger, #dc2626);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  color: var(--danger, #dc2626);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.room-restart:hover {
+  background: var(--danger, #dc2626);
+  color: #fff;
+}
+
+.room-restart--confirm {
+  background: var(--danger, #dc2626);
+  color: #fff;
+  font-weight: 600;
+}
+
+.room-name-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.room-copy-link {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.room-copy-link:hover {
+  background: var(--accent-focus);
+}
+
+.room-copy-link--copied {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  pointer-events: none;
+}
+
+.room-body {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.room-board-wrapper {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  overflow: hidden;
+  padding: 10px 0px;
+  align-content: center;
+  flex-wrap: wrap;
+}
+
+.room-sidebar {
+  width: 25%;
+  min-width: 220px;
+  max-width: 330px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  transition:
+    width 0.25s ease,
+    min-width 0.25s ease,
+    max-width 0.25s ease;
+}
+
+.room-sidebar.collapsed {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.sidebar-toggle:hover {
+  color: var(--text);
+  background: var(--accent);
+  color: #fff;
+}
+
+.room-sidebar.collapsed .sidebar-toggle {
+  position: static;
+  margin: 4px auto 0;
+  flex-shrink: 0;
+}
+
+.room-sidebar.collapsed .sidebar-inner {
+  display: none;
+}
+
+.sidebar-inner {
+  display: contents;
+}
+
+.room-sidebar .player-list {
+  width: 100%;
+}
+
+.room-chat {
+  flex: 1;
+  min-height: 0;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.room-sidebar .chat-panel {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.room-loading {
+  color: var(--text-secondary);
+  font-size: 16px;
+  padding: 40px;
+}
+
+@media (max-width: 600px) {
+  .room-header {
+    padding-right: 0;
+  }
+
+  .room-header-right {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 800px) {
+  .room-body {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .room-sidebar {
+    width: 100%;
+    max-width: 400px;
+    max-height: 50vh;
+    transition: max-height 0.25s ease;
+  }
+
+  .room-sidebar.collapsed {
+    width: 100%;
+    min-width: 0;
+    max-width: 400px;
+    max-height: 36px;
+  }
+
+  .room-sidebar.collapsed .sidebar-inner {
+    display: contents;
+  }
+}

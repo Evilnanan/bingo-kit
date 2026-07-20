@@ -1,0 +1,193 @@
+/* ── overlay ─────────────────────────────────────────────────────── */
+
+.gp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: max(20px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+}
+
+.gp-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── header ──────────────────────────────────────────────────────── */
+
+.gp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.gp-title {
+  font-size: 18px;
+  color: var(--text);
+  margin: 0;
+}
+
+.gp-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  line-height: 1;
+}
+
+.gp-close:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* ── scrollable body ─────────────────────────────────────────────── */
+
+.gp-modal-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.gp-empty {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 24px;
+  margin: 0;
+}
+
+/* ── list ────────────────────────────────────────────────────────── */
+
+.gp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gp-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  transition: border-color 0.15s;
+}
+
+.gp-item--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+
+.gp-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gp-item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gp-rename-input {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 2px 6px;
+  width: 100%;
+  max-width: 200px;
+  outline: none;
+}
+
+.gp-item-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.gp-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── buttons ─────────────────────────────────────────────────────── */
+
+.gp-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.gp-btn:hover {
+  background: var(--hover);
+}
+
+.gp-btn--primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.gp-btn--primary:hover {
+  background: var(--accent-hover);
+}
+
+.gp-btn--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.gp-btn--danger:hover {
+  background: #fef2f2;
+}
+
+[data-theme="dark"] .gp-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+/* ── footer ──────────────────────────────────────────────────────── */
+
+.gp-footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}

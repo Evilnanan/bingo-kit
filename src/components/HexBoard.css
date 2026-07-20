@@ -1,0 +1,264 @@
+.hex-board-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hex-board {
+  position: relative;
+  flex-shrink: 0;
+  transition: transform 0.4s ease;
+  transform-origin: center center;
+}
+
+.hex-base {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  --team-red-fill: #fecaca;
+  --team-blue-fill: #dbeafe;
+}
+
+[data-theme="dark"] .hex-base {
+  --team-red-fill: #7f1d1d;
+  --team-blue-fill: #1e3a5f;
+}
+
+/* Wrapper: positions the cell, no clip-path */
+.hex-cell {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  z-index: 1;
+  transition: transform 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.hex-cell:hover:not(:disabled) {
+  transform: scale(1.02);
+  z-index: 10;
+}
+
+.hex-cell:hover:not(:disabled) .hex-cell-bg {
+  background: var(--hex-hover-color, var(--accent));
+}
+
+.hex-cell:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.hex-cell:active:not(:disabled):has(.hex-counter:active) {
+  transform: none;
+}
+
+.hex-cell:disabled {
+  cursor: default;
+}
+
+.hex-cell:disabled:hover {
+  transform: none;
+}
+
+.hex-cell:disabled:hover .hex-cell-bg {
+  background: var(--border);
+}
+
+/* Outer layer: border color, no gap for tight tiling */
+.hex-cell-bg {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  background: var(--border);
+  transition: background 0.15s;
+  pointer-events: none;
+}
+
+/* Inner layer: surface fill, 1px smaller → 1px border */
+.hex-cell-fill {
+  position: absolute;
+  inset: 1px;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  background: var(--surface);
+  transition: background 0.15s;
+  pointer-events: none;
+}
+
+/* Team colors — always show actual team color */
+.hex-cell--team-red .hex-cell-fill {
+  background: #fecaca;
+}
+
+.hex-cell--team-red .hex-cell-bg {
+  background: #dc2626;
+}
+
+.hex-cell--team-blue .hex-cell-fill {
+  background: #dbeafe;
+}
+
+.hex-cell--team-blue .hex-cell-bg {
+  background: #2563eb;
+}
+
+[data-theme="dark"] .hex-cell--team-red .hex-cell-fill {
+  background: #7f1d1d;
+}
+
+[data-theme="dark"] .hex-cell--team-red .hex-cell-bg {
+  background: #f87171;
+}
+
+[data-theme="dark"] .hex-cell--team-blue .hex-cell-fill {
+  background: #1e3a5f;
+}
+
+[data-theme="dark"] .hex-cell--team-blue .hex-cell-bg {
+  background: #60a5fa;
+}
+
+.hex-cell--win {
+  z-index: 5;
+}
+
+/* Win path — vivid team-color variant + glow on cell */
+.hex-cell--red-win {
+  filter: drop-shadow(0 0 8px #ef4444aa);
+}
+
+.hex-cell--red-win .hex-cell-fill {
+  background: #fca5a5;
+}
+
+.hex-cell--red-win .hex-cell-bg {
+  background: #dc2626;
+}
+
+.hex-cell--blue-win {
+  filter: drop-shadow(0 0 8px #3b82f6aa);
+}
+
+.hex-cell--blue-win .hex-cell-fill {
+  background: #93c5fd;
+}
+
+.hex-cell--blue-win .hex-cell-bg {
+  background: #2563eb;
+}
+
+[data-theme="dark"] .hex-cell--red-win {
+  filter: drop-shadow(0 0 10px #f8717188);
+}
+
+[data-theme="dark"] .hex-cell--red-win .hex-cell-fill {
+  background: #b91c1c;
+}
+
+[data-theme="dark"] .hex-cell--red-win .hex-cell-bg {
+  background: #ef4444;
+}
+
+[data-theme="dark"] .hex-cell--blue-win {
+  filter: drop-shadow(0 0 10px #60a5fa88);
+}
+
+[data-theme="dark"] .hex-cell--blue-win .hex-cell-fill {
+  background: #1d4ed8;
+}
+
+[data-theme="dark"] .hex-cell--blue-win .hex-cell-bg {
+  background: #3b82f6;
+}
+
+/* Planned cell — local-only route planning marker (star) */
+.hex-plan-marker {
+  position: absolute;
+  bottom: 3%;
+  right: 16%;
+  transform: translateX(-50%);
+  width: calc(var(--hex-font) * 1.4);
+  height: calc(var(--hex-font) * 1.4);
+  background: #fbbf24;
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px #f59e0b88);
+}
+
+/* Content layer: sits on top of the fill, inset to stay within hex shape */
+.hex-content {
+  position: absolute;
+  inset: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hex-goal-text {
+  font-size: var(--hex-font);
+  line-height: 1.15;
+  text-align: center;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  padding: 0 var(--hex-padding, 12px);
+}
+
+/* Counter badge — top-left corner, local only */
+.hex-counter {
+  position: absolute;
+  bottom: 3%;
+  left: 25%;
+  z-index: 3;
+  pointer-events: auto;
+  font-size: calc(var(--hex-font) * 0.9);
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 2px;
+  min-width: 2.5ch;
+  text-align: center;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+.hex-counter:hover {
+  background: var(--hex-hover-color, var(--accent));
+  color: #fff;
+}
+
+.hex-counter:active {
+  transform: scale(0.9);
+}
+
+.hex-content .tooltip-trigger {
+  pointer-events: auto;
+  font-size: calc(var(--hex-font) * 0.9);
+  padding: 2px 2px;
+  top: 3%;
+  right: 22%;
+}
+
+/* Controls below board */

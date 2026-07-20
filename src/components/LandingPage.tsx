@@ -1,0 +1,733 @@
+import { useRef, useState } from "react";
+import { useT } from "../i18n/useT";
+import type {
+  BoardConfig,
+  GameMode,
+  GoalItem,
+  GoalPool,
+  RoomConfig,
+} from "../types";
+import { getGoalText, getGoalGlobalGroup, stripGoalMeta } from "../types";
+import { pickGoals, type PickRule } from "../randomPicks";
+import { computeConfigHash } from "../utils/configHash";
+import { HEX_MIN_SIZE, HEX_MAX_SIZE } from "../hex/hexTypes";
+import { GoalEditor } from "./GoalEditor";
+import { ScoringRulePicker } from "./ScoringRulePicker";
+import { GoalPoolManager } from "./GoalPoolManager";
+import { loadPools, savePools } from "../utils/goalPoolStorage";
+import type { ScoringRule } from "../scoring/types";
+import "./LandingPage.css";
+
+const DEFAULT_SERVER_URL =
+  import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
+
+function getRoomFromUrl(): string {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("room") || "";
+}
+
+function getModeFromUrl(): GameMode {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("mode") === "hex" ? "hex" : "classic";
+}
+
+function getServerFromUrl(): string {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("server") || "";
+}
+
+function getLocalFromUrl(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return params.has("local");
+}
+
+function getShareFromUrl(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return params.has("share");
+}
+
+const DEFAULT_GOALS: GoalItem[] = [
+  "Find a hidden item",
+  "Defeat a boss",
+  "Talk to an NPC",
+  "Complete a side quest",
+  "Discover a new area",
+  "Collect 100 coins",
+  "Use a special ability",
+  "Open a locked door",
+  "Solve a puzzle",
+  "Reach a checkpoint",
+  "Find a secret passage",
+  "Purchase an upgrade",
+  "Defeat 10 enemies",
+  "Complete a level",
+  "Find a rare item",
+  "Activate a switch",
+  "Cross a bridge",
+  "Ride a vehicle",
+  "Swim underwater",
+  "Read some lore",
+  "Break a target",
+  "Fall into a pit",
+  "Earn an achievement",
+  "Change equipment",
+  "Win a minigame",
+];
+
+const ANIMALS = [
+  "Fox",
+  "Owl",
+  "Bear",
+  "Wolf",
+  "Hawk",
+  "Lynx",
+  "Deer",
+  "Seal",
+  "Crab",
+  "Frog",
+  "Crow",
+  "Panda",
+  "Duck",
+  "Mole",
+  "Bat",
+  "Eel",
+  "Hare",
+  "Bee",
+  "Elk",
+  "Jay",
+];
+
+const ROOM_ADJECTIVES = [
+  "Cozy",
+  "Rusty",
+  "Crystal",
+  "Misty",
+  "Sunny",
+  "Dark",
+  "Golden",
+  "Silver",
+  "Emerald",
+  "Frozen",
+  "Hidden",
+  "Lucky",
+  "Secret",
+  "Silent",
+  "Brave",
+];
+
+const ROOM_NOUNS = [
+  "Cave",
+  "Tavern",
+  "Tower",
+  "Forest",
+  "Harbor",
+  "Castle",
+  "Temple",
+  "Garden",
+  "Meadow",
+  "Library",
+  "Den",
+  "Hollow",
+  "Lagoon",
+  "Summit",
+  "Sanctuary",
+];
+
+function randomRoomName(): string {
+  const adj =
+    ROOM_ADJECTIVES[Math.floor(Math.random() * ROOM_ADJECTIVES.length)];
+  const noun = ROOM_NOUNS[Math.floor(Math.random() * ROOM_NOUNS.length)];
+  return `${adj} ${noun}`;
+}
+
+function initPools(): { pools: GoalPool[]; currentPoolId: string } {
+  const pools = loadPools();
+  if (pools.length > 0) {
+    return { pools, currentPoolId: pools[0].id };
+  }
+  // No pools exist — create the default "示例" pool
+  const now = Date.now();
+  const defaultPool: GoalPool = {
+    id: "default",
+    name: "示例",
+    goals: [...DEFAULT_GOALS],
+    createdAt: now,
+    updatedAt: now,
+  };
+  savePools([defaultPool]);
+  return { pools: [defaultPool], currentPoolId: defaultPool.id };
+}
+
+let _poolsInitCache: { pools: GoalPool[]; currentPoolId: string } | null = null;
+function getInitPools() {
+  if (!_poolsInitCache) _poolsInitCache = initPools();
+  return _poolsInitCache;
+}
+
+const HEX_DEFAULT_SIZE_BLUE = 5;
+const HEX_DEFAULT_SIZE_RED = 5;
+
+interface Props {
+  onJoinRoom: (config: RoomConfig) => void;
+}
+
+export function LandingPage({ onJoinRoom }: Props) {
+  const { t } = useT();
+  const [gameMode, setGameMode] = useState<GameMode>(() => getModeFromUrl());
+  const [roomName, setRoomName] = useState(
+    () => getRoomFromUrl() || randomRoomName(),
+  );
+  const [playerName, setPlayerName] = useState(
+    () => ANIMALS[Math.floor(Math.random() * ANIMALS.length)],
+  );
+  const [serverUrl, setServerUrl] = useState(() => getServerFromUrl());
+  const localMode = getLocalFromUrl();
+  const isSharedLink = getShareFromUrl();
+
+  // Goal pool state
+  const [pools, setPools] = useState<GoalPool[]>(() => getInitPools().pools);
+  const [currentPoolId, setCurrentPoolId] = useState(
+    () => getInitPools().currentPoolId,
+  );
+  const [poolManagerOpen, setPoolManagerOpen] = useState(false);
+
+  const currentPool = pools.find((p) => p.id === currentPoolId) ?? pools[0];
+  const [goals, setGoals] = useState<GoalItem[]>(
+    () => currentPool?.goals ?? [...DEFAULT_GOALS],
+  );
+  const goalsRef = useRef(goals);
+
+  const [editorOpen, setEditorOpen] = useState(false);
+
+  // Hex state
+  const [sizeBlue, setSizeBlue] = useState(HEX_DEFAULT_SIZE_BLUE);
+  const [sizeRed, setSizeRed] = useState(HEX_DEFAULT_SIZE_RED);
+  const [lockout, setLockout] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedScoringRule, setSelectedScoringRule] =
+    useState<ScoringRule | null>(null);
+
+  // Pick rule settings
+  const [pickRule, setPickRule] = useState<PickRule>({ algorithm: "pure" });
+  const [cfgMin, setCfgMin] = useState(1);
+  const [cfgMax, setCfgMax] = useState(5);
+  const [cfgCenter, setCfgCenter] = useState(true);
+  const [cfgPattern, setCfgPattern] = useState("1,1,1,2,3");
+
+  const syncPoolGoals = (g: GoalItem[]) => {
+    const now = Date.now();
+    const updated = pools.map((p) =>
+      p.id === currentPoolId ? { ...p, goals: g, updatedAt: now } : p,
+    );
+    setPools(updated);
+    savePools(updated);
+  };
+
+  const switchToPool = (poolId: string) => {
+    const pool = pools.find((p) => p.id === poolId);
+    if (!pool) return;
+    setCurrentPoolId(poolId);
+    setGoals(pool.goals);
+    goalsRef.current = pool.goals;
+  };
+
+  const handleSubmit = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    const trimmedRoom = roomName.trim();
+    const trimmedName = playerName.trim();
+    if (!trimmedRoom || !trimmedName) return;
+
+    // Visitor via share link: skip goal validation, send minimal config.
+    // The server already holds the authoritative config and will push it back.
+    if (isSharedLink) {
+      setError("");
+      onJoinRoom({
+        gameMode,
+        roomName: trimmedRoom,
+        playerName: trimmedName,
+        serverUrl: serverUrl.trim() || DEFAULT_SERVER_URL,
+        boardConfig: { goals: [] },
+        ...(gameMode === "hex"
+          ? {
+              hexConfig: {
+                sizeBlue: HEX_DEFAULT_SIZE_BLUE,
+                sizeRed: HEX_DEFAULT_SIZE_RED,
+                goals: [],
+              },
+            }
+          : {}),
+        localMode,
+      });
+      return;
+    }
+
+    const validGoals = goals.filter((g) => getGoalText(g).length > 0);
+    if (validGoals.length === 0) {
+      setError(t["landing.noGoals"]);
+      return;
+    }
+
+    if (gameMode === "hex") {
+      const sBlue =
+        Math.max(HEX_MIN_SIZE, Math.min(sizeBlue, HEX_MAX_SIZE)) ||
+        HEX_DEFAULT_SIZE_BLUE;
+      const sRed =
+        Math.max(HEX_MIN_SIZE, Math.min(sizeRed, HEX_MAX_SIZE)) ||
+        HEX_DEFAULT_SIZE_RED;
+      const totalCells = sBlue * sRed;
+
+      const shuffled = [...validGoals].sort(() => Math.random() - 0.5);
+      const usedGlobal = new Set<string>();
+      const picked: GoalItem[] = [];
+      for (const g of shuffled) {
+        if (picked.length >= totalCells) break;
+        const ggs = getGoalGlobalGroup(g);
+        if (ggs.some((gg) => usedGlobal.has(gg))) continue;
+        picked.push(g);
+        for (const gg of ggs) usedGlobal.add(gg);
+      }
+
+      if (picked.length < totalCells) {
+        setError(t["landing.notEnoughGoals"]);
+        return;
+      }
+
+      setError("");
+      const configHash = computeConfigHash({
+        goals: validGoals,
+        sizeBlue: sBlue,
+        sizeRed: sRed,
+      });
+      onJoinRoom({
+        gameMode: "hex",
+        roomName: trimmedRoom,
+        playerName: trimmedName,
+        serverUrl: serverUrl.trim() || DEFAULT_SERVER_URL,
+        boardConfig: { goals: [] },
+        hexConfig: {
+          sizeBlue: sBlue,
+          sizeRed: sRed,
+          goals: stripGoalMeta(picked),
+          configHash,
+        },
+        localMode,
+      });
+      return;
+    }
+
+    // Classic mode: apply pick rule to goal pool
+    const picked = pickGoals(validGoals, pickRule);
+
+    if (picked.length < 25) {
+      setError(t["landing.notEnoughGoals"]);
+      return;
+    }
+
+    setError("");
+    const boardGoals = picked.slice(0, 25);
+
+    const configHash = computeConfigHash({
+      goals,
+      pickRule,
+      scoringRule: selectedScoringRule ?? undefined,
+      lockout,
+    });
+
+    const boardConfig: BoardConfig = {
+      goals: stripGoalMeta(boardGoals),
+      lockout,
+      ...(selectedScoringRule ? { scoringRule: selectedScoringRule } : {}),
+      originalPool: goals,
+      pickRule,
+      configHash,
+    };
+
+    onJoinRoom({
+      gameMode: "classic",
+      roomName: trimmedRoom,
+      playerName: trimmedName,
+      serverUrl: serverUrl.trim() || DEFAULT_SERVER_URL,
+      boardConfig,
+      localMode,
+    });
+  };
+
+  const handleGoalsChange = (g: GoalItem[]) => {
+    goalsRef.current = g;
+    setGoals(g);
+    // Auto-save to current pool
+    syncPoolGoals(g);
+  };
+
+  const handleCloseEditor = () => {
+    setEditorOpen(false);
+    syncPoolGoals(goalsRef.current);
+  };
+
+  const bingoTitle = t["landing.title"];
+
+  return (
+    <div className="landing">
+      <h1 className="landing-title">{bingoTitle}</h1>
+      <p className="landing-subtitle">{t["landing.subtitle"]}</p>
+
+      <form className="landing-form" onSubmit={handleSubmit}>
+        {/* Game Mode Selector */}
+        <div className="mode-selector">
+          <span className="mode-label">{t["mode.label"]}</span>
+          <div className="mode-tabs">
+            <button
+              type="button"
+              className={`mode-tab${gameMode === "classic" ? " mode-tab--active" : ""}`}
+              onClick={() => setGameMode("classic")}
+              disabled={isSharedLink}
+            >
+              {t["mode.classic"]}
+            </button>
+            <button
+              type="button"
+              className={`mode-tab${gameMode === "hex" ? " mode-tab--active" : ""}`}
+              onClick={() => setGameMode("hex")}
+              disabled={isSharedLink}
+            >
+              {t["mode.hex"]}
+            </button>
+          </div>
+        </div>
+
+        <div className="form-row">
+          <label className="form-label">
+            {t["landing.roomName"]}
+            <span className="room-name-row">
+              <input
+                className="form-input room-name-input"
+                type="text"
+                value={roomName}
+                onChange={(e) => setRoomName(e.target.value)}
+                placeholder={t["landing.roomPlaceholder"]}
+                required
+                autoFocus
+                disabled={isSharedLink}
+              />
+              <button
+                type="button"
+                className="random-room-btn"
+                title={t["landing.randomRoom"]}
+                onClick={() => setRoomName(randomRoomName())}
+                disabled={isSharedLink}
+              >
+                &#x21bb;
+              </button>
+            </span>
+          </label>
+
+          <label className="form-label">
+            {t["landing.yourName"]}
+            <input
+              className="form-input"
+              type="text"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder={t["landing.namePlaceholder"]}
+              required
+            />
+          </label>
+        </div>
+
+        {!localMode && (
+          <label className="form-label">
+            <span>
+              <a
+                href="https://docs.partykit.io/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="channel-link"
+              >
+                PartyKit
+              </a>{" "}
+              {t["landing.serverUrl"]}
+            </span>
+            <input
+              className="form-input"
+              type="text"
+              value={serverUrl}
+              onChange={(e) => setServerUrl(e.target.value)}
+              placeholder={DEFAULT_SERVER_URL}
+              disabled={isSharedLink}
+            />
+          </label>
+        )}
+
+        {/* Goal pool — shared between classic and hex */}
+        <div className="form-label">
+          {t["landing.goalPoolHeading"]}
+          <div className="goal-pool-row">
+            <select
+              className="form-input goal-pool-select"
+              value={currentPoolId}
+              onChange={(e) => {
+                // Save current goals before switching
+                syncPoolGoals(goalsRef.current);
+                switchToPool(e.target.value);
+              }}
+              disabled={isSharedLink}
+            >
+              {pools.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="form-input goal-pool-btn"
+              onClick={() => setPoolManagerOpen(true)}
+              disabled={isSharedLink}
+            >
+              {t["goalPool.manage"]}
+            </button>
+            <button
+              type="button"
+              className="form-input goal-pool-btn"
+              onClick={() => setEditorOpen(true)}
+              disabled={isSharedLink}
+            >
+              {t["editor.goalEditor"]}
+            </button>
+          </div>
+        </div>
+
+        {/* Hex size config */}
+        <div style={{ display: gameMode === "hex" ? undefined : "none" }}>
+          <div className="form-row hex-size-row">
+            <label className="form-label">
+              {t["hex.sizeBlue"]}
+              <input
+                className="form-input hex-size-input"
+                type="number"
+                min={HEX_MIN_SIZE}
+                max={HEX_MAX_SIZE}
+                value={Number.isNaN(sizeBlue) ? "" : sizeBlue}
+                onChange={(e) => {
+                  if (e.target.value === "") setSizeBlue(NaN);
+                  else
+                    setSizeBlue(
+                      Math.min(
+                        HEX_MAX_SIZE,
+                        Math.max(HEX_MIN_SIZE, Number(e.target.value)),
+                      ),
+                    );
+                }}
+                disabled={isSharedLink}
+              />
+            </label>
+            <label className="form-label">
+              {t["hex.sizeRed"]}
+              <input
+                className="form-input hex-size-input"
+                type="number"
+                min={HEX_MIN_SIZE}
+                max={HEX_MAX_SIZE}
+                value={Number.isNaN(sizeRed) ? "" : sizeRed}
+                onChange={(e) => {
+                  if (e.target.value === "") setSizeRed(NaN);
+                  else
+                    setSizeRed(
+                      Math.min(
+                        HEX_MAX_SIZE,
+                        Math.max(HEX_MIN_SIZE, Number(e.target.value)),
+                      ),
+                    );
+                }}
+                disabled={isSharedLink}
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Pick rule settings — classic only */}
+        <div style={{ display: gameMode === "hex" ? "none" : undefined }}>
+          <label className="form-label">
+            {t["editor.pickRule"]}
+            <select
+              className="form-input pick-rule-select"
+              value={pickRule.algorithm}
+              onChange={(e) => {
+                const algo = e.target.value as PickRule["algorithm"];
+                if (algo === "balanced")
+                  setPickRule({
+                    algorithm: "balanced",
+                    minDifficulty: cfgMin,
+                    maxDifficulty: cfgMax,
+                    centerHardest: cfgCenter,
+                  });
+                else if (algo === "pattern")
+                  setPickRule({ algorithm: "pattern", pattern: cfgPattern });
+                else setPickRule({ algorithm: algo });
+              }}
+              disabled={isSharedLink}
+            >
+              <option value="pure">{t["editor.pickRulePure"]}</option>
+              <option value="balanced">{t["editor.pickRuleBalanced"]}</option>
+              <option value="pattern">{t["editor.pickRulePattern"]}</option>
+              <option value="fixed">{t["editor.pickRuleFixed"]}</option>
+            </select>
+          </label>
+
+          {pickRule.algorithm === "balanced" && (
+            <>
+              <label className="form-label">
+                {t["editor.pickDiffRange"]}
+                <span className="pick-inline">
+                  <input
+                    type="number"
+                    className="form-input pick-num"
+                    min={1}
+                    max={5}
+                    value={cfgMin}
+                    onChange={(e) => {
+                      const v = Math.max(1, parseInt(e.target.value) || 1);
+                      setCfgMin(v);
+                      setPickRule((r) =>
+                        r.algorithm === "balanced"
+                          ? { ...r, minDifficulty: v }
+                          : r,
+                      );
+                    }}
+                    disabled={isSharedLink}
+                  />
+                  <span> ~ </span>
+                  <input
+                    type="number"
+                    className="form-input pick-num"
+                    min={1}
+                    max={5}
+                    value={cfgMax}
+                    onChange={(e) => {
+                      const v = Math.min(5, parseInt(e.target.value) || 5);
+                      setCfgMax(v);
+                      setPickRule((r) =>
+                        r.algorithm === "balanced"
+                          ? { ...r, maxDifficulty: v }
+                          : r,
+                      );
+                    }}
+                    disabled={isSharedLink}
+                  />
+                </span>
+              </label>
+              <label className="pick-check">
+                <input
+                  type="checkbox"
+                  checked={cfgCenter}
+                  onChange={(e) => {
+                    setCfgCenter(e.target.checked);
+                    setPickRule((r) =>
+                      r.algorithm === "balanced"
+                        ? { ...r, centerHardest: e.target.checked }
+                        : r,
+                    );
+                  }}
+                  disabled={isSharedLink}
+                />
+                {t["editor.pickCenterHardest"]}
+              </label>
+            </>
+          )}
+
+          {pickRule.algorithm === "pattern" && (
+            <>
+              <label className="form-label">
+                {t["editor.pickPattern"]}
+                <input
+                  type="text"
+                  className="form-input"
+                  value={cfgPattern}
+                  onChange={(e) => {
+                    setCfgPattern(e.target.value);
+                    setPickRule((r) =>
+                      r.algorithm === "pattern"
+                        ? { ...r, pattern: e.target.value }
+                        : r,
+                    );
+                  }}
+                  placeholder="1,1,1,2,3"
+                  disabled={isSharedLink}
+                />
+              </label>
+              <p className="pick-hint">{t["editor.pickPatternHint"]}</p>
+            </>
+          )}
+
+          {pickRule.algorithm === "fixed" && (
+            <p className="pick-hint">{t["editor.pickFixedHint"]}</p>
+          )}
+        </div>
+
+        {/* Lockout mode — classic only */}
+        <div style={{ display: gameMode === "hex" ? "none" : undefined }}>
+          <div className="lockout-row">
+            <label className="lockout-label">
+              <input
+                type="checkbox"
+                className="lockout-checkbox"
+                checked={lockout}
+                onChange={(e) => setLockout(e.target.checked)}
+                disabled={isSharedLink}
+              />
+              <span className="lockout-toggle-slider" />
+              <span>{t["landing.lockout"]}</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Scoring rules — classic only */}
+        <div style={{ display: gameMode === "hex" ? "none" : undefined }}>
+          <ScoringRulePicker
+            selectedRule={selectedScoringRule}
+            onSelect={setSelectedScoringRule}
+            disabled={isSharedLink}
+          />
+        </div>
+
+        {error && <p className="landing-error">{error}</p>}
+
+        <button type="submit" className="join-button">
+          {t["landing.joinButton"]}
+        </button>
+      </form>
+
+      {!isSharedLink && editorOpen && (
+        <GoalEditor
+          goals={goals}
+          onChange={handleGoalsChange}
+          onClose={handleCloseEditor}
+        />
+      )}
+
+      {!isSharedLink && poolManagerOpen && (
+        <GoalPoolManager
+          pools={pools}
+          currentPoolId={currentPoolId}
+          defaultGoals={DEFAULT_GOALS}
+          onSelect={(id) => {
+            switchToPool(id);
+          }}
+          onUpdate={(updated) => {
+            setPools(updated);
+            // If the current pool was deleted, auto-select the first remaining pool
+            if (!updated.some((p) => p.id === currentPoolId)) {
+              const first = updated[0];
+              if (first) {
+                setCurrentPoolId(first.id);
+                setGoals(first.goals);
+                goalsRef.current = first.goals;
+              }
+            }
+          }}
+          onClose={() => setPoolManagerOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
