@@ -108,6 +108,7 @@ export const en: Translations = {
   "scoring.save": "Save",
   "scoring.cancel": "Cancel",
   "scoring.delete": "Delete Rule",
+  "scoring.newDefaultName": "Rule",
   "scoring.newRule": "New Rule",
   "scoring.editRule": "Edit Rule",
   "scoring.ruleName": "Rule Name",

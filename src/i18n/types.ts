@@ -115,6 +115,7 @@ export interface Translations {
   "scoring.save": string;
   "scoring.cancel": string;
   "scoring.delete": string;
+  "scoring.newDefaultName": string;
   "scoring.newRule": string;
   "scoring.editRule": string;
   "scoring.ruleName": string;

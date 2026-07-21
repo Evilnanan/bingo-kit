@@ -213,6 +213,9 @@ export function ScoringRulePicker({
           onSave={handleSave}
           onCancel={handleCancel}
           onDelete={editingRule ? handleDeleteRule : undefined}
+          existingNames={savedRules
+            .filter((r) => r.id !== editingRule?.id)
+            .map((r) => r.name)}
         />
       )}
     </div>

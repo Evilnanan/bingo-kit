@@ -104,6 +104,7 @@ export const zh: Translations = {
   "scoring.save": "保存",
   "scoring.cancel": "取消",
   "scoring.delete": "删除规则",
+  "scoring.newDefaultName": "规则",
   "scoring.newRule": "新建规则",
   "scoring.editRule": "编辑规则",
   "scoring.ruleName": "规则名称",

@@ -68,11 +68,27 @@ interface Props {
   onSave: (rule: ScoringRule) => void;
   onCancel: () => void;
   onDelete?: (id: string) => void;
+  /** Existing rule names (excluding the rule being edited) — used to generate a unique default name. */
+  existingNames?: string[];
 }
 
 let nextId = 1;
 function uid(): string {
   return `si_${nextId++}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/** Generate a unique default rule name like "规则 1", "规则 2"… */
+function defaultRuleName(
+  base: string,
+  existingNames: string[],
+): string {
+  let n = existingNames.length + 1;
+  let name = `${base} ${n}`;
+  while (existingNames.includes(name)) {
+    n++;
+    name = `${base} ${n}`;
+  }
+  return name;
 }
 
 function emptyItem(): ScoringItem {
@@ -90,11 +106,13 @@ function validateExpr(expr: string): string | null {
   }
 }
 
-export function ScoringRuleEditor({ rule, onSave, onCancel, onDelete }: Props) {
+export function ScoringRuleEditor({ rule, onSave, onCancel, onDelete, existingNames = [] }: Props) {
   const { t } = useT();
   const mouseDownOnOverlay = useRef(false);
 
-  const [name, setName] = useState(rule?.name ?? "");
+  const [name, setName] = useState(
+    () => rule?.name ?? defaultRuleName(t["scoring.newDefaultName"], existingNames),
+  );
   const [items, setItems] = useState<ScoringItem[]>(
     rule?.items.length ? rule.items.map((it) => ({ ...it })) : [emptyItem()],
   );
