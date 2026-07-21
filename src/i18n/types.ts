@@ -115,6 +115,7 @@ export interface Translations {
   "scoring.save": string;
   "scoring.cancel": string;
   "scoring.delete": string;
+  "scoring.deleteConfirm": string;
   "scoring.newDefaultName": string;
   "scoring.newRule": string;
   "scoring.editRule": string;
@@ -145,6 +146,7 @@ export interface Translations {
   "goalPool.new": string;
   "goalPool.delete": string;
   "goalPool.deleteConfirm": string;
+  "goalPool.confirmDelete": string;
   "goalPool.rename": string;
   "goalPool.renamePrompt": string;
   "goalPool.newPrompt": string;

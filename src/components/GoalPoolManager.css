@@ -180,8 +180,30 @@
   background: #fef2f2;
 }
 
+.gp-btn--danger-confirm {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+  animation: gp-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.gp-btn--danger-confirm:hover {
+  background: var(--danger);
+  opacity: 0.85;
+}
+
+@keyframes gp-pulse {
+  from { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  to   { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);   }
+}
+
 [data-theme="dark"] .gp-btn--danger:hover {
   background: rgba(239, 68, 68, 0.12);
+}
+
+[data-theme="dark"] .gp-btn--danger-confirm {
+  color: #fff;
+  background: var(--danger);
 }
 
 /* ── footer ──────────────────────────────────────────────────────── */

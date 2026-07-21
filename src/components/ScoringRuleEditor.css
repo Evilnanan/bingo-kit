@@ -251,8 +251,30 @@
   background: #fef2f2;
 }
 
+.sre-delete-btn--confirm {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+  animation: sre-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.sre-delete-btn--confirm:hover {
+  background: var(--danger);
+  opacity: 0.85;
+}
+
+@keyframes sre-pulse {
+  from { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  to   { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);   }
+}
+
 [data-theme="dark"] .sre-delete-btn:hover {
   background: rgba(220, 38, 38, 0.1);
+}
+
+[data-theme="dark"] .sre-delete-btn--confirm {
+  color: #fff;
+  background: var(--danger);
 }
 
 .sre-cancel-btn {

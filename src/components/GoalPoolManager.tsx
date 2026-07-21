@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useT, format } from "../i18n/useT";
 import type { GoalItem, GoalPool } from "../types";
 import { savePools } from "../utils/goalPoolStorage";
@@ -35,7 +35,17 @@ export function GoalPoolManager({
   const mouseDownOnOverlay = useRef(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+    null,
+  );
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-reset confirm-delete state after 3 seconds
+  useEffect(() => {
+    if (!confirmingDeleteId) return;
+    const timer = setTimeout(() => setConfirmingDeleteId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [confirmingDeleteId]);
 
   const startRename = (pool: GoalPool) => {
     setEditingId(pool.id);
@@ -87,7 +97,7 @@ export function GoalPoolManager({
   };
 
   const handleDelete = (pool: GoalPool) => {
-    if (!window.confirm(format(t["goalPool.deleteConfirm"], pool.name))) return;
+    setConfirmingDeleteId(null);
     let updated = pools.filter((p) => p.id !== pool.id);
     // If deleting the last pool, create the "示例" pool with default goals
     if (updated.length === 0) {
@@ -181,10 +191,19 @@ export function GoalPoolManager({
                   </button>
                   <button
                     type="button"
-                    className="gp-btn gp-btn--danger"
-                    onClick={() => handleDelete(pool)}
+                    className={`gp-btn${confirmingDeleteId === pool.id ? " gp-btn--danger-confirm" : " gp-btn--danger"}`}
+                    onClick={() => {
+                      if (confirmingDeleteId === pool.id) {
+                        handleDelete(pool);
+                      } else {
+                        setConfirmingDeleteId(pool.id);
+                      }
+                    }}
+                    onBlur={() => setConfirmingDeleteId(null)}
                   >
-                    {t["goalPool.delete"]}
+                    {confirmingDeleteId === pool.id
+                      ? t["goalPool.confirmDelete"]
+                      : t["goalPool.delete"]}
                   </button>
                 </div>
               </div>

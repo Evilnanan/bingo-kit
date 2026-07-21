@@ -119,6 +119,14 @@ export function ScoringRuleEditor({ rule, onSave, onCancel, onDelete, existingNa
   const [editorMode, setEditorMode] = useState<"visual" | "json">("visual");
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  // Auto-reset confirm-delete state after 3 seconds
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const timer = setTimeout(() => setConfirmingDelete(false), 3000);
+    return () => clearTimeout(timer);
+  }, [confirmingDelete]);
 
   // Ref to avoid stale closures in switchMode / handleClose
   const formRef = useRef({ name, items, id: rule?.id });
@@ -434,10 +442,20 @@ export function ScoringRuleEditor({ rule, onSave, onCancel, onDelete, existingNa
                 {rule && onDelete && (
                   <button
                     type="button"
-                    className="sre-delete-btn"
-                    onClick={() => onDelete(rule.id)}
+                    className={`sre-delete-btn${confirmingDelete ? " sre-delete-btn--confirm" : ""}`}
+                    onClick={() => {
+                      if (confirmingDelete) {
+                        onDelete(rule.id);
+                        setConfirmingDelete(false);
+                      } else {
+                        setConfirmingDelete(true);
+                      }
+                    }}
+                    onBlur={() => setConfirmingDelete(false)}
                   >
-                    {t["scoring.delete"]}
+                    {confirmingDelete
+                      ? t["scoring.deleteConfirm"]
+                      : t["scoring.delete"]}
                   </button>
                 )}
                 <div className="sre-actions-right">

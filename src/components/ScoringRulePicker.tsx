@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { ScoringRule } from "../scoring/types";
 import { useT } from "../i18n/useT";
 import { ScoringRuleEditor } from "./ScoringRuleEditor";
@@ -42,6 +42,16 @@ export function ScoringRulePicker({
   const [savedRules, setSavedRules] = useState<ScoringRule[]>(loadRules);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<ScoringRule | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+    null,
+  );
+
+  // Auto-reset confirm-delete state after 3 seconds
+  useEffect(() => {
+    if (!confirmingDeleteId) return;
+    const timer = setTimeout(() => setConfirmingDeleteId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [confirmingDeleteId]);
 
   const isCustom = selectedRule !== null;
 
@@ -86,10 +96,16 @@ export function ScoringRulePicker({
   };
 
   const handleDeleteRule = (id: string) => {
+    const idx = savedRules.findIndex((r) => r.id === id);
     const updated = savedRules.filter((r) => r.id !== id);
     persist(updated);
     if (selectedRule?.id === id) {
-      onSelect(null);
+      if (updated.length > 0) {
+        // Select the rule before the deleted one (or the first if deleted was first)
+        onSelect(updated[Math.min(idx, updated.length - 1)]);
+      } else {
+        onSelect(null);
+      }
     }
     setEditorOpen(false);
     setEditingRule(null);
@@ -171,15 +187,22 @@ export function ScoringRulePicker({
             {savedRules.length > 1 && (
               <button
                 type="button"
-                className="srp-btn srp-btn--danger"
+                className={`srp-btn${confirmingDeleteId === selectedRule?.id ? " srp-btn--danger-confirm" : " srp-btn--danger"}`}
                 onClick={() => {
-                  if (selectedRule && window.confirm("Delete this rule?")) {
+                  if (!selectedRule) return;
+                  if (confirmingDeleteId === selectedRule.id) {
                     handleDeleteRule(selectedRule.id);
+                    setConfirmingDeleteId(null);
+                  } else {
+                    setConfirmingDeleteId(selectedRule.id);
                   }
                 }}
+                onBlur={() => setConfirmingDeleteId(null)}
                 disabled={disabled}
               >
-                {t["scoring.delete"]}
+                {confirmingDeleteId === selectedRule?.id
+                  ? t["scoring.deleteConfirm"]
+                  : t["scoring.delete"]}
               </button>
             )}
           </div>

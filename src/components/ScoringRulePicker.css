@@ -91,8 +91,30 @@
   background: #fef2f2;
 }
 
+.srp-btn--danger-confirm {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+  animation: srp-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.srp-btn--danger-confirm:hover {
+  background: var(--danger);
+  opacity: 0.85;
+}
+
+@keyframes srp-pulse {
+  from { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  to   { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);   }
+}
+
 [data-theme="dark"] .srp-btn--danger:hover {
   background: rgba(220, 38, 38, 0.1);
+}
+
+[data-theme="dark"] .srp-btn--danger-confirm {
+  color: #fff;
+  background: var(--danger);
 }
 
 /* ── preview ─────────────────────────────────────────────────────── */
