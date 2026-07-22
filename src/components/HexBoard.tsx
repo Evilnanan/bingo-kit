@@ -304,6 +304,7 @@ export function HexBoard({
             "--hex-font": `${fontSize}px`,
             "--hex-padding": `${hexPadding}px`,
             "--hex-hover-color": myTeam ? TEAM_COLORS[myTeam] : "var(--accent)",
+            "--widget-hover": myTeam ? TEAM_COLORS[myTeam] : "var(--accent)",
           } as React.CSSProperties
         }
       >

@@ -24,7 +24,7 @@
 
 .tooltip-trigger:hover,
 .tooltip-trigger:focus-visible {
-  background: var(--accent);
+  background: var(--widget-hover, var(--accent));
   color: #fff;
 }
 

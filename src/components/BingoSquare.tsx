@@ -74,6 +74,7 @@ export function BingoSquare({
   }
   if (hoverColor) {
     styleObj["--hover-border"] = hoverColor;
+    styleObj["--widget-hover"] = hoverColor;
   }
   const inlineStyle =
     Object.keys(styleObj).length > 0

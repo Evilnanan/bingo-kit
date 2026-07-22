@@ -245,7 +245,7 @@
 }
 
 .hex-counter:hover {
-  background: var(--hex-hover-color, var(--accent));
+  background: var(--widget-hover, var(--accent));
   color: #fff;
 }
 

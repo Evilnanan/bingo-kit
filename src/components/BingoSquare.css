@@ -146,7 +146,7 @@
 }
 
 .square-counter:hover {
-  background: var(--accent);
+  background: var(--widget-hover, var(--accent));
   color: #fff;
 }
 
