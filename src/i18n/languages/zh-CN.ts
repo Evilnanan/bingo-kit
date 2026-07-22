@@ -4,7 +4,7 @@ export const zhDesc = { code: "zh-CN", displayName: "中文" } as const;
 
 export const zh: Translations = {
   "landing.title": "BingoKit",
-  "landing.subtitle": "创建房间，分享链接，实时标记方格。",
+  "landing.subtitle": "实时多人联机 Bingo 应用",
   "landing.roomName": "房间名称",
   "landing.roomPlaceholder": "例如：zelda-speedrun",
   "landing.yourName": "你的名称",

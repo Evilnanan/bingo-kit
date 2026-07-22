@@ -4,8 +4,7 @@ export const enDesc = { code: "en", displayName: "English" } as const;
 
 export const en: Translations = {
   "landing.title": "BingoKit",
-  "landing.subtitle":
-    "Create a room, share the link, and mark squares together in real time.",
+  "landing.subtitle": "A real-time multiplayer Bingo app",
   "landing.roomName": "Room Name",
   "landing.roomPlaceholder": "e.g. zelda-speedrun",
   "landing.yourName": "Your Name",
