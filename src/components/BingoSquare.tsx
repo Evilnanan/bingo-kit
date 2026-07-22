@@ -165,7 +165,7 @@ export function BingoSquare({
             counterHandlers.onTouchEnd();
           }}
         >
-          {counterValue}
+          {counterValue}/{counter}
         </span>
       )}
       <span className="square-text">{goal}</span>

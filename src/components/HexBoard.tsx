@@ -392,7 +392,7 @@ export function HexBoard({
                     rawCounterTouchEnd();
                   }}
                 >
-                  {counters[cell.idx] ?? 0}
+                  {counters[cell.idx] ?? 0}/{getGoalCounter(config.goals[cell.idx])}
                 </span>
               )}
             </button>
