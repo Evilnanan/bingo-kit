@@ -1,4 +1,4 @@
-.tooltip-trigger {
+.tooltip {
   position: absolute;
   top: 2px;
   right: 2px;
@@ -22,13 +22,13 @@
     color 0.15s;
 }
 
-.tooltip-trigger:hover,
-.tooltip-trigger:focus-visible {
+.tooltip:hover,
+.tooltip:focus-visible {
   background: var(--widget-hover, var(--accent));
   color: #fff;
 }
 
-.tooltip-trigger:active {
+.tooltip:active {
   transform: scale(0.9);
 }
 

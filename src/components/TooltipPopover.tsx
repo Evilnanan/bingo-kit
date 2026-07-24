@@ -30,7 +30,7 @@ export function TooltipPopover({ text }: Props) {
   return (
     <>
       <span
-        className="tooltip-trigger"
+        className="tooltip"
         role="button"
         tabIndex={0}
         onTouchStart={handleTouchStart}

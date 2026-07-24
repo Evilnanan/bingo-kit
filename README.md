@@ -19,6 +19,22 @@ A real-time multiplayer Bingo app.
 - **Custom scoring** — Rule-based engine with an expression language for scoring cells and bingo lines. Includes a visual rule editor.
 - **Mobile-friendly** — Optimized for small screens
 
+## OBS Custom CSS
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC&display=swap');
+
+:root {
+  --cell-font-scale: 1.3;                          /* Scale goal text (default: 1) */
+  --sans: "Noto Sans SC", system-ui, sans-serif;    /* Custom font */
+}
+
+/* Hide UI elements (prefix with .square or .hex to target only one board) */
+.counter { display: none !important; }    /* Counter badge */
+.tooltip { display: none !important; }    /* Tooltip trigger */
+.star    { display: none !important; }    /* Star mark */
+```
+
 ## Development
 
 ```bash

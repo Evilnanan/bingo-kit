@@ -28,7 +28,7 @@
 }
 
 /* Wrapper: positions the cell, no clip-path */
-.hex-cell {
+.hex {
   position: absolute;
   margin: 0;
   padding: 0;
@@ -44,37 +44,37 @@
   -webkit-touch-callout: none;
 }
 
-.hex-cell:hover:not(:disabled) {
+.hex:hover:not(:disabled) {
   transform: scale(1.02);
   z-index: 10;
 }
 
-.hex-cell:hover:not(:disabled) .hex-cell-bg {
+.hex:hover:not(:disabled) .bg {
   background: var(--hex-hover-color, var(--accent));
 }
 
-.hex-cell:active:not(:disabled) {
+.hex:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-.hex-cell:active:not(:disabled):has(.hex-counter:active) {
+.hex:active:not(:disabled):has(.counter:active) {
   transform: none;
 }
 
-.hex-cell:disabled {
+.hex:disabled {
   cursor: default;
 }
 
-.hex-cell:disabled:hover {
+.hex:disabled:hover {
   transform: none;
 }
 
-.hex-cell:disabled:hover .hex-cell-bg {
+.hex:disabled:hover .bg {
   background: var(--border);
 }
 
 /* Outer layer: border color, no gap for tight tiling */
-.hex-cell-bg {
+.hex .bg {
   position: absolute;
   inset: 0;
   clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
@@ -84,7 +84,7 @@
 }
 
 /* Inner layer: surface fill, 1px smaller → 1px border */
-.hex-cell-fill {
+.hex .fill {
   position: absolute;
   inset: 1px;
   clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
@@ -94,93 +94,93 @@
 }
 
 /* Team colors — always show actual team color */
-.hex-cell--team-red .hex-cell-fill {
+.hex--team-red .fill {
   background: #fecaca;
 }
 
-.hex-cell--team-red .hex-cell-bg {
+.hex--team-red .bg {
   background: #dc2626;
 }
 
-.hex-cell--team-blue .hex-cell-fill {
+.hex--team-blue .fill {
   background: #dbeafe;
 }
 
-.hex-cell--team-blue .hex-cell-bg {
+.hex--team-blue .bg {
   background: #2563eb;
 }
 
-[data-theme="dark"] .hex-cell--team-red .hex-cell-fill {
+[data-theme="dark"] .hex--team-red .fill {
   background: #7f1d1d;
 }
 
-[data-theme="dark"] .hex-cell--team-red .hex-cell-bg {
+[data-theme="dark"] .hex--team-red .bg {
   background: #f87171;
 }
 
-[data-theme="dark"] .hex-cell--team-blue .hex-cell-fill {
+[data-theme="dark"] .hex--team-blue .fill {
   background: #1e3a5f;
 }
 
-[data-theme="dark"] .hex-cell--team-blue .hex-cell-bg {
+[data-theme="dark"] .hex--team-blue .bg {
   background: #60a5fa;
 }
 
-.hex-cell--win {
+.hex--win {
   z-index: 5;
 }
 
 /* Win path — vivid team-color variant + glow on cell */
-.hex-cell--red-win {
+.hex--red-win {
   filter: drop-shadow(0 0 8px #ef4444aa);
 }
 
-.hex-cell--red-win .hex-cell-fill {
+.hex--red-win .fill {
   background: #fca5a5;
 }
 
-.hex-cell--red-win .hex-cell-bg {
+.hex--red-win .bg {
   background: #dc2626;
 }
 
-.hex-cell--blue-win {
+.hex--blue-win {
   filter: drop-shadow(0 0 8px #3b82f6aa);
 }
 
-.hex-cell--blue-win .hex-cell-fill {
+.hex--blue-win .fill {
   background: #93c5fd;
 }
 
-.hex-cell--blue-win .hex-cell-bg {
+.hex--blue-win .bg {
   background: #2563eb;
 }
 
-[data-theme="dark"] .hex-cell--red-win {
+[data-theme="dark"] .hex--red-win {
   filter: drop-shadow(0 0 10px #f8717188);
 }
 
-[data-theme="dark"] .hex-cell--red-win .hex-cell-fill {
+[data-theme="dark"] .hex--red-win .fill {
   background: #b91c1c;
 }
 
-[data-theme="dark"] .hex-cell--red-win .hex-cell-bg {
+[data-theme="dark"] .hex--red-win .bg {
   background: #ef4444;
 }
 
-[data-theme="dark"] .hex-cell--blue-win {
+[data-theme="dark"] .hex--blue-win {
   filter: drop-shadow(0 0 10px #60a5fa88);
 }
 
-[data-theme="dark"] .hex-cell--blue-win .hex-cell-fill {
+[data-theme="dark"] .hex--blue-win .fill {
   background: #1d4ed8;
 }
 
-[data-theme="dark"] .hex-cell--blue-win .hex-cell-bg {
+[data-theme="dark"] .hex--blue-win .bg {
   background: #3b82f6;
 }
 
-/* Planned cell — local-only route planning marker (star) */
-.hex-plan-marker {
+/* Star mark (bottom-right) */
+.hex .star {
   position: absolute;
   bottom: 3%;
   right: 16%;
@@ -195,7 +195,7 @@
 }
 
 /* Content layer: sits on top of the fill, inset to stay within hex shape */
-.hex-content {
+.hex .content {
   position: absolute;
   inset: 2px;
   display: flex;
@@ -207,21 +207,22 @@
   pointer-events: none;
 }
 
-.hex-goal-text {
-  font-size: var(--hex-font);
+.hex .text {
+  font-size: var(--hex-goal-font, var(--hex-font));
   line-height: 1.15;
   text-align: center;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  word-break: break-word;
-  padding: 0 var(--hex-padding, 12px);
+}
+
+.hex .text-line {
+  display: block;
+  margin: 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Counter badge — top-left corner, local only */
-.hex-counter {
+.hex .counter {
   position: absolute;
   bottom: 3%;
   left: 25%;
@@ -244,16 +245,16 @@
   touch-action: manipulation;
 }
 
-.hex-counter:hover {
+.hex .counter:hover {
   background: var(--widget-hover, var(--accent));
   color: #fff;
 }
 
-.hex-counter:active {
+.hex .counter:active {
   transform: scale(0.9);
 }
 
-.hex-content .tooltip-trigger {
+.hex .tooltip {
   pointer-events: auto;
   font-size: calc(var(--hex-font) * 0.9);
   padding: 2px 2px;

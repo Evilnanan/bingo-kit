@@ -31,7 +31,7 @@
   transform: scale(0.98);
 }
 
-.square:active:has(.square-counter:active) {
+.square:active:has(.counter:active) {
   transform: none;
 }
 
@@ -41,7 +41,7 @@
   border-color: var(--mark-border);
 }
 
-.square-mark-bg {
+.square .mark-bg {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -58,7 +58,7 @@
 }
 
 /* Multi-color diagonal-split layer container */
-.square-segments {
+.square .segments {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -66,7 +66,7 @@
   border-radius: inherit;
 }
 
-.square-segment {
+.square .segment {
   position: absolute;
   inset: 0;
   opacity: 0.2;
@@ -74,13 +74,14 @@
 
 /* ---- Text sits above the color layer ---- */
 
-.square-text {
+.square .text {
   position: relative;
   z-index: 2;
-  font-size: 13px;
+  /* font-size is set via inline style (adaptive) */
   line-height: 1.3;
   text-align: center;
-  word-break: break-word;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -117,7 +118,7 @@
 
 /* ---- Counter badge ---- */
 
-.square-counter {
+.square .counter {
   position: absolute;
   top: 2px;
   left: 4px;
@@ -139,19 +140,18 @@
   touch-action: manipulation;
 }
 
-.square-counter:hover {
+.square .counter:hover {
   background: var(--widget-hover, var(--accent));
   color: #fff;
 }
 
-.square-counter:active {
+.square .counter:active {
   transform: scale(0.9);
 }
 
-/* ---- Local mark — star (aligned with Hex hex-plan-marker) ---- */
+/* ---- Star mark (bottom-right) ---- */
 
-.square--local-mark::after {
-  content: "";
+.square .star {
   position: absolute;
   bottom: 6px;
   right: 6px;
@@ -169,9 +169,5 @@
 @media (max-width: 600px) {
   .square {
     padding: 16px 4px;
-  }
-
-  .square-text {
-    font-size: 11px;
   }
 }

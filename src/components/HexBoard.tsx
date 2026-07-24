@@ -8,7 +8,7 @@ import { getGoalCounter, getGoalText, getGoalTooltip } from "../types";
 import { useCounters } from "../hooks/useCounters";
 import { makeCellEventHandlers, useLongPressAlt } from "../hooks/useLongPress";
 import { fitHexText } from "../utils/fitHexText";
-import type { HexFitResult } from "../utils/fitHexText";
+import type { HexLine } from "../utils/fitHexText";
 import { getSystemFontFamily } from "../utils/measureText";
 import "./HexBoard.css";
 import type { HexConfig } from "../hex/hexTypes";
@@ -48,7 +48,7 @@ export function HexBoard({
   const numCols = sizeBlue + sizeRed - 1;
   const numRows = (sizeBlue + sizeRed) * 0.5;
 
-  const [plannedCells, setPlannedCells] = useState<Set<number>>(new Set());
+  const [starMarkedCells, setStarMarkedCells] = useState<Set<number>>(new Set());
 
   const {
     counters,
@@ -58,8 +58,8 @@ export function HexBoard({
     handleTouchEnd: rawCounterTouchEnd,
   } = useCounters(goals);
 
-  const togglePlanned = (idx: number) => {
-    setPlannedCells((prev) => {
+  const toggleStarMark = (idx: number) => {
+    setStarMarkedCells((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx);
       else next.add(idx);
@@ -67,7 +67,7 @@ export function HexBoard({
     });
   };
 
-  const plannedAlt = useLongPressAlt(togglePlanned);
+  const starMarkAlt = useLongPressAlt(toggleStarMark);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [containerW, setContainerW] = useState(() => window.innerWidth);
@@ -86,6 +86,20 @@ export function HexBoard({
     return () => ro.disconnect();
   }, []);
 
+  // Read --cell-font-scale CSS custom property (for OBS custom CSS injection).
+  const [hexFontScale, setHexFontScale] = useState(1);
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const raw = getComputedStyle(el)
+      .getPropertyValue("--cell-font-scale")
+      .trim();
+    const scale = parseFloat(raw);
+    if (scale && !isNaN(scale) && scale > 0) {
+      setHexFontScale(scale);
+    }
+  }, []);
+
   const hexW = (() => {
     const maxWidth = containerW;
     const maxHeight = containerH;
@@ -102,12 +116,14 @@ export function HexBoard({
   })();
 
   const hexH = hexW * (Math.sqrt(3) / 2);
-  const fontSize = Math.min(13, Math.max(7, Math.round(hexW * 0.11)));
+  // Base font size for UI elements (counter, tooltip, star-mark) — NOT scaled.
+  const uiFontSize = Math.min(13, Math.max(1, Math.round(hexW * 0.11)));
+  // Goal text base font size — scaled by --cell-font-scale for OBS / streaming.
+  const goalBaseFontSize = Math.round(uiFontSize * hexFontScale);
   const hexPadding = Math.max(2, Math.round(hexW * 0.08));
 
   const fontFamily = getSystemFontFamily();
-  const availableTextWidth = hexW - 4 - 2 * hexPadding;
-  const availableTextHeight = hexH - 4;
+  const contentInset = 2; // matches .hex-content { inset: 2px }
 
   const margin = hexW * 0.25;
 
@@ -250,7 +266,8 @@ export function HexBoard({
       tooltip: string | undefined;
       markTeam: Team | null;
       winTeam: Team | null;
-      textStyle: HexFitResult;
+      textLines: HexLine[];
+      fontSize: number;
     }> = [];
 
     for (let idx = 0; idx < totalCells; idx++) {
@@ -271,11 +288,13 @@ export function HexBoard({
 
       const goalItem = goals[idx];
       const goalText = goalItem ? getGoalText(goalItem, lang) : "";
-      const textStyle = fitHexText(
+      const { lines, fontSize } = fitHexText(
         goalText,
-        fontSize,
-        availableTextWidth,
-        availableTextHeight,
+        goalBaseFontSize,
+        hexW,
+        hexH,
+        contentInset,
+        hexPadding,
         fontFamily,
       );
       result.push({
@@ -286,7 +305,8 @@ export function HexBoard({
         tooltip: goalItem ? getGoalTooltip(goalItem, lang) : undefined,
         markTeam,
         winTeam,
-        textStyle,
+        textLines: lines,
+        fontSize,
       });
     }
 
@@ -301,7 +321,8 @@ export function HexBoard({
           {
             width: boardW,
             height: boardH,
-            "--hex-font": `${fontSize}px`,
+            "--hex-font": `${uiFontSize}px`,
+            "--hex-goal-font": `${goalBaseFontSize}px`,
             "--hex-padding": `${hexPadding}px`,
             "--hex-hover-color": myTeam ? TEAM_COLORS[myTeam] : "var(--accent)",
             "--widget-hover": myTeam ? TEAM_COLORS[myTeam] : "var(--accent)",
@@ -317,12 +338,12 @@ export function HexBoard({
           <path d={redFill} fill="var(--team-red-fill)" />
         </svg>
         {cells.map((cell) => {
-          let cellClass = "hex-cell";
+          let cellClass = "hex";
           if (cell.winTeam)
-            cellClass += ` hex-cell--win hex-cell--${cell.winTeam}-win`;
-          else if (cell.markTeam === "red") cellClass += " hex-cell--team-red";
+            cellClass += ` hex--win hex--${cell.winTeam}-win`;
+          else if (cell.markTeam === "red") cellClass += " hex--team-red";
           else if (cell.markTeam === "blue")
-            cellClass += " hex-cell--team-blue";
+            cellClass += " hex--team-blue";
 
           return (
             <button
@@ -335,37 +356,40 @@ export function HexBoard({
                 width: hexW,
                 height: hexH,
               }}
-              {...makeCellEventHandlers(plannedAlt, onMarkCell, cell.idx)}
-              onTouchMove={plannedAlt.cancel}
-              onTouchCancel={plannedAlt.cancel}
+              {...makeCellEventHandlers(starMarkAlt, onMarkCell, cell.idx)}
+              onTouchMove={starMarkAlt.cancel}
+              onTouchCancel={starMarkAlt.cancel}
               title={cell.goal}
             >
-              <span className="hex-cell-bg" />
-              <span className="hex-cell-fill" />
-              <span className="hex-content">
-                {plannedCells.has(cell.idx) && (
-                  <span className="hex-plan-marker" />
+              <span className="bg" />
+              <span className="fill" />
+              <span className="content">
+                {starMarkedCells.has(cell.idx) && (
+                  <span className="star" />
                 )}
                 <span
-                  className="hex-goal-text"
+                  className="text"
                   style={
-                    cell.textStyle.fontSize !== fontSize ||
-                    cell.textStyle.lineClamp !== 3
-                      ? {
-                          fontSize: cell.textStyle.fontSize,
-                          WebkitLineClamp: cell.textStyle.lineClamp,
-                          lineClamp: cell.textStyle.lineClamp,
-                        }
+                    cell.fontSize !== goalBaseFontSize
+                      ? { fontSize: cell.fontSize }
                       : undefined
                   }
                 >
-                  {cell.goal}
+                  {cell.textLines.map((line, i) => (
+                    <span
+                      key={i}
+                      className="text-line"
+                      style={{ maxWidth: line.maxWidth }}
+                    >
+                      {line.text}
+                    </span>
+                  ))}
                 </span>
                 {cell.tooltip && <TooltipPopover text={cell.tooltip} />}
               </span>
               {getGoalCounter(config.goals[cell.idx]) > 0 && (
                 <span
-                  className="hex-counter"
+                  className="counter"
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();

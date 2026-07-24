@@ -121,7 +121,7 @@ export function BingoBoard({
   cellScores,
 }: Props) {
   const { lang } = useT();
-  const [localMarks, setLocalMarks] = useState<Set<number>>(new Set());
+  const [starMarks, setStarMarks] = useState<Set<number>>(new Set());
 
   const {
     counters,
@@ -131,8 +131,8 @@ export function BingoBoard({
     handleTouchEnd: handleCounterTouchEnd,
   } = useCounters(goals);
 
-  const toggleLocalMark = (index: number) => {
-    setLocalMarks((prev) => {
+  const toggleStarMark = (index: number) => {
+    setStarMarks((prev) => {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
       else next.add(index);
@@ -140,7 +140,7 @@ export function BingoBoard({
     });
   };
 
-  const markAlt = useLongPressAlt(toggleLocalMark);
+  const markAlt = useLongPressAlt(toggleStarMark);
 
   // Local player's color — used for hover border
   const localPlayerColor = localPlayerName
@@ -184,7 +184,7 @@ export function BingoBoard({
             colorSegments={colorSegments}
             borderColor={borderColor}
             hoverColor={localPlayerColor}
-            isLocalMarked={localMarks.has(i)}
+            isStarMarked={starMarks.has(i)}
             counter={counter}
             counterValue={counter > 0 ? (counters[i] ?? 0) : 0}
             counterHandlers={{

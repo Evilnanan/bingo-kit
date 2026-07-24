@@ -1,5 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import type React from "react";
 import { TooltipPopover } from "./TooltipPopover";
+import { fitSquareText } from "../utils/fitSquareText";
+import { getSystemFontFamily } from "../utils/measureText";
 import "./BingoSquare.css";
 
 export interface ColorSegment {
@@ -26,7 +29,7 @@ interface Props {
   borderColor?: string;
   /** The local player's color, used as the hover border color. */
   hoverColor?: string;
-  isLocalMarked: boolean;
+  isStarMarked: boolean;
   counter: number;
   counterValue: number;
   counterHandlers: CounterHandlers;
@@ -43,7 +46,7 @@ export function BingoSquare({
   colorSegments,
   borderColor,
   hoverColor,
-  isLocalMarked,
+  isStarMarked,
   counter,
   counterValue,
   counterHandlers,
@@ -62,7 +65,6 @@ export function BingoSquare({
     isSingle ? "square--single-mark" : "",
     isMulti ? "square--multi-mark" : "",
     difficulty && difficulty >= 2 ? `square--diff-${difficulty}` : "",
-    isLocalMarked ? "square--local-mark" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -81,6 +83,59 @@ export function BingoSquare({
       ? (styleObj as React.CSSProperties)
       : undefined;
 
+  // ---- Adaptive font sizing via ResizeObserver ----
+  const squareRef = useRef<HTMLButtonElement>(null);
+  const [contentW, setContentW] = useState(0);
+  const [contentH, setContentH] = useState(0);
+
+  useEffect(() => {
+    const el = squareRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) {
+        setContentW(entry.contentRect.width);
+        setContentH(entry.contentRect.height);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Read --cell-font-scale CSS custom property (for OBS custom CSS injection).
+  // OBS users can set e.g. `:root { --cell-font-scale: 1.3; }` to make text 30% larger.
+  const [fontScale, setFontScale] = useState(1);
+  useEffect(() => {
+    const el = squareRef.current;
+    if (!el) return;
+    const raw = getComputedStyle(el)
+      .getPropertyValue("--cell-font-scale")
+      .trim();
+    const scale = parseFloat(raw);
+    if (scale && !isNaN(scale) && scale > 0) {
+      setFontScale(scale);
+    }
+  }, []);
+
+  const fontFamily = getSystemFontFamily();
+
+  const optimalFontSize = (() => {
+    // Before ResizeObserver fires — use sensible default
+    if (!contentW || !contentH) {
+      return Math.round(13 * fontScale);
+    }
+    const baseFontSize = Math.min(
+      28,
+      Math.max(1, Math.round(contentW * 0.09 * fontScale)),
+    );
+    return fitSquareText(
+      goal,
+      baseFontSize,
+      contentW,
+      contentH,
+      fontFamily,
+    );
+  })();
+
   // Pre-compute cumulative positions in diagonal coordinate system.
   // Segment i spans from cum[i] to cum[i+1]; cum[N] = 1.5 (natural right boundary).
   // A dividing line at position f goes from (f*100%, 0) to ((f-0.5)*100%, 100%).
@@ -92,6 +147,7 @@ export function BingoSquare({
 
   return (
     <button
+      ref={squareRef}
       type="button"
       className={classNames}
       style={inlineStyle}
@@ -103,11 +159,11 @@ export function BingoSquare({
       onTouchCancel={onTouchEnd}
     >
       {/* Single-marker solid background */}
-      {isSingle && <div className="square-mark-bg" aria-hidden="true" />}
+      {isSingle && <div className="mark-bg" aria-hidden="true" />}
 
       {/* Multi-color diagonal-split background */}
       {isMulti && (
-        <div className="square-segments" aria-hidden="true">
+        <div className="segments" aria-hidden="true">
           {colorSegments.map((seg, i) => {
             const left = cum[i];
             const right = cum[i + 1];
@@ -125,7 +181,7 @@ export function BingoSquare({
             return (
               <div
                 key={i}
-                className="square-segment"
+                className="segment"
                 style={{
                   backgroundColor: seg.color,
                   clipPath: `polygon(${topLeft} 0%, ${topRight} 0%, ${bottomRight} 100%, ${bottomLeft} 100%)`,
@@ -136,9 +192,11 @@ export function BingoSquare({
         </div>
       )}
 
+      {isStarMarked && <span className="star" />}
+
       {counter > 0 && (
         <span
-          className="square-counter"
+          className="counter"
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -169,7 +227,12 @@ export function BingoSquare({
           {counterValue}/{counter}
         </span>
       )}
-      <span className="square-text">{goal}</span>
+      <span
+        className="text"
+        style={{ fontSize: optimalFontSize }}
+      >
+        {goal}
+      </span>
       {tooltip && <TooltipPopover text={tooltip} />}
     </button>
   );
