@@ -17,7 +17,6 @@ interface Props {
   boardConfig: import("../types").BoardConfig;
   serverUrl: string;
   onLeave: () => void;
-  localMode?: boolean;
 }
 
 export function BingoRoom({
@@ -26,7 +25,6 @@ export function BingoRoom({
   boardConfig,
   serverUrl,
   onLeave,
-  localMode = false,
 }: Props) {
   const {
     state,
@@ -45,7 +43,6 @@ export function BingoRoom({
     boardConfig,
     serverUrl,
     "classic",
-    localMode,
     onLeave,
   );
   const { t } = useT();

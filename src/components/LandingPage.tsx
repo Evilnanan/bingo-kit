@@ -36,11 +36,6 @@ function getServerFromUrl(): string {
   return params.get("server") || "";
 }
 
-function getLocalFromUrl(): boolean {
-  const params = new URLSearchParams(window.location.search);
-  return params.has("local");
-}
-
 function getShareFromUrl(): boolean {
   const params = new URLSearchParams(window.location.search);
   return params.has("share");
@@ -181,7 +176,6 @@ export function LandingPage({ onJoinRoom }: Props) {
     () => ANIMALS[Math.floor(Math.random() * ANIMALS.length)],
   );
   const [serverUrl, setServerUrl] = useState(() => getServerFromUrl());
-  const localMode = getLocalFromUrl();
   const isSharedLink = getShareFromUrl();
 
   // Goal pool state
@@ -256,7 +250,6 @@ export function LandingPage({ onJoinRoom }: Props) {
               },
             }
           : {}),
-        localMode,
       });
       return;
     }
@@ -310,7 +303,6 @@ export function LandingPage({ onJoinRoom }: Props) {
           goals: stripGoalMeta(picked),
           configHash,
         },
-        localMode,
       });
       return;
     }
@@ -348,7 +340,6 @@ export function LandingPage({ onJoinRoom }: Props) {
       playerName: trimmedName,
       serverUrl: serverUrl.trim() || DEFAULT_SERVER_URL,
       boardConfig,
-      localMode,
     });
   };
 
@@ -434,29 +425,27 @@ export function LandingPage({ onJoinRoom }: Props) {
           </label>
         </div>
 
-        {!localMode && (
-          <label className="form-label">
-            <span>
-              <a
-                href="https://docs.partykit.io/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="channel-link"
-              >
-                PartyKit
-              </a>{" "}
-              {t["landing.serverUrl"]}
-            </span>
-            <input
-              className="form-input"
-              type="text"
-              value={serverUrl}
-              onChange={(e) => setServerUrl(e.target.value)}
-              placeholder={DEFAULT_SERVER_URL}
-              disabled={isSharedLink}
-            />
-          </label>
-        )}
+        <label className="form-label">
+          <span>
+            <a
+              href="https://docs.partykit.io/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="channel-link"
+            >
+              PartyKit
+            </a>{" "}
+            {t["landing.serverUrl"]}
+          </span>
+          <input
+            className="form-input"
+            type="text"
+            value={serverUrl}
+            onChange={(e) => setServerUrl(e.target.value)}
+            placeholder={DEFAULT_SERVER_URL}
+            disabled={isSharedLink}
+          />
+        </label>
 
         {/* Goal pool — shared between classic and hex */}
         <div className="form-label">

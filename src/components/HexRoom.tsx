@@ -19,7 +19,6 @@ interface Props {
   hexConfig: HexConfig;
   serverUrl: string;
   onLeave: () => void;
-  localMode?: boolean;
 }
 
 export function HexRoom({
@@ -28,7 +27,6 @@ export function HexRoom({
   hexConfig,
   serverUrl,
   onLeave,
-  localMode = false,
 }: Props) {
   const {
     state,
@@ -47,7 +45,6 @@ export function HexRoom({
     hexConfig,
     serverUrl,
     "hex",
-    localMode,
     onLeave,
   );
   const { t } = useT();

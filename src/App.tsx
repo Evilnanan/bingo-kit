@@ -83,7 +83,6 @@ function App() {
             hexConfig={roomConfig.hexConfig}
             serverUrl={roomConfig.serverUrl}
             onLeave={handleLeaveRoom}
-            localMode={roomConfig.localMode ?? false}
           />
         ) : (
           <BingoRoom
@@ -92,7 +91,6 @@ function App() {
             boardConfig={roomConfig.boardConfig}
             serverUrl={roomConfig.serverUrl}
             onLeave={handleLeaveRoom}
-            localMode={roomConfig.localMode ?? false}
           />
         ))}
     </div>

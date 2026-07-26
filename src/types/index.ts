@@ -101,7 +101,6 @@ export interface RoomConfig {
   boardConfig: BoardConfig;
   serverUrl: string;
   hexConfig?: import("../hex/hexTypes").HexConfig;
-  localMode?: boolean;
 }
 
 export interface ChatMessage {

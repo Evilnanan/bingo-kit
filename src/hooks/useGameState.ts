@@ -1,7 +1,6 @@
 import {
   useReducer,
   useLayoutEffect,
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -254,7 +253,6 @@ export function useGameState(
   initialConfig: BoardConfig | HexConfig,
   serverUrl: string,
   mode: GameMode,
-  localMode = false,
   onLeave?: () => void,
 ) {
   const [state, dispatch] = useReducer(
@@ -263,7 +261,6 @@ export function useGameState(
     (arg) => createInitialState(arg.config, arg.mode),
   );
   const wsRef = useRef<PartySocket | null>(null);
-  const clientIdRef = useRef<string | null>(null);
   const stateRef = useRef(state);
   useLayoutEffect(() => {
     stateRef.current = state;
@@ -441,19 +438,7 @@ export function useGameState(
     dispatch,
     wsRef,
     onMessage: handleServerMessage,
-    enabled: !localMode,
   });
-
-  // Local mode: set up a virtual local player without PartyKit
-  useEffect(() => {
-    if (!localMode) return;
-    const clientId = "local-" + Math.random().toString(36).slice(2, 10);
-    clientIdRef.current = clientId;
-    dispatch({ type: "SET_CLIENT_ID", clientId });
-    dispatch({ type: "SET_LOCAL_PLAYER_NAME", name: playerName });
-    dispatch({ type: "ADD_PLAYER", playerName, color: "" });
-    dispatch({ type: "SET_PHASE", phase: "playing" });
-  }, [localMode, playerName, dispatch]);
 
   // Note: the "start" message from the server is the sole authority for
   // transitioning to "playing". The countdownSeconds field from "state"
