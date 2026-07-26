@@ -58,10 +58,15 @@ export function HexRoom({
   const isOwner =
     state.localPlayerName != null && state.localPlayerName === state.owner;
 
+  // Fall back to the initial hexConfig prop when the server hasn't sent
+  // the config yet (e.g. single-player start without countdown skips the
+  // state-message broadcast). This mirrors BingoRoom's boardConfig fallback.
+  const effectiveConfig = (state.config as HexConfig) || hexConfig;
+
   // Scoring — Hex always uses default rule.
   // Map team names ("red"/"blue") to their hex colors so PlayerList can
   // look up scores by player.color (e.g. "#dc2626") correctly.
-  const hexGoals = (state.config as HexConfig)?.goals ?? hexConfig.goals;
+  const hexGoals = effectiveConfig.goals;
   const { scores } = useScoring(
     state.marks,
     state.players,
@@ -99,9 +104,9 @@ export function HexRoom({
             />
           )}
           {showBoard &&
-            (state.config ? (
+            (effectiveConfig ? (
               <HexBoard
-                config={state.config as HexConfig}
+                config={effectiveConfig}
                 marks={state.marks}
                 players={state.players}
                 localPlayerName={state.localPlayerName}

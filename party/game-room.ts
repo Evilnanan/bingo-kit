@@ -443,6 +443,10 @@ export class GameRoom {
             this.phase = "playing";
             this.countdownEnd = null;
             delete all[0].ready;
+            // Send full state first so the client receives the config
+            // (the lobby state message omitted it). Otherwise HexRoom
+            // shows "Loading board…" forever because state.config is null.
+            this.transport.broadcast(this.stateMsg);
             this.transport.broadcast({ type: "start" });
           } else {
             this.startCountdown();
