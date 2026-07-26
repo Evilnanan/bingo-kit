@@ -436,7 +436,17 @@ export class GameRoom {
         // Check if all players are ready
         const all = Object.values(this.players);
         if (all.length > 0 && all.every((p) => p.ready === true)) {
-          this.startCountdown();
+          if (all.length === 1) {
+            // Single player: start immediately without countdown
+            if (this.countdownTimer) clearTimeout(this.countdownTimer);
+            this.countdownTimer = null;
+            this.phase = "playing";
+            this.countdownEnd = null;
+            delete all[0].ready;
+            this.transport.broadcast({ type: "start" });
+          } else {
+            this.startCountdown();
+          }
         }
         break;
       }
