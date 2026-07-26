@@ -120,7 +120,6 @@ function tryFitLines(
   // Push the final line — only succeeds if there's still room.
   if (cur && li < numLines) {
     out.push({ text: cur, maxWidth: lineWidths[li] });
-    li++;
   } else if (cur) {
     return null;
   }

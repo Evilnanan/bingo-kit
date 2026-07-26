@@ -513,9 +513,9 @@ function refEquals(a: any, b: any): boolean {
  * Evaluate a lambda against each element of an array.
  * Returns the result of the lambda body for each element.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyLambda(
   lambda: ASTNode,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   element: any,
   baseCtx: EvalContext,
 ): number {

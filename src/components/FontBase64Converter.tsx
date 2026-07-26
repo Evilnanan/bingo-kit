@@ -141,7 +141,6 @@ export default function FontBase64Converter() {
 
   // ── preview CSS (stable — only recomputes when fonts are added/removed, not on family edits) ──
   const fontsKey = fonts.map((f) => f.id).join(",");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const previewFontsCSS = useMemo(() => {
     return fonts
       .map((f) => {
@@ -192,7 +191,7 @@ export default function FontBase64Converter() {
       ta.style.opacity = "0";
       document.body.appendChild(ta);
       ta.select();
-      document.execCommand("copy");
+      navigator.clipboard.writeText(css);
       document.body.removeChild(ta);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
