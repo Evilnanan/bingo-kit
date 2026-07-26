@@ -1,4 +1,10 @@
-import { useState, useCallback, useMemo, type DragEvent, type ChangeEvent } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  type DragEvent,
+  type ChangeEvent,
+} from "react";
 import "./FontBase64Converter.css";
 
 interface FontEntry {
@@ -77,7 +83,9 @@ export default function FontBase64Converter() {
     reader.onload = () => {
       const base64 = (reader.result as string).split(",")[1] ?? "";
       const format = getFormat(file.name);
-      const familyBase = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "-");
+      const familyBase = file.name
+        .replace(/\.[^.]+$/, "")
+        .replace(/[^a-zA-Z0-9_-]/g, "-");
       const id = `font-${++idCounter}`;
       const entry: FontEntry = {
         id,
@@ -198,7 +206,8 @@ export default function FontBase64Converter() {
 
       <h1 className="fc-title">Font Base64 Converter</h1>
       <p className="fc-subtitle">
-        Convert local font files to Base64 Data URIs and generate custom CSS for OBS browser sources.
+        Convert local font files to Base64 Data URIs and generate custom CSS for
+        OBS browser sources.
       </p>
 
       {/* ── Drop zone ── */}
@@ -228,8 +237,14 @@ export default function FontBase64Converter() {
         <>
           <div className="fc-section">
             <div className="fc-section-header">
-              <h2 className="fc-section-title">Loaded Fonts ({fonts.length})</h2>
-              <button type="button" className="fc-btn fc-btn--ghost" onClick={() => setFonts([])}>
+              <h2 className="fc-section-title">
+                Loaded Fonts ({fonts.length})
+              </h2>
+              <button
+                type="button"
+                className="fc-btn fc-btn--ghost"
+                onClick={() => setFonts([])}
+              >
                 Clear All
               </button>
             </div>
@@ -283,13 +298,16 @@ export default function FontBase64Converter() {
               />
             </label>
           </div>
-
         </>
       )}
 
       {/* ── Copy button ── (always visible) */}
       <div className="fc-section">
-        <button type="button" className="fc-btn fc-btn--copy" onClick={handleCopy}>
+        <button
+          type="button"
+          className="fc-btn fc-btn--copy"
+          onClick={handleCopy}
+        >
           {copied ? "✓ Copied to Clipboard" : "📋 Copy CSS"}
         </button>
       </div>

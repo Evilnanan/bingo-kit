@@ -15,7 +15,10 @@ function App() {
   const [roomConfig, setRoomConfig] = useState<RoomConfig | null>(null);
 
   const testParam = new URLSearchParams(window.location.search).get("test");
-  const isTestMode = testParam === "randompick" || testParam === "expression" || testParam === "fontbase64";
+  const isTestMode =
+    testParam === "randompick" ||
+    testParam === "expression" ||
+    testParam === "fontbase64";
 
   const handleJoinRoom = (config: RoomConfig) => {
     setRoomConfig(config);

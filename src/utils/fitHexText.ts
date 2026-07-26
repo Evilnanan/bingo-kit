@@ -67,7 +67,10 @@ function computeLineWidths(
     const y = lineCenterY / hexHeight;
     widths.push(
       Math.round(
-        Math.max(0, hexWidthAtY(Math.max(0, Math.min(1, y)), hexWidth, inset, paddingX)),
+        Math.max(
+          0,
+          hexWidthAtY(Math.max(0, Math.min(1, y)), hexWidth, inset, paddingX),
+        ),
       ),
     );
   }
@@ -161,7 +164,14 @@ function breakLines(
       paddingX,
       contentH,
     );
-    const result = tryFitLines(tokens, sep, n, lineWidths, fontSize, fontFamily);
+    const result = tryFitLines(
+      tokens,
+      sep,
+      n,
+      lineWidths,
+      fontSize,
+      fontFamily,
+    );
     if (result) return result;
   }
 
@@ -182,7 +192,15 @@ export function layoutHexText(
   fontFamily: string,
 ): HexLine[] | null {
   if (!text) return [];
-  return breakLines(text, fontSize, hexWidth, hexHeight, inset, paddingX, fontFamily);
+  return breakLines(
+    text,
+    fontSize,
+    hexWidth,
+    hexHeight,
+    inset,
+    paddingX,
+    fontFamily,
+  );
 }
 
 /**
@@ -243,7 +261,9 @@ export function fitHexText(
   }
 
   return {
-    lines: best ?? [{ text, maxWidth: Math.round(hexWidth * 0.5 - 2 * inset - 2 * paddingX) }],
+    lines: best ?? [
+      { text, maxWidth: Math.round(hexWidth * 0.5 - 2 * inset - 2 * paddingX) },
+    ],
     fontSize: bestSize,
   };
 }

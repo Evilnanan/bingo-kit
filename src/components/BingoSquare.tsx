@@ -127,13 +127,7 @@ export function BingoSquare({
       28,
       Math.max(1, Math.round(contentW * 0.09 * fontScale)),
     );
-    return fitSquareText(
-      goal,
-      baseFontSize,
-      contentW,
-      contentH,
-      fontFamily,
-    );
+    return fitSquareText(goal, baseFontSize, contentW, contentH, fontFamily);
   })();
 
   // Pre-compute cumulative positions in diagonal coordinate system.
@@ -227,10 +221,7 @@ export function BingoSquare({
           {counterValue}/{counter}
         </span>
       )}
-      <span
-        className="text"
-        style={{ fontSize: optimalFontSize }}
-      >
+      <span className="text" style={{ fontSize: optimalFontSize }}>
         {goal}
       </span>
       {tooltip && <TooltipPopover text={tooltip} />}

@@ -48,7 +48,9 @@ export function HexBoard({
   const numCols = sizeBlue + sizeRed - 1;
   const numRows = (sizeBlue + sizeRed) * 0.5;
 
-  const [starMarkedCells, setStarMarkedCells] = useState<Set<number>>(new Set());
+  const [starMarkedCells, setStarMarkedCells] = useState<Set<number>>(
+    new Set(),
+  );
 
   const {
     counters,
@@ -339,11 +341,9 @@ export function HexBoard({
         </svg>
         {cells.map((cell) => {
           let cellClass = "hex";
-          if (cell.winTeam)
-            cellClass += ` hex--win hex--${cell.winTeam}-win`;
+          if (cell.winTeam) cellClass += ` hex--win hex--${cell.winTeam}-win`;
           else if (cell.markTeam === "red") cellClass += " hex--team-red";
-          else if (cell.markTeam === "blue")
-            cellClass += " hex--team-blue";
+          else if (cell.markTeam === "blue") cellClass += " hex--team-blue";
 
           return (
             <button
@@ -364,9 +364,7 @@ export function HexBoard({
               <span className="bg" />
               <span className="fill" />
               <span className="content">
-                {starMarkedCells.has(cell.idx) && (
-                  <span className="star" />
-                )}
+                {starMarkedCells.has(cell.idx) && <span className="star" />}
                 <span
                   className="text"
                   style={
@@ -417,7 +415,8 @@ export function HexBoard({
                     rawCounterTouchEnd();
                   }}
                 >
-                  {counters[cell.idx] ?? 0}/{getGoalCounter(config.goals[cell.idx])}
+                  {counters[cell.idx] ?? 0}/
+                  {getGoalCounter(config.goals[cell.idx])}
                 </span>
               )}
             </button>
