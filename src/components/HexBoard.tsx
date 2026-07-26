@@ -120,8 +120,8 @@ export function HexBoard({
   const hexH = hexW * (Math.sqrt(3) / 2);
   // Base font size for UI elements (counter, tooltip, star-mark) — NOT scaled.
   const uiFontSize = Math.min(13, Math.max(1, Math.round(hexW * 0.11)));
-  // Goal text base font size — scaled by --cell-font-scale for OBS / streaming.
-  const goalBaseFontSize = Math.round(uiFontSize * hexFontScale);
+  // Goal text base font size — 13px, scaled by --cell-font-scale for OBS / streaming.
+  const goalBaseFontSize = Math.round(13 * hexFontScale);
   const hexPadding = Math.max(2, Math.round(hexW * 0.08));
 
   const fontFamily = getSystemFontFamily();

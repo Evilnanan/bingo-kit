@@ -2,7 +2,7 @@ import { measureTextWidth } from "./measureText";
 
 /**
  * Find the largest font size (≤ baseFontSize, ≥ 1) where the text fits
- * within the square cell's available area.
+ * within the square cell's available area. Uses binary search.
  *
  * Uses 90 % of availableWidth / 94 % of availableHeight as effective area
  * to account for Canvas-to-DOM font rendering differences.
@@ -28,17 +28,19 @@ export function fitSquareText(
     return lines * fontSize * lineHeight;
   }
 
-  // Already fits at base size
-  if (estimatedHeight(baseFontSize) <= effectiveHeight) {
-    return baseFontSize;
-  }
+  let lo = 1;
+  let hi = baseFontSize;
+  let best = 1;
 
-  // Scan downward — first fit wins (favours larger font over more lines)
-  for (let fs = baseFontSize - 1; fs >= 1; fs--) {
-    if (estimatedHeight(fs) <= effectiveHeight) {
-      return fs;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (estimatedHeight(mid) <= effectiveHeight) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
     }
   }
 
-  return 1;
+  return best;
 }

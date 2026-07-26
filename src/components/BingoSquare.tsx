@@ -123,10 +123,8 @@ export function BingoSquare({
     if (!contentW || !contentH) {
       return Math.round(13 * fontScale);
     }
-    const baseFontSize = Math.min(
-      28,
-      Math.max(1, Math.round(contentW * 0.09 * fontScale)),
-    );
+    // Base font size 13px — binary search in fitSquareText handles the rest
+    const baseFontSize = Math.round(13 * fontScale);
     return fitSquareText(goal, baseFontSize, contentW, contentH, fontFamily);
   })();
 
