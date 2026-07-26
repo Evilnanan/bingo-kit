@@ -1,0 +1,300 @@
+.fc-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+  color: var(--text);
+}
+
+.fc-title {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.fc-subtitle {
+  margin: 0 0 24px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* ── Drop zone ──────────────────────────────────────────────────── */
+
+.fc-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 24px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  transition: border-color 0.2s, background 0.2s;
+  cursor: pointer;
+  margin-bottom: 24px;
+}
+
+.fc-dropzone:hover,
+.fc-dropzone--active {
+  border-color: var(--accent);
+  background: var(--accent-focus);
+}
+
+.fc-dropzone-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.fc-dropzone-text {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.fc-dropzone-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.fc-dropzone-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 8px 20px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.fc-dropzone-btn:hover {
+  background: var(--accent-hover);
+}
+
+.fc-file-input {
+  display: none;
+}
+
+/* ── Section ────────────────────────────────────────────────────── */
+
+.fc-section {
+  margin-bottom: 24px;
+}
+
+.fc-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.fc-section-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+/* ── Font card ──────────────────────────────────────────────────── */
+
+.fc-font-card {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  margin-bottom: 10px;
+}
+
+.fc-font-card-left {
+  flex: 0 0 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fc-font-card-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fc-font-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  word-break: break-all;
+}
+
+.fc-font-meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.fc-family-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.fc-family-input {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: var(--mono);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.fc-family-input:focus {
+  border-color: var(--accent);
+}
+
+.fc-font-preview-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fc-font-preview {
+  font-size: 1.3rem;
+  line-height: 1.4;
+  padding: 8px 12px;
+  background: var(--bg-subtle);
+  border-radius: 6px;
+  min-height: 2em;
+  word-break: break-all;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────── */
+
+.fc-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.fc-btn:hover {
+  background: var(--border);
+}
+
+.fc-btn--primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.fc-btn--primary:hover {
+  background: var(--accent-hover);
+}
+
+.fc-btn--ghost {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.fc-btn--ghost:hover {
+  color: var(--danger);
+  background: transparent;
+}
+
+.fc-btn--remove {
+  align-self: flex-start;
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
+
+.fc-btn--remove:hover {
+  opacity: 1;
+  background: transparent;
+}
+
+.fc-btn--copy {
+  font-weight: 500;
+}
+
+/* ── Preview text input ─────────────────────────────────────────── */
+
+.fc-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.fc-preview-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 1rem;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.fc-preview-input:focus {
+  border-color: var(--accent);
+}
+
+/* ── OBS tips ───────────────────────────────────────────────────── */
+
+.fc-tips {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.fc-tips li {
+  margin-bottom: 6px;
+}
+
+.fc-tips code {
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.82em;
+  font-family: var(--mono);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .fc-page {
+    padding: 16px;
+  }
+
+  .fc-font-card {
+    flex-direction: column;
+  }
+
+  .fc-font-card-left {
+    flex: none;
+  }
+
+  .fc-dropzone {
+    padding: 28px 16px;
+  }
+}

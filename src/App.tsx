@@ -5,6 +5,7 @@ import { HexRoom } from "./components/HexRoom";
 import { LandingPage } from "./components/LandingPage";
 import RandomPickTest from "./components/RandomPickTest";
 import ExpressionTester from "./components/ExpressionTester";
+import FontBase64Converter from "./components/FontBase64Converter";
 import { useT } from "./i18n/useT";
 import { langDescriptors } from "./i18n/translations";
 import type { RoomConfig } from "./types";
@@ -14,7 +15,7 @@ function App() {
   const [roomConfig, setRoomConfig] = useState<RoomConfig | null>(null);
 
   const testParam = new URLSearchParams(window.location.search).get("test");
-  const isTestMode = testParam === "randompick" || testParam === "expression";
+  const isTestMode = testParam === "randompick" || testParam === "expression" || testParam === "fontbase64";
 
   const handleJoinRoom = (config: RoomConfig) => {
     setRoomConfig(config);
@@ -69,6 +70,7 @@ function App() {
 
       {testParam === "randompick" && !roomConfig && <RandomPickTest />}
       {testParam === "expression" && !roomConfig && <ExpressionTester />}
+      {testParam === "fontbase64" && !roomConfig && <FontBase64Converter />}
 
       {roomConfig &&
         (roomConfig.gameMode === "hex" && roomConfig.hexConfig ? (
