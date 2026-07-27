@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/useT";
 import type { Player, GoalItem, MarkEntry } from "../types";
 import {
@@ -145,13 +145,37 @@ export function BingoBoard({
 
   const markAlt = useLongPressAlt(toggleStarMark);
 
+  // ---- Widget scale from board size (uniform across all 25 cells) ----
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [widgetScale, setWidgetScale] = useState(1);
+
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const { width: bw, height: bh } = entry.contentRect;
+      // Approximate cell size from board dimensions (5×5 grid with gap).
+      // Gaps are small relative to cells, so bw/5 is close enough.
+      const cellW = bw / 5;
+      const cellH = bh / 5;
+      const scale = Math.max(
+        0.5,
+        Math.min(1.5, Math.min(cellW, cellH) / 130),
+      );
+      setWidgetScale(scale);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Local player's color — used for hover border
   const localPlayerColor = localPlayerName
     ? players[localPlayerName]?.color
     : undefined;
 
   return (
-    <div className="board">
+    <div className="board" ref={boardRef}>
       {goals.map((goalItem, i) => {
         const markerEntries = marks[i] || [];
         const cellScoresForCell = cellScores[i];
@@ -199,6 +223,7 @@ export function BingoBoard({
             hideCounter={settings.hideCounters}
             hideTooltip={settings.hideTooltips}
             userFontScale={settings.fontScale}
+            widgetScale={widgetScale}
             {...makeCellEventHandlers(markAlt, onMarkSquare, i)}
           />
         );

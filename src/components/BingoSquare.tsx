@@ -37,6 +37,8 @@ interface Props {
   hideTooltip?: boolean;
   /** User-controlled font scale from settings panel (multiplies with CSS variable). */
   userFontScale?: number;
+  /** Uniform widget scale derived from board size — drives counter/tooltip/star sizes. */
+  widgetScale?: number;
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onTouchStart: () => void;
@@ -57,6 +59,7 @@ export function BingoSquare({
   hideCounter = false,
   hideTooltip = false,
   userFontScale = 1,
+  widgetScale = 1,
   onClick,
   onContextMenu,
   onTouchStart,
@@ -76,8 +79,10 @@ export function BingoSquare({
     .filter(Boolean)
     .join(" ");
 
-  // Inline styles: border color + hover border color
-  const styleObj: Record<string, string> = {};
+  // Inline styles: widget scale + border color + hover border color
+  const styleObj: Record<string, string> = {
+    "--wscale": String(widgetScale),
+  };
   if (borderColor) {
     styleObj["--mark-border"] = borderColor;
   }
@@ -85,10 +90,7 @@ export function BingoSquare({
     styleObj["--hover-border"] = hoverColor;
     styleObj["--widget-hover"] = hoverColor;
   }
-  const inlineStyle =
-    Object.keys(styleObj).length > 0
-      ? (styleObj as React.CSSProperties)
-      : undefined;
+  const inlineStyle = styleObj as React.CSSProperties;
 
   // ---- Adaptive font sizing via ResizeObserver ----
   const squareRef = useRef<HTMLButtonElement>(null);
