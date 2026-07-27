@@ -227,7 +227,7 @@
   padding: 40px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 650px) {
   .room-header {
     padding-right: 0;
   }
