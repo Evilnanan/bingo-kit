@@ -143,4 +143,9 @@ export const zh: Translations = {
   "goalPool.newDefaultName": "任务池",
   "goalPool.goalCount": "{0} 个任务",
   "goalPool.selectBtn": "选择",
+  // Room display settings
+  "settings.title": "显示设置",
+  "settings.hideCounters": "隐藏计数器",
+  "settings.hideTooltips": "隐藏详情提示",
+  "settings.fontScale": "字体缩放",
 };

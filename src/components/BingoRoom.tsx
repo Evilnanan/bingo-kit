@@ -1,6 +1,7 @@
 import { useGameState } from "../hooks/useGameState";
 import { useScoring } from "../scoring/useScoring";
 import { useT } from "../i18n/useT";
+import { useRoomSettings } from "../hooks/useRoomSettings";
 import { BingoBoard } from "./BingoBoard";
 import { ChatPanel } from "./ChatPanel";
 import { PlayerList } from "./PlayerList";
@@ -46,6 +47,7 @@ export function BingoRoom({
     onLeave,
   );
   const { t } = useT();
+  const { settings, updateSetting } = useRoomSettings();
 
   const goals = state.config?.goals || boardConfig.goals;
   const lockout =
@@ -75,6 +77,8 @@ export function BingoRoom({
         isOwner={isOwner && canRestart}
         phase={state.phase}
         onRestart={requestRestart}
+        settings={settings}
+        onSettingsChange={updateSetting}
       />
 
       <div className="room-body">
@@ -100,6 +104,7 @@ export function BingoRoom({
                 localPlayerName={state.localPlayerName}
                 onMarkSquare={markSquare}
                 cellScores={cellScores}
+                settings={settings}
               />
             ) : (
               <p className="room-loading">{t["room.loading"]}</p>

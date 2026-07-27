@@ -4,6 +4,7 @@ import type { HexConfig } from "../hex/hexTypes";
 import { useGameState } from "../hooks/useGameState";
 import { useScoring } from "../scoring/useScoring";
 import { useT } from "../i18n/useT";
+import { useRoomSettings } from "../hooks/useRoomSettings";
 import { ChatPanel } from "./ChatPanel";
 import { PlayerList } from "./PlayerList";
 import { ReadyPanel } from "./ReadyPanel";
@@ -39,15 +40,9 @@ export function HexRoom({
     setBonusScore,
     requestRestart,
     canRestart,
-  } = useGameState(
-    roomName,
-    playerName,
-    hexConfig,
-    serverUrl,
-    "hex",
-    onLeave,
-  );
+  } = useGameState(roomName, playerName, hexConfig, serverUrl, "hex", onLeave);
   const { t } = useT();
+  const { settings, updateSetting } = useRoomSettings();
 
   const players = Object.values(state.players);
   const showBoard = state.phase === "playing";
@@ -85,6 +80,8 @@ export function HexRoom({
         isOwner={isOwner && canRestart}
         phase={state.phase}
         onRestart={requestRestart}
+        settings={settings}
+        onSettingsChange={updateSetting}
       />
 
       <div className="room-body">
@@ -108,6 +105,7 @@ export function HexRoom({
                 players={state.players}
                 localPlayerName={state.localPlayerName}
                 onMarkCell={markCell}
+                settings={settings}
               />
             ) : (
               <p className="room-loading">{t["room.loading"]}</p>

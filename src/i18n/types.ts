@@ -154,4 +154,9 @@ export interface Translations {
   "goalPool.newDefaultName": string;
   "goalPool.goalCount": string;
   "goalPool.selectBtn": string;
+  // Room display settings
+  "settings.title": string;
+  "settings.hideCounters": string;
+  "settings.hideTooltips": string;
+  "settings.fontScale": string;
 }

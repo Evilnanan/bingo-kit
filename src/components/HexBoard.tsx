@@ -10,6 +10,7 @@ import { makeCellEventHandlers, useLongPressAlt } from "../hooks/useLongPress";
 import { fitHexText } from "../utils/fitHexText";
 import type { HexLine } from "../utils/fitHexText";
 import { getSystemFontFamily } from "../utils/measureText";
+import type { RoomSettings } from "../hooks/useRoomSettings";
 import "./HexBoard.css";
 import type { HexConfig } from "../hex/hexTypes";
 import { checkWin, indexToAxial } from "../hex/hexUtils";
@@ -20,6 +21,7 @@ interface Props {
   players: Record<string, Player>;
   localPlayerName: string | null;
   onMarkCell: (index: number) => void;
+  settings: RoomSettings;
 }
 
 export function HexBoard({
@@ -28,6 +30,7 @@ export function HexBoard({
   players,
   localPlayerName,
   onMarkCell,
+  settings,
 }: Props) {
   const { lang } = useT();
   const { sizeBlue, sizeRed, goals } = config;
@@ -88,20 +91,6 @@ export function HexBoard({
     return () => ro.disconnect();
   }, []);
 
-  // Read --cell-font-scale CSS custom property (for OBS custom CSS injection).
-  const [hexFontScale, setHexFontScale] = useState(1);
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const raw = getComputedStyle(el)
-      .getPropertyValue("--cell-font-scale")
-      .trim();
-    const scale = parseFloat(raw);
-    if (scale && !isNaN(scale) && scale > 0) {
-      setHexFontScale(scale);
-    }
-  }, []);
-
   const hexW = (() => {
     const maxWidth = containerW;
     const maxHeight = containerH;
@@ -120,8 +109,8 @@ export function HexBoard({
   const hexH = hexW * (Math.sqrt(3) / 2);
   // Base font size for UI elements (counter, tooltip, star-mark) — NOT scaled.
   const uiFontSize = Math.min(13, Math.max(1, Math.round(hexW * 0.11)));
-  // Goal text base font size — 13px, scaled by --cell-font-scale for OBS / streaming.
-  const goalBaseFontSize = Math.round(13 * hexFontScale);
+  // Goal text base font size — 13px, scaled by user-controlled fontScale setting.
+  const goalBaseFontSize = Math.round(13 * settings.fontScale);
   const hexPadding = Math.max(2, Math.round(hexW * 0.08));
 
   const fontFamily = getSystemFontFamily();
@@ -383,42 +372,45 @@ export function HexBoard({
                     </span>
                   ))}
                 </span>
-                {cell.tooltip && <TooltipPopover text={cell.tooltip} />}
+                {cell.tooltip && !settings.hideTooltips && (
+                  <TooltipPopover text={cell.tooltip} />
+                )}
               </span>
-              {getGoalCounter(config.goals[cell.idx]) > 0 && (
-                <span
-                  className="counter"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    rawCounterClick(cell.idx);
-                  }}
-                  onContextMenu={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    rawCounterContextMenu(cell.idx);
-                  }}
-                  onTouchStart={(e) => {
-                    e.stopPropagation();
-                    rawCounterTouchStart(cell.idx);
-                  }}
-                  onTouchEnd={(e) => {
-                    e.stopPropagation();
-                    rawCounterTouchEnd();
-                  }}
-                  onTouchMove={(e) => {
-                    e.stopPropagation();
-                    rawCounterTouchEnd();
-                  }}
-                  onTouchCancel={(e) => {
-                    e.stopPropagation();
-                    rawCounterTouchEnd();
-                  }}
-                >
-                  {counters[cell.idx] ?? 0}/
-                  {getGoalCounter(config.goals[cell.idx])}
-                </span>
-              )}
+              {!settings.hideCounters &&
+                getGoalCounter(config.goals[cell.idx]) > 0 && (
+                  <span
+                    className="counter"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      rawCounterClick(cell.idx);
+                    }}
+                    onContextMenu={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      rawCounterContextMenu(cell.idx);
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      rawCounterTouchStart(cell.idx);
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      rawCounterTouchEnd();
+                    }}
+                    onTouchMove={(e) => {
+                      e.stopPropagation();
+                      rawCounterTouchEnd();
+                    }}
+                    onTouchCancel={(e) => {
+                      e.stopPropagation();
+                      rawCounterTouchEnd();
+                    }}
+                  >
+                    {counters[cell.idx] ?? 0}/
+                    {getGoalCounter(config.goals[cell.idx])}
+                  </span>
+                )}
             </button>
           );
         })}

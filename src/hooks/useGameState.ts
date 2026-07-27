@@ -1,9 +1,4 @@
-import {
-  useReducer,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useReducer, useLayoutEffect, useRef, useState } from "react";
 import type {
   BoardConfig,
   GameState,

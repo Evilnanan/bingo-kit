@@ -19,22 +19,6 @@
 - **自定义计分** — 基于规则引擎的计分系统，支持表达式语言，可对格子和 Bingo 线分别计分。内置可视化规则编辑器
 - **移动端适配** — 已针对小屏设备优化
 
-## OBS 自定义 CSS
-
-```css
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC&display=swap');
-
-:root {
-  --cell-font-scale: 1.3;                          /* 缩放文字大小（默认 1） */
-  --sans: "Noto Sans SC", system-ui, sans-serif;    /* 自定义字体 */
-}
-
-/* 隐藏部件（加 .square 或 .hex 前缀可只针对一种棋盘） */
-.counter { display: none !important; }    /* 计数器 */
-.tooltip { display: none !important; }    /* 提示按钮 */
-.star    { display: none !important; }    /* 星标 */
-```
-
 ## 开发
 
 ```bash

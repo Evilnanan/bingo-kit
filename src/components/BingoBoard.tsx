@@ -9,6 +9,7 @@ import {
 } from "../types";
 import { useLongPressAlt, makeCellEventHandlers } from "../hooks/useLongPress";
 import { useCounters } from "../hooks/useCounters";
+import type { RoomSettings } from "../hooks/useRoomSettings";
 import { BingoSquare, type ColorSegment } from "./BingoSquare";
 import "./BingoBoard.css";
 
@@ -23,6 +24,7 @@ interface Props {
   localPlayerName: string | null;
   onMarkSquare: (index: number) => void;
   cellScores: Record<number, Record<string, number>>;
+  settings: RoomSettings;
 }
 
 // ============================================================
@@ -119,6 +121,7 @@ export function BingoBoard({
   localPlayerName,
   onMarkSquare,
   cellScores,
+  settings,
 }: Props) {
   const { lang } = useT();
   const [starMarks, setStarMarks] = useState<Set<number>>(new Set());
@@ -193,6 +196,9 @@ export function BingoBoard({
               onTouchStart: () => handleCounterTouchStart(i),
               onTouchEnd: handleCounterTouchEnd,
             }}
+            hideCounter={settings.hideCounters}
+            hideTooltip={settings.hideTooltips}
+            userFontScale={settings.fontScale}
             {...makeCellEventHandlers(markAlt, onMarkSquare, i)}
           />
         );

@@ -146,4 +146,9 @@ export const en: Translations = {
   "goalPool.newDefaultName": "Pool",
   "goalPool.goalCount": "{0} goals",
   "goalPool.selectBtn": "Select",
+  // Room display settings
+  "settings.title": "Display Settings",
+  "settings.hideCounters": "Hide Counters",
+  "settings.hideTooltips": "Hide Tooltips",
+  "settings.fontScale": "Font Scale",
 };

@@ -173,7 +173,7 @@ export default function FontBase64Converter() {
       "Roboto",
       "sans-serif",
     ].join(", ");
-    const extras = `\n\n:root {\n  --sans: ${sansValue};\n  --cell-font-scale: 1.0;\n}\n\n/* Hide UI elements */\n.counter { display: none !important; }\n.tooltip { display: none !important; }\n.star    { display: none !important; }`;
+    const extras = `\n\n:root {\n  --sans: ${sansValue};\n}`;
     return (blocks.join("\n\n") + extras).trim();
   }, [fonts]);
 

@@ -33,6 +33,10 @@ interface Props {
   counter: number;
   counterValue: number;
   counterHandlers: CounterHandlers;
+  hideCounter?: boolean;
+  hideTooltip?: boolean;
+  /** User-controlled font scale from settings panel (multiplies with CSS variable). */
+  userFontScale?: number;
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onTouchStart: () => void;
@@ -50,6 +54,9 @@ export function BingoSquare({
   counter,
   counterValue,
   counterHandlers,
+  hideCounter = false,
+  hideTooltip = false,
+  userFontScale = 1,
   onClick,
   onContextMenu,
   onTouchStart,
@@ -101,30 +108,15 @@ export function BingoSquare({
     return () => ro.disconnect();
   }, []);
 
-  // Read --cell-font-scale CSS custom property (for OBS custom CSS injection).
-  // OBS users can set e.g. `:root { --cell-font-scale: 1.3; }` to make text 30% larger.
-  const [fontScale, setFontScale] = useState(1);
-  useEffect(() => {
-    const el = squareRef.current;
-    if (!el) return;
-    const raw = getComputedStyle(el)
-      .getPropertyValue("--cell-font-scale")
-      .trim();
-    const scale = parseFloat(raw);
-    if (scale && !isNaN(scale) && scale > 0) {
-      setFontScale(scale);
-    }
-  }, []);
-
   const fontFamily = getSystemFontFamily();
 
   const optimalFontSize = (() => {
     // Before ResizeObserver fires — use sensible default
     if (!contentW || !contentH) {
-      return Math.round(13 * fontScale);
+      return Math.round(13 * userFontScale);
     }
-    // Base font size 13px — binary search in fitSquareText handles the rest
-    const baseFontSize = Math.round(13 * fontScale);
+    // Base font size 13px — binary search in fitSquareText handles the rest.
+    const baseFontSize = Math.round(13 * userFontScale);
     return fitSquareText(goal, baseFontSize, contentW, contentH, fontFamily);
   })();
 
@@ -186,7 +178,7 @@ export function BingoSquare({
 
       {isStarMarked && <span className="star" />}
 
-      {counter > 0 && (
+      {counter > 0 && !hideCounter && (
         <span
           className="counter"
           onClick={(e) => {
@@ -222,7 +214,7 @@ export function BingoSquare({
       <span className="text" style={{ fontSize: optimalFontSize }}>
         {goal}
       </span>
-      {tooltip && <TooltipPopover text={tooltip} />}
+      {tooltip && !hideTooltip && <TooltipPopover text={tooltip} />}
     </button>
   );
 }
