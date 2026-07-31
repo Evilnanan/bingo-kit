@@ -378,13 +378,14 @@ export function HexBoard({
                     </span>
                   ))}
                 </span>
-                {(cell.tooltip || cell.images.length > 0) && !settings.hideTooltips && (
-                  <TooltipPopover
-                    text={cell.tooltip}
-                    images={cell.images}
-                    imageBaseUrl={imageBaseUrl}
-                  />
-                )}
+                {(cell.tooltip || cell.images.length > 0) &&
+                  !settings.hideTooltips && (
+                    <TooltipPopover
+                      text={cell.tooltip}
+                      images={cell.images}
+                      imageBaseUrl={imageBaseUrl}
+                    />
+                  )}
               </span>
               {!settings.hideCounters &&
                 getGoalCounter(config.goals[cell.idx]) > 0 && (

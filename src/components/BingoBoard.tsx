@@ -162,10 +162,7 @@ export function BingoBoard({
       // Gaps are small relative to cells, so bw/5 is close enough.
       const cellW = bw / 5;
       const cellH = bh / 5;
-      const scale = Math.max(
-        0.5,
-        Math.min(1.5, Math.min(cellW, cellH) / 130),
-      );
+      const scale = Math.max(0.5, Math.min(1.5, Math.min(cellW, cellH) / 130));
       setWidgetScale(scale);
     });
     ro.observe(el);

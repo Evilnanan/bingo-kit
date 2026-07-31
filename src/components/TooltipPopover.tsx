@@ -91,7 +91,9 @@ export function TooltipPopover({ text, images, imageBaseUrl }: Props) {
             >
               {text && <p className="tooltip-popup-text">{text}</p>}
               {images && images.length > 0 && (
-                <div className={`tooltip-popup-images${text ? "" : " tooltip-popup-images--no-text"}`}>
+                <div
+                  className={`tooltip-popup-images${text ? "" : " tooltip-popup-images--no-text"}`}
+                >
                   {images.map((att, i) => (
                     <button
                       key={att.hash}

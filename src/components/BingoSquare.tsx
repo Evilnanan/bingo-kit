@@ -224,7 +224,11 @@ export function BingoSquare({
         {goal}
       </span>
       {(tooltip || (images && images.length > 0)) && !hideTooltip && (
-        <TooltipPopover text={tooltip} images={images} imageBaseUrl={imageBaseUrl} />
+        <TooltipPopover
+          text={tooltip}
+          images={images}
+          imageBaseUrl={imageBaseUrl}
+        />
       )}
     </button>
   );

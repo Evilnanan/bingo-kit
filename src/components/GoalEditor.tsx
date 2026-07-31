@@ -716,7 +716,10 @@ function GoalEditorItem({
   const handleCommitRename = useCallback(
     (hash: string) => {
       const trimmed = renameText.trim();
-      if (trimmed && trimmed !== images.find((a) => a.hash === hash)?.filename) {
+      if (
+        trimmed &&
+        trimmed !== images.find((a) => a.hash === hash)?.filename
+      ) {
         const updated = images.map((a) =>
           a.hash === hash ? { ...a, filename: trimmed } : a,
         );
@@ -822,7 +825,11 @@ function GoalEditorItem({
               >
                 <div
                   className="ge-item-image-frame"
-                  title={isError ? `${t["editor.imageFailed"]}: ${status?.error ?? ""}` : att.filename}
+                  title={
+                    isError
+                      ? `${t["editor.imageFailed"]}: ${status?.error ?? ""}`
+                      : att.filename
+                  }
                   onClick={(e) => {
                     e.stopPropagation();
                     setPreviewIdx(images.indexOf(att));
@@ -1130,7 +1137,10 @@ export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
     if (editorMode === "json") {
       const items = tryApplyJson();
       if (items) onChange(items);
-    } else if (editorMode === "csv" && !goalsRef.current.some(hasCsvUnsupported)) {
+    } else if (
+      editorMode === "csv" &&
+      !goalsRef.current.some(hasCsvUnsupported)
+    ) {
       setCsvError("");
       const items = parseCsv(csvText, t, format, () => {});
       if (items) onChange(items);

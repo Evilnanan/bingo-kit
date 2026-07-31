@@ -175,8 +175,8 @@ export function LandingPage({ onJoinRoom }: Props) {
     () => ANIMALS[Math.floor(Math.random() * ANIMALS.length)],
   );
   const [serverUrl, setServerUrl] = useState(() => getServerFromUrl());
-  const [imageServerUrl, setImageServerUrl] = useState(() =>
-    new URLSearchParams(window.location.search).get("images") || "",
+  const [imageServerUrl, setImageServerUrl] = useState(
+    () => new URLSearchParams(window.location.search).get("images") || "",
   );
   const isSharedLink = getShareFromUrl();
 
@@ -366,7 +366,7 @@ export function LandingPage({ onJoinRoom }: Props) {
       roomName: trimmedRoom,
       playerName: trimmedName,
       serverUrl: resolvedServer,
-        imageHost: resolvedImageUrl,
+      imageHost: resolvedImageUrl,
       boardConfig,
     });
   };
@@ -492,7 +492,7 @@ export function LandingPage({ onJoinRoom }: Props) {
             type="text"
             value={imageServerUrl}
             onChange={(e) => setImageServerUrl(e.target.value)}
-            placeholder={IMAGE_URL || (serverUrl.trim() || DEFAULT_SERVER_URL)}
+            placeholder={IMAGE_URL || serverUrl.trim() || DEFAULT_SERVER_URL}
             disabled={isSharedLink}
           />
         </label>

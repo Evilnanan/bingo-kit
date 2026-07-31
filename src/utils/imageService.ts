@@ -62,7 +62,9 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 /** Validate that a File looks like an image and isn't too big. */
 function validateImageFile(file: File): void {
   if (!file.type.startsWith("image/")) {
-    throw new Error(`File "${file.name}" is not an image (${file.type || "unknown type"})`);
+    throw new Error(
+      `File "${file.name}" is not an image (${file.type || "unknown type"})`,
+    );
   }
   if (file.size > MAX_FILE_SIZE) {
     const sizeMB = (file.size / 1024 / 1024).toFixed(1);
@@ -71,7 +73,9 @@ function validateImageFile(file: File): void {
 }
 
 /** Convert a File to an ImageAttachment with SHA-256 hash and base64 data. */
-export async function fileToImageAttachment(file: File): Promise<ImageAttachment> {
+export async function fileToImageAttachment(
+  file: File,
+): Promise<ImageAttachment> {
   validateImageFile(file);
   const buffer = await file.arrayBuffer();
   const hash = await sha256Hex(buffer);
@@ -133,11 +137,17 @@ export async function uploadSingleImage(
       headers: { "Content-Type": "application/octet-stream" },
     });
     if (!resp.ok) {
-      return { success: false, error: `HTTP ${resp.status}: ${resp.statusText}` };
+      return {
+        success: false,
+        error: `HTTP ${resp.status}: ${resp.statusText}`,
+      };
     }
     return { success: true };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
@@ -155,10 +165,7 @@ export async function checkImageExists(
 }
 
 /** Get the display source for an image attachment. */
-export function getImageSrc(
-  att: ImageAttachment,
-  serverUrl?: string,
-): string {
+export function getImageSrc(att: ImageAttachment, serverUrl?: string): string {
   if (att.data) {
     return `data:${att.mimeType};base64,${att.data}`;
   }
@@ -183,7 +190,10 @@ export class ImageUploadQueue {
   private aborted = false;
 
   constructor(serverUrl: string, maxConcurrent = 2, imageHost?: string) {
-    this.baseUrl = (imageHost || getImageBaseUrl(serverUrl)).replace(/\/+$/, "");
+    this.baseUrl = (imageHost || getImageBaseUrl(serverUrl)).replace(
+      /\/+$/,
+      "",
+    );
     if (!/^https?:\/\//i.test(this.baseUrl)) {
       this.baseUrl = `http://${this.baseUrl}`;
     }

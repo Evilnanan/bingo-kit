@@ -126,7 +126,10 @@ async function handleImageRequest(
   res: http.ServerResponse,
 ): Promise<void> {
   const origin = req.headers.origin ?? null;
-  const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+  const url = new URL(
+    req.url ?? "/",
+    `http://${req.headers.host ?? "localhost"}`,
+  );
   const hash = url.pathname.slice("/images/".length);
 
   // CORS preflight
@@ -173,7 +176,10 @@ async function handleImageRequest(
     for (const [k, v] of Object.entries(corsHeaders(origin))) {
       res.setHeader(k, v);
     }
-    res.setHeader("Content-Type", meta.contentType ?? "application/octet-stream");
+    res.setHeader(
+      "Content-Type",
+      meta.contentType ?? "application/octet-stream",
+    );
     res.setHeader("Cache-Control", "public, max-age=2592000");
     res.setHeader("Content-Length", String(stat.size));
 
@@ -295,9 +301,7 @@ wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {
 
   ws.on("close", () => {
     cleanupConnection(roomName, connId);
-    console.log(
-      `[disconnect] room="${roomName}"`,
-    );
+    console.log(`[disconnect] room="${roomName}"`);
   });
 
   ws.on("error", (err) => {

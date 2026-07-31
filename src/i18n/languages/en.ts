@@ -60,7 +60,8 @@ export const en: Translations = {
   "editor.globalGroup": "Global excl. group",
   "editor.counter": "Counter",
   "editor.csvHint": "text, tooltip, counter, difficulty, group, globalGroup",
-  "editor.csvReadOnly": "CSV is read-only when the goal pool contains images or translations.",
+  "editor.csvReadOnly":
+    "CSV is read-only when the goal pool contains images or translations.",
   "editor.goalEditor": "Goal Editor",
   "editor.defaultGoalLabel": "Goal",
   "toggle.dark": "Switch to Dark",
@@ -160,7 +161,8 @@ export const en: Translations = {
   "editor.imageTooLarge": "Image too large (max 5MB)",
   "editor.imageNotImage": "File is not an image",
   "editor.imageRemove": "Remove image",
-  "editor.imagesInJson": "Goal pool contains images. JSON editing may be inconvenient.",
+  "editor.imagesInJson":
+    "Goal pool contains images. JSON editing may be inconvenient.",
   "editor.showJsonAnyway": "Show code",
   "editor.exportJson": "Export JSON",
   "editor.importJson": "Import JSON",
