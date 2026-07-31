@@ -19,6 +19,7 @@ interface Props {
   playerName: string;
   hexConfig: HexConfig;
   serverUrl: string;
+  imageHost?: string;
   onLeave: () => void;
 }
 
@@ -27,6 +28,7 @@ export function HexRoom({
   playerName,
   hexConfig,
   serverUrl,
+  imageHost,
   onLeave,
 }: Props) {
   const {
@@ -106,6 +108,7 @@ export function HexRoom({
                 localPlayerName={state.localPlayerName}
                 onMarkCell={markCell}
                 settings={settings}
+                imageBaseUrl={imageHost || serverUrl}
               />
             ) : (
               <p className="room-loading">{t["room.loading"]}</p>

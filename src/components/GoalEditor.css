@@ -492,6 +492,10 @@
   flex-shrink: 0;
 }
 
+.ge-json-hint--warn {
+  color: var(--warn);
+}
+
 .ge-json-textarea {
   width: 100%;
   flex: 1;
@@ -510,6 +514,12 @@
 .ge-json-textarea:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.ge-json-textarea[readonly] {
+  background: var(--surface);
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── line-numbered textarea ──────────────────────────────────────── */
@@ -880,3 +890,197 @@
     min-height: 44px;
   }
 }
+
+/* ── image attachments ──────────────────────────────────────────── */
+
+.ge-item-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.ge-item-image-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.ge-item-image-thumb--uploading .ge-item-image-frame {
+  opacity: 0.6;
+}
+
+.ge-item-image-thumb--error .ge-item-image-frame {
+  border-color: #dc2626;
+}
+
+.ge-item-image-frame {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.ge-item-image-frame:hover {
+  transform: scale(1.1);
+}
+
+.ge-item-image-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ge-item-image-status {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  color: #fff;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.ge-item-image-status--spinner {
+  background: #2563eb;
+  animation: ge-spin 1s linear infinite;
+}
+
+@keyframes ge-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ge-item-image-status--done {
+  background: #16a34a;
+}
+
+.ge-item-image-status--retry {
+  background: #dc2626;
+}
+
+.ge-item-image-remove {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.ge-item-image-frame:hover .ge-item-image-remove {
+  opacity: 1;
+}
+
+.ge-item-image-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 44px;
+  padding: 0 12px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ge-item-image-add:hover {
+  opacity: 0.8;
+}
+
+.ge-item-image-input {
+  display: none;
+}
+
+/* ── image rename ─────────────────────────────────────────────────── */
+
+.ge-item-image-name {
+  font-size: 10px;
+  color: var(--text-secondary);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+  line-height: 1.3;
+  padding: 1px 3px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.ge-item-image-name:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.ge-item-image-rename-input {
+  width: 140px;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  font-family: inherit;
+  outline: none;
+  line-height: 1.4;
+}
+
+/* ── toolbar actions (import/export) ─────────────────────────────── */
+
+.goal-editor-toolbar-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── JSON folded state ────────────────────────────────────────────── */
+
+.ge-json-folded {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+/* ── image lightbox ──────────────────────────────────────────────── */
+

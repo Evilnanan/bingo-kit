@@ -9,6 +9,16 @@ export interface MarkEntry {
   timestamp: number;
 }
 
+export interface ImageAttachment {
+  /** SHA-256 hex digest — used as R2 storage key and dedup identifier. */
+  hash: string;
+  /** Original file name (display only). */
+  filename: string;
+  mimeType: string;
+  /** Base64 data — present in local goal pools; stripped before WebSocket transmission. */
+  data?: string;
+}
+
 export type GoalItem =
   | string
   | {
@@ -20,6 +30,7 @@ export type GoalItem =
       group?: string | string[];
       globalGroup?: string | string[];
       counter?: number;
+      images?: ImageAttachment[];
     };
 
 export function getGoalText(item: GoalItem, lang?: string): string {
@@ -70,6 +81,42 @@ export function getGoalCounter(item: GoalItem | undefined): number {
   return item.counter ?? 0;
 }
 
+export function getGoalImages(item: GoalItem): ImageAttachment[] {
+  if (typeof item === "string") return [];
+  return item.images ?? [];
+}
+
+/** Remove base64 data from images — keep only hash/filename/mimeType for wire transmission. */
+export function stripImageData(goals: GoalItem[]): GoalItem[] {
+  let changed = false;
+  const result = goals.map((g) => {
+    if (typeof g === "string" || !g.images || g.images.length === 0) return g;
+    const stripped = g.images.map(({ hash, filename, mimeType }) => ({
+      hash,
+      filename,
+      mimeType,
+    }));
+    // Only strip if at least one image had data
+    if (stripped.some((s, i) => s !== g.images![i] || g.images![i].data)) {
+      changed = true;
+      return { ...g, images: stripped };
+    }
+    return g;
+  });
+  return changed ? result : goals;
+}
+
+/**
+ * Strip image data from a BoardConfig or HexConfig before WebSocket transmission.
+ * Both config types have an optional `goals: GoalItem[]` field.
+ */
+export function stripConfigImageData(cfg: unknown): unknown {
+  if (!cfg || typeof cfg !== "object") return cfg;
+  const obj = cfg as Record<string, unknown>;
+  if (!Array.isArray(obj.goals)) return cfg;
+  return { ...obj, goals: stripImageData(obj.goals as GoalItem[]) };
+}
+
 export interface GoalPool {
   id: string;
   name: string;
@@ -100,6 +147,7 @@ export interface RoomConfig {
   playerName: string;
   boardConfig: BoardConfig;
   serverUrl: string;
+  imageHost?: string;
   hexConfig?: import("../hex/hexTypes").HexConfig;
 }
 

@@ -15,6 +15,9 @@ dist-ssr
 # Partykit
 .partykit/*
 
+# Dev image storage
+.dev-images/
+
 # undici proxy preload (for npm run ...:party)
 proxy-preload.mjs
 

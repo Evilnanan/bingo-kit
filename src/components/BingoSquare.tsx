@@ -3,6 +3,7 @@ import type React from "react";
 import { TooltipPopover } from "./TooltipPopover";
 import { fitSquareText } from "../utils/fitSquareText";
 import { getSystemFontFamily } from "../utils/measureText";
+import type { ImageAttachment } from "../types";
 import "./BingoSquare.css";
 
 export interface ColorSegment {
@@ -23,6 +24,10 @@ interface Props {
   goal: string;
   tooltip?: string;
   difficulty?: number;
+  /** Image attachments for the tooltip popup. */
+  images?: ImageAttachment[];
+  /** Base URL for loading images from server. */
+  imageBaseUrl?: string;
   /** Color segments ordered by mark timestamp (left → right). Empty = no marks. */
   colorSegments: ColorSegment[];
   /** Border color for marked cells (highest-scoring player's color). */
@@ -49,6 +54,8 @@ export function BingoSquare({
   goal,
   tooltip,
   difficulty,
+  images,
+  imageBaseUrl,
   colorSegments,
   borderColor,
   hoverColor,
@@ -216,7 +223,9 @@ export function BingoSquare({
       <span className="text" style={{ fontSize: optimalFontSize }}>
         {goal}
       </span>
-      {tooltip && !hideTooltip && <TooltipPopover text={tooltip} />}
+      {(tooltip || (images && images.length > 0)) && !hideTooltip && (
+        <TooltipPopover text={tooltip} images={images} imageBaseUrl={imageBaseUrl} />
+      )}
     </button>
   );
 }

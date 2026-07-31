@@ -1,0 +1,11 @@
+{
+  "name": "bingo-kit-images",
+  "main": "index.ts",
+  "compatibility_date": "2025-01-01",
+  "r2_buckets": [
+    {
+      "binding": "BINGO_IMAGES",
+      "bucket_name": "bingo-kit-images"
+    }
+  ]
+}

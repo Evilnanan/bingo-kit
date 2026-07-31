@@ -17,6 +17,7 @@ interface Props {
   playerName: string;
   boardConfig: import("../types").BoardConfig;
   serverUrl: string;
+  imageHost?: string;
   onLeave: () => void;
 }
 
@@ -25,6 +26,7 @@ export function BingoRoom({
   playerName,
   boardConfig,
   serverUrl,
+  imageHost,
   onLeave,
 }: Props) {
   const {
@@ -105,6 +107,7 @@ export function BingoRoom({
                 onMarkSquare={markSquare}
                 cellScores={cellScores}
                 settings={settings}
+                imageBaseUrl={imageHost || serverUrl}
               />
             ) : (
               <p className="room-loading">{t["room.loading"]}</p>

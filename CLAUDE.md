@@ -26,6 +26,7 @@ npm run format           # Prettier 格式化 (src/** + party/**)
 npm run preview          # 预览生产构建
 npm run deploy           # 部署前端到 GitHub Pages（自动先 buildgh）
 npm run deploy:party     # 部署 PartyKit 服务端
+npm run deploy:images    # 部署图片 Worker（wrangler deploy --config image-worker/wrangler.json）
 ```
 
 开发时通常需要同时运行 `npm run dev` 和 `npm run dev:server`（或 `dev:party`）。
@@ -33,6 +34,7 @@ npm run deploy:party     # 部署 PartyKit 服务端
 - `npm run dev:server` 默认监听 `ws://localhost:1999`
 - `npm run dev:party` 使用 PartyKit 自带的 workerd 运行时
 - 前端通过 `VITE_PARTYKIT_HOST` 环境变量或默认 `localhost:1999` 连接 WebSocket
+- 图片 API 地址通过 `VITE_IMAGE_URL` 指定（生产指向 `image-worker` 的 workers.dev 域名，见 `.env.production`）；未设置时复用 `VITE_PARTYKIT_HOST`（开发时走 dev-server 的图片接口）
 
 ## 架构
 
@@ -44,6 +46,8 @@ npm run deploy:party     # 部署 PartyKit 服务端
 
 ```
 src/                    # 前端 React 应用
+  config.ts             # 环境变量集中解析（VITE_PARTYKIT_HOST → DEFAULT_SERVER_URL, VITE_IMAGE_URL → IMAGE_URL）
+  vite-env.d.ts         # import.meta.env 类型声明（ImportMetaEnv 接口）
   types/index.ts        # 核心类型定义（GoalItem, GameState, ServerMessage, ClientMessage 等）
   App.tsx               # 根组件，路由 LandingPage → BingoRoom / HexRoom
   components/           # UI 组件
@@ -65,7 +69,8 @@ src/                    # 前端 React 应用
     ScoringRulePicker.tsx # 计分规则选择器
     ExpressionTester.tsx  # 计分表达式调试工具（?test=expression）
     RandomPickTest.tsx    # 洗牌算法测试页（?test=randompick）
-    TooltipPopover.tsx    # 通用 tooltip 弹出组件
+    TooltipPopover.tsx    # 通用 tooltip 弹出组件（含 Goal 图片）
+    Lightbox.tsx          # 全屏图片查看器（可切换多图）
   hooks/
     useGameState.ts     # 核心状态管理 — useReducer + PartyKit 消息处理
     usePartyConnection.ts # PartySocket 连接管理 hook + usePlayerCallbacks（乐观更新封装）
@@ -93,13 +98,18 @@ src/                    # 前端 React 应用
     defaultRule.ts      # 默认规则（每格 1 分）
   utils/
     compressMessage.ts  # LZ-String 压缩/解压（用于 WebSocket 传输 board config）
+    imageService.ts     # 图片上传工具（SHA-256 哈希、base64 编解码、ImageUploadQueue）
     colors.ts           # 玩家颜色、Hex 队伍颜色常量
     measureText.ts / fitHexText.ts  # Canvas 文本测量（Hex 格缩放文字）
 
 party/                  # 服务端
   server.ts             # PartyKit Server 适配器 — 薄封装
-  dev-server.ts         # 独立 WebSocket 开发服务器（ws 库）
+  dev-server.ts         # 独立 WebSocket 开发服务器（ws 库）+ 图片 HTTP API（.dev-images/）
   game-room.ts          # ** 核心 ** — 传输无关的 GameRoom 类，所有游戏逻辑
+
+image-worker/           # 独立的 Cloudflare Worker — 生产图片存储（R2）
+  index.ts              # GET/HEAD/PUT /images/:hash 端点
+  wrangler.json         # wrangler 配置（R2 bucket: bingo-kit-images）
 ```
 
 ### 核心架构决策
@@ -108,7 +118,7 @@ party/                  # 服务端
 - `party/server.ts` — PartyKit 适配器（生产环境，部署到 Cloudflare）
 - `party/dev-server.ts` — 独立 ws 服务器（本地开发）
 
-两个适配器都只是实现 `send(connId, msg)` / `broadcast(msg, excludeIds)` / `onRoomEmpty()` 三个方法。
+两个适配器都只是实现 `send(connId, msg)` / `broadcast(msg, excludeIds)` / `onRoomEmpty()` 三个方法。`dev-server.ts` 额外在同一 HTTP 端口上提供图片 API（`/images/:hash`，存到本地 `.dev-images/` 目录），协议与 `image-worker` 一致，便于本地开发。
 
 **服务端权威状态**：
 - Board config — 第一个进入房间的玩家提供的 config 被采纳并广播给后续加入者
@@ -134,6 +144,13 @@ party/                  # 服务端
 3. 客户端 `useGameState.handleServerMessage` 收到 `state` 消息后调用 `decompressJson()` 还原
 
 **分享链接**：通过 URL hash 传递压缩后的 config，访问者以只读模式进入（配置项置灰，不可编辑）。由 `configHash` 校验 config 完整性。
+
+**Goal 图片存储**（Goal 可携带图片，显示在 tooltip 中，点击可打开 Lightbox 全屏查看）：
+- 上传流程：`GoalEditor` 选择图片 → `fileToImageAttachment()` 用 Web Crypto 计算 SHA-256 并转 base64 → `ImageUploadQueue`（并发上限 2，带状态回调/去重）异步 `PUT /images/:hash` 上传
+- **哈希即存储键**：同一图片只上传一次。本地任务池中 `ImageAttachment.data` 保存 base64 以便离线显示，但 **WebSocket 传输前必须调用 `stripImageData()` 剥掉 `data`**（保留 hash/filename/mimeType），`compressJson` 时也会调用——否则 config 会因内嵌 base64 过大
+- 渲染时 `getImageSrc()`：有 `data` 用 data URL，否则指向 `<imageBaseUrl>/images/<hash>`
+- 生产图片 API 是独立的 `image-worker/`（Cloudflare Worker + R2 bucket `bingo-kit-images`），通过 `VITE_IMAGE_URL` 指向；开发时 dev-server 用 `.dev-images/` 目录模拟同一接口
+- SHA-256 需要 secure context（localhost 或 HTTPS），否则 `sha256Hex` 抛错
 
 **计分系统**（`src/scoring/`）：
 - 基于规则引擎的计分：`ScoringRule` 包含一组 `ScoringItem`，每条规则可针对 cell 或 bingo line

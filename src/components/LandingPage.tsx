@@ -15,11 +15,10 @@ import { GoalEditor } from "./GoalEditor";
 import { ScoringRulePicker } from "./ScoringRulePicker";
 import { GoalPoolManager } from "./GoalPoolManager";
 import { loadPools, savePools } from "../utils/goalPoolStorage";
+import { ImageUploadQueue } from "../utils/imageService";
 import type { ScoringRule } from "../scoring/types";
+import { DEFAULT_SERVER_URL, IMAGE_URL } from "../config";
 import "./LandingPage.css";
-
-const DEFAULT_SERVER_URL =
-  import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
 
 function getRoomFromUrl(): string {
   const params = new URLSearchParams(window.location.search);
@@ -176,6 +175,9 @@ export function LandingPage({ onJoinRoom }: Props) {
     () => ANIMALS[Math.floor(Math.random() * ANIMALS.length)],
   );
   const [serverUrl, setServerUrl] = useState(() => getServerFromUrl());
+  const [imageServerUrl, setImageServerUrl] = useState(() =>
+    new URLSearchParams(window.location.search).get("images") || "",
+  );
   const isSharedLink = getShareFromUrl();
 
   // Goal pool state
@@ -192,6 +194,17 @@ export function LandingPage({ onJoinRoom }: Props) {
   const goalsRef = useRef(goals);
 
   const [editorOpen, setEditorOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Upload queue — created once, never recreated when server/image host change
+  const [uploadQueue] = useState<ImageUploadQueue>(
+    () =>
+      new ImageUploadQueue(
+        serverUrl.trim() || DEFAULT_SERVER_URL,
+        2,
+        imageServerUrl.trim() || IMAGE_URL,
+      ),
+  );
 
   // Hex state
   const [sizeBlue, setSizeBlue] = useState(HEX_DEFAULT_SIZE_BLUE);
@@ -225,10 +238,12 @@ export function LandingPage({ onJoinRoom }: Props) {
     goalsRef.current = pool.goals;
   };
 
-  const handleSubmit = (e: React.SyntheticEvent) => {
+  const handleSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     const trimmedRoom = roomName.trim();
     const trimmedName = playerName.trim();
+    const resolvedServer = serverUrl.trim() || DEFAULT_SERVER_URL;
+    const resolvedImageUrl = imageServerUrl.trim() || IMAGE_URL;
     if (!trimmedRoom || !trimmedName) return;
 
     // Visitor via share link: skip goal validation, send minimal config.
@@ -239,7 +254,8 @@ export function LandingPage({ onJoinRoom }: Props) {
         gameMode,
         roomName: trimmedRoom,
         playerName: trimmedName,
-        serverUrl: serverUrl.trim() || DEFAULT_SERVER_URL,
+        serverUrl: resolvedServer,
+        imageHost: resolvedImageUrl,
         boardConfig: { goals: [] },
         ...(gameMode === "hex"
           ? {
@@ -258,6 +274,16 @@ export function LandingPage({ onJoinRoom }: Props) {
     if (validGoals.length === 0) {
       setError(t["landing.noGoals"]);
       return;
+    }
+
+    // Wait for any pending image uploads before joining
+    if (uploadQueue.hasErrors) {
+      setUploading(true);
+      try {
+        await uploadQueue.waitForAll();
+      } finally {
+        setUploading(false);
+      }
     }
 
     if (gameMode === "hex") {
@@ -295,7 +321,8 @@ export function LandingPage({ onJoinRoom }: Props) {
         gameMode: "hex",
         roomName: trimmedRoom,
         playerName: trimmedName,
-        serverUrl: serverUrl.trim() || DEFAULT_SERVER_URL,
+        serverUrl: resolvedServer,
+        imageHost: resolvedImageUrl,
         boardConfig: { goals: [] },
         hexConfig: {
           sizeBlue: sBlue,
@@ -338,7 +365,8 @@ export function LandingPage({ onJoinRoom }: Props) {
       gameMode: "classic",
       roomName: trimmedRoom,
       playerName: trimmedName,
-      serverUrl: serverUrl.trim() || DEFAULT_SERVER_URL,
+      serverUrl: resolvedServer,
+        imageHost: resolvedImageUrl,
       boardConfig,
     });
   };
@@ -435,7 +463,7 @@ export function LandingPage({ onJoinRoom }: Props) {
             >
               PartyKit
             </a>{" "}
-            {t["landing.serverUrl"]}
+            {t["landing.server"]}
           </span>
           <input
             className="form-input"
@@ -443,6 +471,28 @@ export function LandingPage({ onJoinRoom }: Props) {
             value={serverUrl}
             onChange={(e) => setServerUrl(e.target.value)}
             placeholder={DEFAULT_SERVER_URL}
+            disabled={isSharedLink}
+          />
+        </label>
+
+        <label className="form-label">
+          <span>
+            <a
+              href="https://developers.cloudflare.com/r2/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="channel-link"
+            >
+              Cloudflare R2
+            </a>{" "}
+            {t["landing.imageServer"]}
+          </span>
+          <input
+            className="form-input"
+            type="text"
+            value={imageServerUrl}
+            onChange={(e) => setImageServerUrl(e.target.value)}
+            placeholder={IMAGE_URL || (serverUrl.trim() || DEFAULT_SERVER_URL)}
             disabled={isSharedLink}
           />
         </label>
@@ -681,8 +731,8 @@ export function LandingPage({ onJoinRoom }: Props) {
 
         {error && <p className="landing-error">{error}</p>}
 
-        <button type="submit" className="join-button">
-          {t["landing.joinButton"]}
+        <button type="submit" className="join-button" disabled={uploading}>
+          {uploading ? t["landing.uploadingImages"] : t["landing.joinButton"]}
         </button>
       </form>
 
@@ -691,6 +741,7 @@ export function LandingPage({ onJoinRoom }: Props) {
           goals={goals}
           onChange={handleGoalsChange}
           onClose={handleCloseEditor}
+          uploadQueue={uploadQueue}
         />
       )}
 

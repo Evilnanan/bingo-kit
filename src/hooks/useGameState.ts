@@ -8,7 +8,7 @@ import type {
   GameMode,
   GoalItem,
 } from "../types";
-import { stripGoalMeta } from "../types";
+import { stripGoalMeta, stripConfigImageData } from "../types";
 import { TEAM_COLORS } from "../utils/colors";
 import type { Team } from "../utils/colors";
 import {
@@ -418,11 +418,13 @@ export function useGameState(
 
   // Connect to PartyKit server
   // Strip originalPool/pickRule from config — they're only needed client-side for restart.
+  // Strip image base64 data — keep only hashes for wire transmission.
   const lockout = (initialConfig as BoardConfig).lockout === true;
-  const wireConfig =
+  const wireConfig = stripConfigImageData(
     mode === "classic"
       ? stripRestartMeta(initialConfig as BoardConfig)
-      : initialConfig;
+      : initialConfig,
+  );
   usePartyConnection({
     serverUrl,
     roomName,
@@ -455,10 +457,9 @@ export function useGameState(
       const newBoardConfig: BoardConfig = {
         ...(cfg ?? { goals: [] }),
         goals: stripGoalMeta(newGoals),
-        // Don't include originalPool/pickRule — they'll be
-        // stripped again before sending to the server.
       };
-      newConfig = compressJson(newBoardConfig);
+      // Strip image data — keep only hashes for wire
+      newConfig = compressJson(stripConfigImageData(newBoardConfig));
     }
 
     ws.send(

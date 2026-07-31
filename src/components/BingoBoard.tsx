@@ -6,6 +6,7 @@ import {
   getGoalTooltip,
   getGoalDifficulty,
   getGoalCounter,
+  getGoalImages,
 } from "../types";
 import { useLongPressAlt, makeCellEventHandlers } from "../hooks/useLongPress";
 import { useCounters } from "../hooks/useCounters";
@@ -25,6 +26,7 @@ interface Props {
   onMarkSquare: (index: number) => void;
   cellScores: Record<number, Record<string, number>>;
   settings: RoomSettings;
+  imageBaseUrl?: string;
 }
 
 // ============================================================
@@ -122,6 +124,7 @@ export function BingoBoard({
   onMarkSquare,
   cellScores,
   settings,
+  imageBaseUrl,
 }: Props) {
   const { lang } = useT();
   const [starMarks, setStarMarks] = useState<Set<number>>(new Set());
@@ -207,6 +210,8 @@ export function BingoBoard({
             key={i}
             goal={getGoalText(goalItem, lang)}
             tooltip={getGoalTooltip(goalItem, lang)}
+            images={getGoalImages(goalItem)}
+            imageBaseUrl={imageBaseUrl}
             difficulty={getGoalDifficulty(goalItem)}
             colorSegments={colorSegments}
             borderColor={borderColor}

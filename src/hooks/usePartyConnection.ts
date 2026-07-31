@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react";
 import PartySocket from "partysocket";
 import { compressJson } from "../utils/compressMessage";
+import { DEFAULT_SERVER_URL } from "../config";
 import type {
   ChatMessage,
   PlayerCallbackAction,
@@ -201,8 +202,7 @@ export function usePartyConnection(params: {
     const gen = ++genRef.current;
     dispatch({ type: "CLEAR_SESSION" });
 
-    const host =
-      serverUrl || import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
+    const host = serverUrl || DEFAULT_SERVER_URL;
 
     const ws = new PartySocket({
       host,

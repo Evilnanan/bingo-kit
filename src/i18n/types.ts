@@ -12,7 +12,7 @@ export interface Translations {
   "landing.yourName": string;
   "landing.namePlaceholder": string;
   "landing.goalPoolHeading": string;
-  "landing.serverUrl": string;
+  "landing.server": string;
   "landing.joinButton": string;
   // BingoRoom
   "room.leave": string;
@@ -66,6 +66,7 @@ export interface Translations {
   "editor.globalGroup": string;
   "editor.counter": string;
   "editor.csvHint": string;
+  "editor.csvReadOnly": string;
   "editor.goalEditor": string;
   "editor.defaultGoalLabel": string;
   "editor.translateSource": string;
@@ -159,4 +160,19 @@ export interface Translations {
   "settings.hideCounters": string;
   "settings.hideTooltips": string;
   "settings.fontScale": string;
+  // Image attachments
+  "editor.addImages": string;
+  "editor.imageUploading": string;
+  "editor.imageUploaded": string;
+  "editor.imageFailed": string;
+  "editor.imageTooLarge": string;
+  "editor.imageNotImage": string;
+  "editor.imageRemove": string;
+  "editor.imagesInJson": string;
+  "editor.showJsonAnyway": string;
+  "editor.exportJson": string;
+  "editor.importJson": string;
+  "editor.importJsonFailed": string;
+  "landing.uploadingImages": string;
+  "landing.imageServer": string;
 }

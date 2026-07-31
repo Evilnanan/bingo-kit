@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Team } from "../utils/colors";
 import { TEAM_COLORS } from "../utils/colors";
+import type { ImageAttachment } from "../types";
+import { getGoalImages } from "../types";
 import { TooltipPopover } from "./TooltipPopover";
 import { useT } from "../i18n/useT";
 import type { Player, MarkEntry } from "../types";
@@ -22,6 +24,7 @@ interface Props {
   localPlayerName: string | null;
   onMarkCell: (index: number) => void;
   settings: RoomSettings;
+  imageBaseUrl?: string;
 }
 
 export function HexBoard({
@@ -31,6 +34,7 @@ export function HexBoard({
   localPlayerName,
   onMarkCell,
   settings,
+  imageBaseUrl,
 }: Props) {
   const { lang } = useT();
   const { sizeBlue, sizeRed, goals } = config;
@@ -255,6 +259,7 @@ export function HexBoard({
       y: number;
       goal: string;
       tooltip: string | undefined;
+      images: ImageAttachment[];
       markTeam: Team | null;
       winTeam: Team | null;
       textLines: HexLine[];
@@ -294,6 +299,7 @@ export function HexBoard({
         y: y + offsetY,
         goal: goalText,
         tooltip: goalItem ? getGoalTooltip(goalItem, lang) : undefined,
+        images: goalItem ? getGoalImages(goalItem) : [],
         markTeam,
         winTeam,
         textLines: lines,
@@ -372,8 +378,12 @@ export function HexBoard({
                     </span>
                   ))}
                 </span>
-                {cell.tooltip && !settings.hideTooltips && (
-                  <TooltipPopover text={cell.tooltip} />
+                {(cell.tooltip || cell.images.length > 0) && !settings.hideTooltips && (
+                  <TooltipPopover
+                    text={cell.tooltip}
+                    images={cell.images}
+                    imageBaseUrl={imageBaseUrl}
+                  />
                 )}
               </span>
               {!settings.hideCounters &&

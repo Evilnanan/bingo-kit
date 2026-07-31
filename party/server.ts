@@ -3,6 +3,9 @@
  *
  * All game logic lives in party/game-room.ts so it can be shared with the
  * standalone dev-server (party/dev-server.ts).
+ *
+ * Image upload/serving is handled by a separate Cloudflare Worker
+ * (image-worker/) with R2 bindings, not by this server.
  */
 
 import type * as Party from "partykit/server";

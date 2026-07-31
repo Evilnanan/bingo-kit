@@ -5,13 +5,16 @@
  * workerd/Cloudflare Workers runtime. Used with `npm run dev:server`.
  *
  * All game logic is shared via party/game-room.ts — this file is just the
- * transport adapter (WebSocket server + room management).
+ * transport adapter (WebSocket server + room management + image HTTP API).
  *
  * Production: `party/server.ts` deployed via `partykit deploy`.
  * Development: `party/dev-server.ts` run via `tsx party/dev-server.ts`.
  */
 
 import { WebSocketServer, WebSocket } from "ws";
+import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 import { GameRoom, type GameTransport } from "./game-room";
 
 // ============================================================
@@ -34,6 +37,12 @@ function getWsId(ws: WebSocket): string {
 // ============================================================
 
 const PORT = parseInt(process.env.PORT || "1999", 10);
+const IMAGE_DIR = path.resolve(process.cwd(), ".dev-images");
+
+// Ensure image directory exists
+if (!fs.existsSync(IMAGE_DIR)) {
+  fs.mkdirSync(IMAGE_DIR, { recursive: true });
+}
 
 interface RoomEntry {
   game: GameRoom;
@@ -84,25 +93,185 @@ function cleanupConnection(roomName: string, connId: string): void {
 }
 
 // ============================================================
-// WebSocket server
+// Image HTTP API (mirrors R2 endpoints in party/server.ts)
 // ============================================================
 
-const wss = new WebSocketServer({ port: PORT });
+const HASH_RE = /^[a-f0-9]{64}$/;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
 
-wss.on("listening", () => {
+function corsHeaders(origin: string | null): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": origin ?? "*",
+    "Access-Control-Allow-Methods": "GET, PUT, POST, HEAD, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+function getImagePath(hash: string): string {
+  return path.join(IMAGE_DIR, hash);
+}
+
+function getMetaPath(hash: string): string {
+  return path.join(IMAGE_DIR, `${hash}.json`);
+}
+
+interface ImageMeta {
+  contentType?: string;
+  uploadedAt?: number;
+}
+
+async function handleImageRequest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<void> {
+  const origin = req.headers.origin ?? null;
+  const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+  const hash = url.pathname.slice("/images/".length);
+
+  // CORS preflight
+  if (req.method === "OPTIONS") {
+    for (const [k, v] of Object.entries(corsHeaders(origin))) {
+      res.setHeader(k, v);
+    }
+    res.writeHead(204).end();
+    return;
+  }
+
+  // Validate hash
+  if (!HASH_RE.test(hash)) {
+    for (const [k, v] of Object.entries(corsHeaders(origin))) {
+      res.setHeader(k, v);
+    }
+    res.writeHead(400).end("Invalid hash");
+    return;
+  }
+
+  const filePath = getImagePath(hash);
+  const metaPath = getMetaPath(hash);
+
+  // GET / HEAD /images/:hash
+  if (req.method === "GET" || req.method === "HEAD") {
+    if (!fs.existsSync(filePath)) {
+      for (const [k, v] of Object.entries(corsHeaders(origin))) {
+        res.setHeader(k, v);
+      }
+      res.writeHead(404).end("Not Found");
+      return;
+    }
+
+    const stat = fs.statSync(filePath);
+    let meta: ImageMeta = {};
+    if (fs.existsSync(metaPath)) {
+      try {
+        meta = JSON.parse(fs.readFileSync(metaPath, "utf-8")) as ImageMeta;
+      } catch {
+        // Ignore corrupted meta
+      }
+    }
+
+    for (const [k, v] of Object.entries(corsHeaders(origin))) {
+      res.setHeader(k, v);
+    }
+    res.setHeader("Content-Type", meta.contentType ?? "application/octet-stream");
+    res.setHeader("Cache-Control", "public, max-age=2592000");
+    res.setHeader("Content-Length", String(stat.size));
+
+    if (req.method === "HEAD") {
+      res.writeHead(200).end();
+    } else {
+      res.writeHead(200);
+      fs.createReadStream(filePath).pipe(res);
+    }
+    return;
+  }
+
+  // PUT /images/:hash
+  if (req.method === "PUT") {
+    const length = parseInt(req.headers["content-length"] ?? "0", 10);
+    if (length > MAX_IMAGE_SIZE) {
+      for (const [k, v] of Object.entries(corsHeaders(origin))) {
+        res.setHeader(k, v);
+      }
+      res.writeHead(413).end("Image too large");
+      return;
+    }
+
+    const chunks: Buffer[] = [];
+    let total = 0;
+    req.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+      total += chunk.length;
+    });
+    req.on("end", () => {
+      if (total > MAX_IMAGE_SIZE) {
+        for (const [k, v] of Object.entries(corsHeaders(origin))) {
+          res.setHeader(k, v);
+        }
+        res.writeHead(413).end("Image too large");
+        return;
+      }
+
+      const body = Buffer.concat(chunks, total);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, body);
+
+      const meta: ImageMeta = {
+        contentType: req.headers["content-type"] ?? "application/octet-stream",
+        uploadedAt: Date.now(),
+      };
+      fs.writeFileSync(metaPath, JSON.stringify(meta));
+
+      for (const [k, v] of Object.entries(corsHeaders(origin))) {
+        res.setHeader(k, v);
+      }
+      res.setHeader("Content-Type", "application/json");
+      res.writeHead(201).end(JSON.stringify({ ok: true }));
+    });
+    return;
+  }
+
+  // Unknown method
+  for (const [k, v] of Object.entries(corsHeaders(origin))) {
+    res.setHeader(k, v);
+  }
+  res.writeHead(405).end("Method Not Allowed");
+}
+
+// ============================================================
+// HTTP + WebSocket server
+// ============================================================
+
+const httpServer = http.createServer((req, res) => {
+  const url = req.url ?? "/";
+
+  // Route image API
+  if (url.startsWith("/images/")) {
+    void handleImageRequest(req, res);
+    return;
+  }
+
+  // Everything else → 404 (WebSocket upgrade or nothing)
+  res.writeHead(404).end("Not Found");
+});
+
+const wss = new WebSocketServer({ server: httpServer });
+
+httpServer.listen(PORT, () => {
   console.log(`🎈 Dev server running on ws://localhost:${PORT}`);
+  console.log(`   Image API: http://localhost:${PORT}/images/:hash`);
   console.log("   (Protocol-compatible with party/server.ts)");
 });
 
-wss.on("connection", (ws: WebSocket, req) => {
+wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {
   // PartyKit URL format: /parties/:partyName/:roomName
   // e.g. /parties/main/my-room  → roomName = "my-room"
   // Also support legacy: /party/:roomName
-  const url = new URL(
+  const urlObj = new URL(
     req.url || "/",
     `http://${req.headers.host || "localhost"}`,
   );
-  const pathParts = url.pathname.split("/").filter(Boolean);
+  const pathParts = urlObj.pathname.split("/").filter(Boolean);
   let roomName: string;
 
   if (pathParts[0] === "parties") {
@@ -118,7 +287,7 @@ wss.on("connection", (ws: WebSocket, req) => {
   entry.sockets.set(connId, ws);
   entry.game.handleConnect(connId);
 
-  console.log(`[connect] room="${roomName}" (${wss.clients.size} clients)`);
+  console.log(`[connect] room="${roomName}"`);
 
   ws.on("message", (data) => {
     entry.game.handleMessage(connId, data.toString());
@@ -127,7 +296,7 @@ wss.on("connection", (ws: WebSocket, req) => {
   ws.on("close", () => {
     cleanupConnection(roomName, connId);
     console.log(
-      `[disconnect] room="${roomName}" (${wss.clients.size} clients)`,
+      `[disconnect] room="${roomName}"`,
     );
   });
 

@@ -82,6 +82,7 @@ function App() {
             playerName={roomConfig.playerName}
             hexConfig={roomConfig.hexConfig}
             serverUrl={roomConfig.serverUrl}
+            imageHost={roomConfig.imageHost}
             onLeave={handleLeaveRoom}
           />
         ) : (
@@ -90,6 +91,7 @@ function App() {
             playerName={roomConfig.playerName}
             boardConfig={roomConfig.boardConfig}
             serverUrl={roomConfig.serverUrl}
+            imageHost={roomConfig.imageHost}
             onLeave={handleLeaveRoom}
           />
         ))}
