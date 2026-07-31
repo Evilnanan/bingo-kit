@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/useT";
 import type {
   BoardConfig,
@@ -7,7 +7,12 @@ import type {
   GoalPool,
   RoomConfig,
 } from "../types";
-import { getGoalText, getGoalGlobalGroup, stripGoalMeta } from "../types";
+import {
+  getGoalText,
+  getGoalGlobalGroup,
+  getGoalImages,
+  stripGoalMeta,
+} from "../types";
 import { pickGoals, type PickRule } from "../randomPicks";
 import { computeConfigHash } from "../utils/configHash";
 import { HEX_MIN_SIZE, HEX_MAX_SIZE } from "../hex/hexTypes";
@@ -205,6 +210,19 @@ export function LandingPage({ onJoinRoom }: Props) {
         imageServerUrl.trim() || IMAGE_URL,
       ),
   );
+
+  // 从 localStorage 恢复的任务池图片没有上传记录，静默入队重新上传；
+  // 服务器已有该图片（哈希即存储键）时队列会通过 HEAD 复用跳过，不重复传数据。
+  // 失败过的图片不自动重试（由编辑器手动重试）。
+  useEffect(() => {
+    for (const goal of goals) {
+      for (const att of getGoalImages(goal)) {
+        if (!att.data) continue;
+        if (uploadQueue.getStatus(att.hash).status === "error") continue;
+        uploadQueue.enqueue(att);
+      }
+    }
+  }, [goals, uploadQueue]);
 
   // Hex state
   const [sizeBlue, setSizeBlue] = useState(HEX_DEFAULT_SIZE_BLUE);

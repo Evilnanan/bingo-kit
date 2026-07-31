@@ -956,9 +956,12 @@
   cursor: pointer;
 }
 
+/* 实心圆旋转不可见，用双色 border 环（同 tooltip spinner）让动画可见 */
 .ge-item-image-status--spinner {
-  background: #2563eb;
-  animation: ge-spin 1s linear infinite;
+  background: transparent;
+  border: 2px solid rgba(37, 99, 235, 0.3);
+  border-top-color: #2563eb;
+  animation: ge-spin 0.8s linear infinite;
 }
 
 @keyframes ge-spin {

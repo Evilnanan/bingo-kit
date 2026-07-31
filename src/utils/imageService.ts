@@ -230,27 +230,34 @@ export class ImageUploadQueue {
     }
   }
 
+  private finish(hash: string, info: UploadStatusInfo): void {
+    this.statuses.set(hash, info);
+    this.notify(hash);
+    this.active = Math.max(0, this.active - 1);
+    this.drain();
+  }
+
   private async uploadOne(att: ImageAttachment): Promise<void> {
     this.statuses.set(att.hash, { status: "uploading" });
     this.notify(att.hash);
 
     if (!att.data) {
-      this.statuses.set(att.hash, { status: "done" });
-      this.notify(att.hash);
-      this.active = Math.max(0, this.active - 1);
-      this.drain();
+      this.finish(att.hash, { status: "done" });
+      return;
+    }
+
+    // 服务器已有该图片（哈希即存储键）则复用，跳过上传
+    const exists = await checkImageExists(att.hash, this.baseUrl);
+    if (exists) {
+      this.finish(att.hash, { status: "done" });
       return;
     }
 
     const result = await uploadSingleImage(att, this.baseUrl);
-    this.statuses.set(att.hash, {
+    this.finish(att.hash, {
       status: result.success ? "done" : "error",
       error: result.error,
     });
-    this.notify(att.hash);
-
-    this.active = Math.max(0, this.active - 1);
-    this.drain();
   }
 
   onStatusChange(cb: StatusCallback): () => void {

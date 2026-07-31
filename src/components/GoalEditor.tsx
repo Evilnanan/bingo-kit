@@ -647,7 +647,9 @@ function GoalEditorItem({
   const imageStatuses = new Map<string, UploadStatusInfo>(
     images.map((im) => [
       im.hash,
-      allStatuses.get(im.hash) ?? { status: "pending" },
+      // 队列中无记录的图片兜底视为已就绪（如入队前的瞬间、分享链接导入的
+      // 无 data 图片）；恢复的图片会在 LandingPage 挂载时静默入队，由队列状态驱动
+      allStatuses.get(im.hash) ?? { status: "done" },
     ]),
   );
 

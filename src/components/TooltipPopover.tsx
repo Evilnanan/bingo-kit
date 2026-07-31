@@ -15,6 +15,10 @@ interface Props {
 export function TooltipPopover({ text, images, imageBaseUrl }: Props) {
   const [open, setOpen] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState(-1);
+  // 已加载完成的图片 hash 集合（含加载失败，失败后图片隐藏、spinner 停止）
+  const [loadedImages, setLoadedImages] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const { t } = useT();
 
   const hasContent = Boolean(text) || (images && images.length > 0);
@@ -105,13 +109,29 @@ export function TooltipPopover({ text, images, imageBaseUrl }: Props) {
                       }}
                       title={att.filename}
                     >
+                      {/* 图片未加载完成时显示 spinner */}
+                      {!loadedImages.has(att.hash) && (
+                        <span
+                          className="tooltip-popup-img-spinner"
+                          aria-hidden="true"
+                        />
+                      )}
                       <img
-                        className="tooltip-popup-img"
+                        className={`tooltip-popup-img${loadedImages.has(att.hash) ? " tooltip-popup-img--loaded" : ""}`}
                         src={getImageSrc(att, imageBaseUrl)}
                         alt={att.filename}
                         loading="lazy"
+                        onLoad={() => {
+                          setLoadedImages((prev) =>
+                            new Set(prev).add(att.hash),
+                          );
+                        }}
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = "none";
+                          // 失败也标记为已结束，停止 spinner（图片本身已隐藏）
+                          setLoadedImages((prev) =>
+                            new Set(prev).add(att.hash),
+                          );
                         }}
                       />
                     </button>
