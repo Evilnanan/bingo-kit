@@ -164,8 +164,8 @@ export const en: Translations = {
   "editor.imagesInJson":
     "Goal pool contains images. JSON editing may be inconvenient.",
   "editor.showJsonAnyway": "Show code",
-  "editor.exportJson": "Export JSON",
-  "editor.importJson": "Import JSON",
+  "editor.exportJson": "Export",
+  "editor.importJson": "Import",
   "editor.importJsonFailed": "Failed to import: {msg}",
   "landing.uploadingImages": "Preparing images…",
   "landing.imageServer": "Image Server",
