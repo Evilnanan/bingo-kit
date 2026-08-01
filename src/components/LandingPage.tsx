@@ -20,6 +20,12 @@ import { GoalEditor } from "./GoalEditor";
 import { ScoringRulePicker } from "./ScoringRulePicker";
 import { GoalPoolManager } from "./GoalPoolManager";
 import { loadPools, savePools } from "../utils/goalPoolStorage";
+import {
+  getBatchImageData,
+  mergeDataMapIntoGoals,
+  deleteOrphanedData,
+  isAvailable as isIDBAvailable,
+} from "../utils/imageDataStore";
 import { ImageUploadQueue } from "../utils/imageService";
 import type { ScoringRule } from "../scoring/types";
 import { DEFAULT_SERVER_URL, IMAGE_URL } from "../config";
@@ -223,6 +229,56 @@ export function LandingPage({ onJoinRoom }: Props) {
       }
     }
   }, [goals, uploadQueue]);
+
+  // 从 IndexedDB 恢复图片 base64 data（localStorage 只存元数据）。
+  // 只用函数式 setState 填补缺失的 data，不覆盖并发编辑的其他字段。
+  useEffect(() => {
+    if (!isIDBAvailable()) return;
+    let cancelled = false;
+    const hashes = new Set<string>();
+    for (const pool of pools) {
+      for (const goal of pool.goals) {
+        for (const att of getGoalImages(goal)) {
+          if (!att.data && att.hash) hashes.add(att.hash);
+        }
+      }
+    }
+    if (hashes.size === 0) return;
+    getBatchImageData([...hashes]).then((dataMap) => {
+      if (cancelled || dataMap.size === 0) return;
+      setPools((current) =>
+        current.map((pool) => ({
+          ...pool,
+          goals: mergeDataMapIntoGoals(pool.goals, dataMap),
+        })),
+      );
+      setGoals((current) => mergeDataMapIntoGoals(current, dataMap));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 定期清理 IndexedDB 中不再被任何池子引用的孤儿图片记录
+  // （如删除池子后残留）。每次打开页面延迟执行一次；活跃 hash 跨池收集，
+  // 被多个池子共用的图片不会被误删。
+  useEffect(() => {
+    if (!isIDBAvailable()) return;
+    const timer = setTimeout(() => {
+      const activeHashes = new Set<string>();
+      for (const pool of pools) {
+        for (const goal of pool.goals) {
+          for (const att of getGoalImages(goal)) {
+            if (att.hash) activeHashes.add(att.hash);
+          }
+        }
+      }
+      deleteOrphanedData(activeHashes).catch(() => {});
+    }, 5000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Hex state
   const [sizeBlue, setSizeBlue] = useState(HEX_DEFAULT_SIZE_BLUE);

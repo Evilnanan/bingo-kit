@@ -28,6 +28,7 @@ import {
   type UploadStatusInfo,
   getImageSrc,
 } from "../utils/imageService";
+import { mergeDataIntoGoals } from "../utils/imageDataStore";
 import "./GoalEditor.css";
 
 function LineNumberedTextArea({
@@ -1086,8 +1087,11 @@ export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
   };
 
   // JSON file import/export
-  const handleExportJson = useCallback(() => {
-    const json = JSON.stringify(goals.map(goalToJson), null, 2);
+  const handleExportJson = useCallback(async () => {
+    // 导出前从 IndexedDB 补全图片 base64 data（localStorage 只存元数据），
+    // 保证导出的 JSON 携带完整图片数据（R2 图片只有 30 天生命周期）。
+    const exportGoals = await mergeDataIntoGoals(goals);
+    const json = JSON.stringify(exportGoals.map(goalToJson), null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
