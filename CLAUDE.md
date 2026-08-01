@@ -4,11 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-实时多人 Bingo 应用。支持 Classic 5×5 棋盘和 Hex (Connect-6) 棋盘两种模式。前端 React 19 + Vite 8，后端基于 PartyKit (Cloudflare Workers) 实现 WebSocket 多人同步。
+实时多人 Bingo 应用。Classic 5×5 与 Hex (Connect-6) 两种棋盘模式。前端 React 19 + Vite 8（Rolldown 打包，TypeScript 6.0），后端基于 PartyKit (Cloudflare Workers) 实现 WebSocket 多人同步。
 
-**已启用 React Compiler**（通过 `babel-plugin-react-compiler` + `@rolldown/plugin-babel`）。因此组件内无需手动 `useMemo`/`useCallback`——编译器会自动 memoize。
-
-**Vite 8 使用 Rolldown**（而非 Rollup）作为底层打包器。项目使用 TypeScript 6.0。
+**已启用 React Compiler**：组件内无需手动 `useMemo`/`useCallback`，编译器自动 memoize。
 
 **无测试框架** — 项目目前不包含任何测试文件（无 vitest/jest）。
 
@@ -29,172 +27,34 @@ npm run deploy:party     # 部署 PartyKit 服务端
 npm run deploy:images    # 部署图片 Worker（wrangler deploy --config image-worker/wrangler.json）
 ```
 
-开发时通常需要同时运行 `npm run dev` 和 `npm run dev:server`（或 `dev:party`）。
-
-- `npm run dev:server` 默认监听 `ws://localhost:1999`
-- `npm run dev:party` 使用 PartyKit 自带的 workerd 运行时
-- 前端通过 `VITE_PARTYKIT_HOST` 环境变量或默认 `localhost:1999` 连接 WebSocket
-- 图片 API 地址通过 `VITE_IMAGE_URL` 指定（生产指向 `image-worker` 的 workers.dev 域名，见 `.env.production`）；未设置时复用 `VITE_PARTYKIT_HOST`（开发时走 dev-server 的图片接口）
+开发时同时运行 `npm run dev` 和 `npm run dev:server`（或 `dev:party`）。`dev:server` 默认监听 `ws://localhost:1999`；前端通过 `VITE_PARTYKIT_HOST` 连接（默认 localhost:1999）。图片 API 由 `VITE_IMAGE_URL` 指定（生产指向 `image-worker`）；未设置时复用 `VITE_PARTYKIT_HOST`（开发走 dev-server 的图片接口）。
 
 ## 架构
 
-### TypeScript 配置
+### 关键约定
 
-使用 TypeScript project references：根 `tsconfig.json` 引用三个子项目 — `tsconfig.app.json`（前端）、`tsconfig.node.json`（Vite 配置）、`party/tsconfig.json`（服务端）。`party/tsconfig.json` 额外启用 `noUnusedLocals: true`，修改服务端代码后如有未使用的变量会导致 `tsc -b` 失败。
+- **TypeScript project references**：根 `tsconfig.json` 引用 `tsconfig.app.json` / `tsconfig.node.json` / `party/tsconfig.json`。`party/tsconfig.json` 启用 `noUnusedLocals: true`——改服务端代码后如有未使用的变量，`tsc -b` 会失败。
+- **传输无关的游戏逻辑**：`party/game-room.ts` 的 `GameRoom` 通过 `GameTransport` 接口（`send` / `broadcast` / `onRoomEmpty`）与运行时解耦。适配器：`party/server.ts`（PartyKit 生产）和 `party/dev-server.ts`（本地 ws 服务器 + 图片 HTTP API，存 `.dev-images/`，协议同 `image-worker`）。
+- **服务端权威状态**：Board config 由第一个进房玩家提供并广播；Marks 以服务端回传的 `SET_CELL_MARKS` 为准（客户端乐观更新）；Rename 冲突时服务端发 `rename_rejected`，客户端回滚；全部玩家 ready → 服务端倒计时 3 秒 → `"start"` → playing；playing 中可发 `restart` 重置回 lobby（可携带新 config）。
+- **两种标记模式**：Classic 非 lockout 可多人共标一格；Classic lockout / Hex 先到先得、锁死。
+- **Hex 特殊性**：队伍制（红/蓝，`assignTeamColor()`）；棋盘尺寸 `sizeBlue` × `sizeRed`（2–9）；Union-Find + BFS 连通对边判定；强制 lockout；标记用 `"red"`/`"blue"` 而非玩家颜色值。
+- **状态管理**：`useReducer` + Props drilling（无外部状态库）。消息流：`PartySocket message` → `usePartyConnection.onMessage` → `useGameState.handleServerMessage` → `dispatch` → `gameReducer`。
+- **前端路由**（条件渲染，非 SPA）：无 `roomConfig` → `LandingPage`；有 → 按 `gameMode` 显示 `BingoRoom`/`HexRoom`；`?test=randompick` / `?test=expression` 为调试页。`LandingPage` 保持挂载（`display: none`）以保留编辑状态。
 
-### 目录结构
+核心文件速查：`src/types/index.ts`（消息/状态类型）、`src/hooks/useGameState.ts` + `usePartyConnection.ts`（状态与连接）、`party/game-room.ts`（全部游戏逻辑）、`src/scoring/expressionParser.ts`（规则表达式解析器）。
 
-```
-src/                    # 前端 React 应用
-  config.ts             # 环境变量集中解析（VITE_PARTYKIT_HOST → DEFAULT_SERVER_URL, VITE_IMAGE_URL → IMAGE_URL）
-  vite-env.d.ts         # import.meta.env 类型声明（ImportMetaEnv 接口）
-  types/index.ts        # 核心类型定义（GoalItem, GameState, ServerMessage, ClientMessage 等）
-  App.tsx               # 根组件，路由 LandingPage → BingoRoom / HexRoom
-  components/           # UI 组件
-    LandingPage.tsx     # 首页 — 模式选择、任务池管理、房间配置
-    GoalEditor.tsx      # Goal 可视化编辑器（JSON/CSV 导入导出）
-    GoalPoolManager.tsx # 多任务池管理（创建/切换/删除任务池）
-    BingoRoom.tsx       # Classic 5×5 棋盘房间
-    BingoBoard.tsx      # Classic 棋盘渲染
-    BingoSquare.tsx     # 单个格子组件
-    HexRoom.tsx         # Hex 棋盘房间
-    HexBoard.tsx        # Hex 棋盘渲染（六边形网格）
-    ReadyPanel.tsx      # 大厅等待/准备面板
-    PlayerList.tsx      # 玩家列表
-    ChatPanel.tsx       # 聊天面板
-    RoomSidebar.tsx     # 房间侧边栏布局
-    RoomHeader.tsx      # 房间头部（名称、退出按钮）
-    ScoringRuleEditor.tsx # 计分规则编辑器
-    ScoringRuleCard.tsx   # 计分规则卡片展示
-    ScoringRulePicker.tsx # 计分规则选择器
-    ExpressionTester.tsx  # 计分表达式调试工具（?test=expression）
-    RandomPickTest.tsx    # 洗牌算法测试页（?test=randompick）
-    TooltipPopover.tsx    # 通用 tooltip 弹出组件（含 Goal 图片）
-    Lightbox.tsx          # 全屏图片查看器（可切换多图）
-  hooks/
-    useGameState.ts     # 核心状态管理 — useReducer + PartyKit 消息处理
-    usePartyConnection.ts # PartySocket 连接管理 hook + usePlayerCallbacks（乐观更新封装）
-    useDarkMode.ts      # 深色模式
-    useLongPress.ts     # 长按手势（移动端）
-    useCounters.ts      # Goal 计数器状态管理
-  randomPicks/          # Goal 洗牌算法
-    index.ts            # 导出 4 种算法 + pickGoals() 分发函数
-    algorithms/         # pureRandom, balancedDifficulty, pattern, fixed
-    types.ts            # 算法公共类型（PickRule, PatternResult 等）
-    utils.ts            # 算法公共工具函数
-  hex/                  # Hex 模式专有逻辑
-    hexTypes.ts         # HexConfig 类型
-    hexUtils.ts         # 六边形坐标、邻居计算、Union-Find 胜利检测
-  i18n/                 # 国际化（中/英）
-    translations.ts     # 语言注册
-    languages/          # en.ts, zh-CN.ts
-    context.ts / I18nProvider.tsx / useT.ts  # React Context 方式提供
-  scoring/              # 计分系统
-    types.ts            # ScoringRule, ScoringContext, DetectedBingo 等类型
-    expressionParser.ts # 自包含表达式解析器/求值器（tokenizer + parser + evaluator）
-    bingoDetector.ts    # Bingo 线检测
-    scoreCalculator.ts  # 核心计分引擎
-    useScoring.ts       # React hook
-    defaultRule.ts      # 默认规则（每格 1 分）
-  utils/
-    compressMessage.ts  # LZ-String 压缩/解压（用于 WebSocket 传输 board config）
-    imageService.ts     # 图片上传工具（SHA-256 哈希、base64 编解码、ImageUploadQueue）
-    colors.ts           # 玩家颜色、Hex 队伍颜色常量
-    measureText.ts / fitHexText.ts  # Canvas 文本测量（Hex 格缩放文字）
+### 核心流程
 
-party/                  # 服务端
-  server.ts             # PartyKit Server 适配器 — 薄封装
-  dev-server.ts         # 独立 WebSocket 开发服务器（ws 库）+ 图片 HTTP API（.dev-images/）
-  game-room.ts          # ** 核心 ** — 传输无关的 GameRoom 类，所有游戏逻辑
+**Config 压缩**：goals 数组可能很大，join 前用 LZ-String 压缩为 base64（`usePartyConnection` 调 `compressJson`）；服务端把 config 当 opaque string 存转；客户端收到 `state` 后 `decompressJson()` 还原。
 
-image-worker/           # 独立的 Cloudflare Worker — 生产图片存储（R2）
-  index.ts              # GET/HEAD/PUT /images/:hash 端点
-  wrangler.json         # wrangler 配置（R2 bucket: bingo-kit-images）
-```
+**分享链接**：URL query 参数 `?room=<房间名>&server=<服务器>&share=1`（`RoomHeader` 复制链接时拼接），**不携带 config**——服务端持有权威 config，访客加入后推回。带 `share=1` 的访问者只读进入（`LandingPage` 的 `isSharedLink` 置灰全部配置项），join 只发最小 config（`{ goals: [] }`），跳过 goal 校验。
 
-### 核心架构决策
+**configHash**：创建房间时客户端计算并随 config 发送，服务端存储。用途是**授权 restart**：仅 owner 且 hash 匹配的连接能执行 `restart`（`game-room.ts`），客户端 `canRestart`（本地 hash === 服务端 hash）据此显示"重开"按钮。
 
-**传输无关的游戏逻辑**：`party/game-room.ts` 中的 `GameRoom` 类通过 `GameTransport` 接口与具体 WebSocket 运行时解耦：
-- `party/server.ts` — PartyKit 适配器（生产环境，部署到 Cloudflare）
-- `party/dev-server.ts` — 独立 ws 服务器（本地开发）
+**Goal 图片**：Goal 可携带图片（tooltip 显示，Lightbox 全屏查看）。上传：`GoalEditor` → `fileToImageAttachment()`（SHA-256 + base64）→ `ImageUploadQueue`（并发上限 2）→ `PUT /images/:hash`，哈希即存储键。**WebSocket 传输前必须 `stripImageData()` 剥掉 `data`**（`compressJson` 也会调用），否则 config 内嵌 base64 过大；渲染用 `getImageSrc()`（有 `data` 用 data URL，否则指向图片 API）。生产用 `image-worker/`（R2 bucket `bingo-kit-images`）；SHA-256 需要 secure context（localhost 或 HTTPS），否则 `sha256Hex` 抛错。
 
-两个适配器都只是实现 `send(connId, msg)` / `broadcast(msg, excludeIds)` / `onRoomEmpty()` 三个方法。`dev-server.ts` 额外在同一 HTTP 端口上提供图片 API（`/images/:hash`，存到本地 `.dev-images/` 目录），协议与 `image-worker` 一致，便于本地开发。
+**计分系统**（`src/scoring/`）：规则引擎，`ScoringRule` 含若干 `ScoringItem`（针对 cell 或 bingo line）；`bingoDetector.ts` 检测完成线并按时间戳排序；`scoreCalculator.ts` 构建 per-player `ScoringContext` 求值；`useScoring.ts` 每次渲染重算（React Compiler 自动 memoize）；默认规则每格 1 分，Hex 始终用默认规则。规则表达式（自包含解析器）支持 ternary/逻辑/比较/算术/成员访问及高阶函数（`all`/`any`），可用 `?test=expression` 调试。
 
-**服务端权威状态**：
-- Board config — 第一个进入房间的玩家提供的 config 被采纳并广播给后续加入者
-- Marks — 服务端是唯一真理源，客户端乐观更新后以服务端回传的 `SET_CELL_MARKS` 为准
-- Rename — 服务端验证唯一性，冲突时发送 `rename_rejected`，客户端回滚乐观更新
-- Phase 转换 — 所有玩家 ready → 服务端倒计时 3 秒 → `"start"` 消息 → 进入 playing
-- 重开（restart）— 在 playing 阶段发送 `restart` 消息可重置游戏回到 lobby，可选携带新 config
+**洗牌算法**（`src/randomPicks/`）：`pickGoals(pool, rule)` 分发 4 种算法 — `pureRandom` / `balancedDifficulty`（最小化行难度方差）/ `pattern`（按模板同分布）/ `fixed`（顺序取前 N），均遵守 exclusion group 约束。
 
-**两种标记模式**：
-- **Classic (非 lockout)**：每个格子可以有多个玩家的标记，不同颜色可同时标记同一格
-- **Classic (lockout)** / **Hex**：每个格子只能被一个人/队伍标记（先到先得），锁死后他人不能再标
-
-**Hex 模式特殊性**：
-- 使用队伍制（红/蓝），颜色分配逻辑不同（`assignTeamColor()`）
-- 棋盘尺寸可变（`sizeBlue` × `sizeRed`，范围 2–9）
-- 胜利判定使用 Union-Find + BFS，检测是否连通对边
-- 强制 lockout 模式
-- 标记使用队伍标识（`"red"` / `"blue"` 字符串），而非玩家颜色值
-
-**Config 压缩**：Board config（goals 数组）可能很大，通过 LZ-String 压缩为 base64 后在 WebSocket 消息中传输。完整流程：
-1. 客户端 `usePartyConnection` 在发送 `join` 消息前调用 `compressJson(config)` → base64 字符串
-2. 服务端 `GameRoom` 将 config 作为 opaque string 存储和转发（不解析）
-3. 客户端 `useGameState.handleServerMessage` 收到 `state` 消息后调用 `decompressJson()` 还原
-
-**分享链接**：通过 URL hash 传递压缩后的 config，访问者以只读模式进入（配置项置灰，不可编辑）。由 `configHash` 校验 config 完整性。
-
-**Goal 图片存储**（Goal 可携带图片，显示在 tooltip 中，点击可打开 Lightbox 全屏查看）：
-- 上传流程：`GoalEditor` 选择图片 → `fileToImageAttachment()` 用 Web Crypto 计算 SHA-256 并转 base64 → `ImageUploadQueue`（并发上限 2，带状态回调/去重）异步 `PUT /images/:hash` 上传
-- **哈希即存储键**：同一图片只上传一次。本地任务池中 `ImageAttachment.data` 保存 base64 以便离线显示，但 **WebSocket 传输前必须调用 `stripImageData()` 剥掉 `data`**（保留 hash/filename/mimeType），`compressJson` 时也会调用——否则 config 会因内嵌 base64 过大
-- 渲染时 `getImageSrc()`：有 `data` 用 data URL，否则指向 `<imageBaseUrl>/images/<hash>`
-- 生产图片 API 是独立的 `image-worker/`（Cloudflare Worker + R2 bucket `bingo-kit-images`），通过 `VITE_IMAGE_URL` 指向；开发时 dev-server 用 `.dev-images/` 目录模拟同一接口
-- SHA-256 需要 secure context（localhost 或 HTTPS），否则 `sha256Hex` 抛错
-
-**计分系统**（`src/scoring/`）：
-- 基于规则引擎的计分：`ScoringRule` 包含一组 `ScoringItem`，每条规则可针对 cell 或 bingo line
-- `bingoDetector.ts` — 从 marks 中检测所有完成的 Bingo 线，按时间戳排序
-- `scoreCalculator.ts` — 构建 per-player 的 `ScoringContext`（cell/player/bingo/global 引用），对每条规则项求值
-- `useScoring.ts` — React hook，每次渲染重新计算分数（React Compiler 自动 memoize）
-- 默认规则（`defaultRule.ts`）：每格 1 分。Hex 模式始终使用默认规则
-- 规则通过 `BoardConfig.scoringRule` 可选传入，UI 通过 `ScoringRuleEditor` / `ScoringRulePicker` 编辑和选择
-
-**表达式语言**（`src/scoring/expressionParser.ts`）：
-- 自包含的表达式解析器/求值器，用于计分规则的 `condition` 和 `points` 字段
-- 语法：ternary (`? :`)、逻辑 (`|| &&`)、比较 (`== != < > <= >=`)、算术 (`+ - * / %`)、一元 (`! -`)、成员访问 (`.prop`)、索引 (`[expr]`)、方法调用 (`.all()`, `.any()`, `.indexOf()`)
-- 内置函数：`min`, `max`, `abs`, `floor`, `ceil`, `round`, `if`
-- 高阶函数：`all(array, |x| pred)`, `any(array, |x| pred)` 及对应的数组方法形式
-- 可调试：`?test=expression` 路由打开 `ExpressionTester` 组件
-
-### 状态管理
-
-前端使用 `useReducer` + Props drilling（无外部状态库）：
-- `useGameState` — 核心 hook，管理 `GameState` 的 reducer，处理所有服务端消息的转换
-- `usePartyConnection` — 管理 PartySocket 连接生命周期，发送/接收消息；同时导出 `usePlayerCallbacks`（changeColor / changeName / sendChat 的乐观更新封装）
-- `useCounters` — 管理 Goal 的自定义计数器状态
-
-服务端消息流：`PartySocket message event` → `usePartyConnection.onMessage` → `useGameState.handleServerMessage` → `dispatch(GameAction)` → `gameReducer`
-
-### 洗牌算法
-
-4 种算法位于 `src/randomPicks/`，通过 `pickGoals(pool, rule)` 分发，从 Goal 池中选取 25 个（或 Hex 所需的 N 个）填充棋盘：
-1. `pureRandom` — 纯随机
-2. `balancedDifficulty` — 最小化每行难度方差
-3. `pattern` — 每条线（行/列/对角线）按用户指定的难度模板严格同分布（same distribution）
-4. `fixed` — 按顺序取前 N 个
-
-所有算法都遵守 exclusion group 约束。
-
-### 前端路由
-
-非 SPA 路由 — 使用条件渲染：
-- 无 `roomConfig` → 显示 `LandingPage`
-- 有 `roomConfig` → 根据 `gameMode` 显示 `BingoRoom` 或 `HexRoom`
-- `?test=randompick` → 显示 `RandomPickTest`（洗牌算法测试页）
-- `?test=expression` → 显示 `ExpressionTester`（计分表达式调试工具）
-- `LandingPage` 保持挂载（`display: none`），切换房间时不丢失编辑状态
-
-### 多任务池（Goal Pools）
-
-通过 `GoalPoolManager` 组件管理多个任务池，每个池有独立的 goals 列表和相关配置。支持创建、切换、删除任务池。此功能通过 `GoalPoolManager.tsx` 实现，集成在 `LandingPage` 中。
+**多任务池**：`GoalPoolManager` 管理多个任务池（创建/切换/删除），集成在 `LandingPage`。
