@@ -10,7 +10,7 @@ export const en: Translations = {
   "landing.yourName": "Your Name",
   "landing.namePlaceholder": "Your display name",
   "landing.goalPoolHeading": "Goal Pool",
-  "landing.server": "Server",
+  "landing.server": "Host",
   "landing.joinButton": "Create / Join Room",
   "room.leave": "← Leave",
   "room.leaveTitle": "Leave room",
@@ -31,8 +31,7 @@ export const en: Translations = {
   "chat.placeholder": "Type a message…",
   "chat.send": "Send",
   "editor.jsonParseError": "JSON parse error",
-  "editor.jsonNotArray":
-    "Expected { metadata, goals } or an array of goals.",
+  "editor.jsonNotArray": "Expected { metadata, goals } or an array of goals.",
   "editor.jsonInvalidItem": "Item #{0} is invalid.",
   "editor.jsonInvalidMetadata": "Invalid pool metadata.",
   "tooltip.info": "Details",

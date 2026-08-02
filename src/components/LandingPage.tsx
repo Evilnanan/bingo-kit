@@ -582,12 +582,12 @@ export function LandingPage({ onJoinRoom }: Props) {
         <label className="form-label">
           <span>
             <a
-              href="https://docs.partykit.io/"
+              href="https://github.com/cloudflare/partykit/blob/main/packages/partyserver/README.md"
               target="_blank"
               rel="noopener noreferrer"
               className="channel-link"
             >
-              PartyKit
+              PartyServer
             </a>{" "}
             {t["landing.server"]}
           </span>

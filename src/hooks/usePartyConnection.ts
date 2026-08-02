@@ -209,6 +209,9 @@ export function usePartyConnection(params: {
 
     const ws = new PartySocket({
       host,
+      // PartyServer routes /parties/:server/:room by kebab-casing the
+      // Durable Object binding name (BingoServer -> bingo-server).
+      party: "bingo-server",
       room: roomName,
     });
     wsRef.current = ws;

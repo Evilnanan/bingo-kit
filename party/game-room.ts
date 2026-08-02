@@ -1,5 +1,5 @@
 /**
- * Shared game-logic core used by both party/server.ts (PartyKit) and
+ * Shared game-logic core used by both party/server.ts (PartyServer) and
  * party/dev-server.ts (standalone ws).
  *
  * This module is transport-agnostic — all I/O goes through the `GameTransport`
@@ -116,7 +116,7 @@ export type ServerMsg =
 
 /**
  * Minimal transport abstraction so GameRoom doesn't depend on any
- * specific WebSocket runtime (PartyKit, ws, Deno, Bun, …).
+ * specific WebSocket runtime (PartyServer, ws, Deno, Bun, ...).
  */
 export interface GameTransport {
   /** Send a message to a single connection identified by its id. */
@@ -325,13 +325,7 @@ export class GameRoom {
 
     switch (msg.type) {
       case "join": {
-        const {
-          name,
-          config,
-          metadata,
-          mode,
-          lockout: cfgLockout,
-        } = msg;
+        const { name, config, metadata, mode, lockout: cfgLockout } = msg;
         const cleanName = name.trim();
         if (!cleanName) return;
 

@@ -1,7 +1,7 @@
 /**
  * Standalone Cloudflare Worker for goal-tooltip image storage.
  *
- * R2 bucket "bingo-kit-images" must already exist in Cloudflare.
+ * R2 bucket "bingo-kit-image" must already exist in Cloudflare.
  */
 
 const HASH_RE = /^[a-f0-9]{64}$/;

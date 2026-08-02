@@ -13,7 +13,7 @@
   - 均衡难度（每条线尽可能小的难度方差）
   - 相同分布（每条线的难度分布相同）
   - 固定（按顺序选择任务池的前 25 条任务）
-- **多人同步** — 基于 [PartyKit](https://docs.partykit.io/) 服务
+- **多人同步** — 基于 [PartyServer](https://github.com/cloudflare/partykit/blob/main/packages/partyserver/README.md)（Cloudflare Durable Objects）服务
 - **国际化** — 支持中文和英文
 - **深色模式** — 跟随系统或手动切换
 - **自定义计分** — 基于规则引擎的计分系统，支持表达式语言，可对格子和 Bingo 线分别计分。内置可视化规则编辑器
@@ -28,7 +28,7 @@ npm install
 # 启动前端开发服务器
 npm run dev
 
-# 启动 PartyKit 开发服务器（WebSocket 后端，多人模式需要）
+# 启动 PartyServer 开发服务器（wrangler，WebSocket 后端，多人模式需要）
 npm run dev:party
 
 # 类型检查

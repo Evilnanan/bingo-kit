@@ -168,11 +168,7 @@ export function isValidGoalItem(item: unknown): item is GoalItem {
     )
       return false;
     const imgs = (item as Record<string, unknown>).images;
-    if (
-      imgs !== undefined &&
-      imgs !== null &&
-      !isValidImageAttachments(imgs)
-    )
+    if (imgs !== undefined && imgs !== null && !isValidImageAttachments(imgs))
       return false;
     const ti18n = (item as Record<string, unknown>).text_i18n;
     if (ti18n !== undefined && ti18n !== null) {

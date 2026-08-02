@@ -13,7 +13,7 @@ A real-time multiplayer Bingo app.
   - Balanced difficulty (minimizes difficulty variance across each line)
   - Same distribution (each line has the same difficulty distribution)
   - Fixed (takes the first 25 goals from the pool in order)
-- **Multiplayer sync** — Powered by [PartyKit](https://docs.partykit.io/)
+- **Multiplayer sync** — Powered by [PartyServer](https://github.com/cloudflare/partykit/blob/main/packages/partyserver/README.md) (Cloudflare Durable Objects)
 - **i18n** — Chinese and English
 - **Dark mode** — Follows system preference or manual toggle
 - **Custom scoring** — Rule-based engine with an expression language for scoring cells and bingo lines. Includes a visual rule editor.
@@ -28,7 +28,7 @@ npm install
 # Start frontend dev server
 npm run dev
 
-# Start PartyKit dev server (WebSocket backend, required for multiplayer)
+# Start PartyServer dev server via wrangler (WebSocket backend, required for multiplayer)
 npm run dev:party
 
 # Type-check

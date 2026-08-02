@@ -1,18 +1,18 @@
 # 消息协议
 
-本文档描述通过 **PartyKit** 操控棋盘所需的**消息格式和数据结构**。
+本文档描述通过 **PartyServer**（Cloudflare Durable Objects）操控棋盘所需的**消息格式和数据结构**。
 
 ## 1. 基本约定
 
 ### 连接
 
-客户端通过 PartySocket 连接到 PartyKit 服务器：
+客户端通过 PartySocket 连接到 PartyServer 服务器：
 
 ```
-ws://{serverUrl}/party/{roomName}
+ws://{serverUrl}/parties/bingo-server/{roomName}
 ```
 
-每个房间（`roomName`）对应一个独立的 PartyKit 服务实例，拥有独立的状态。
+`bingo-server` 是 Durable Object 绑定 `BingoServer` 的 kebab-case 名称。每个房间（`roomName`）对应一个独立的 Durable Object 实例，拥有独立的状态。
 
 ### 消息结构
 

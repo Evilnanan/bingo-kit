@@ -1,0 +1,19 @@
+{
+  "name": "bingo-kit-party",
+  "main": "party/server.ts",
+  "compatibility_date": "2026-08-02",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "BingoServer",
+        "class_name": "BingoServer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["BingoServer"]
+    }
+  ]
+}

@@ -110,7 +110,7 @@ export function getImageBaseUrl(serverUrl?: string): string {
   return getBaseUrl(DEFAULT_SERVER_URL);
 }
 
-/** Normalize a PartyKit server URL to a fetch-able HTTP base URL. */
+/** Normalize a PartyServer URL to a fetch-able HTTP base URL. */
 export function getBaseUrl(serverUrl: string): string {
   let url = serverUrl.trim().replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(url)) {

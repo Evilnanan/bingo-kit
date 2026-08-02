@@ -1,5 +1,5 @@
 /**
- * Development-only WebSocket server that mirrors the PartyKit server API.
+ * Development-only WebSocket server that mirrors the PartyServer API.
  *
  * Provides the same message protocol as party/server.ts without requiring
  * workerd/Cloudflare Workers runtime. Used with `npm run dev:server`.
@@ -7,7 +7,7 @@
  * All game logic is shared via party/game-room.ts — this file is just the
  * transport adapter (WebSocket server + room management + image HTTP API).
  *
- * Production: `party/server.ts` deployed via `partykit deploy`.
+ * Production: `party/server.ts` deployed via `wrangler deploy`.
  * Development: `party/dev-server.ts` run via `tsx party/dev-server.ts`.
  */
 
@@ -270,7 +270,7 @@ httpServer.listen(PORT, () => {
 });
 
 wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {
-  // PartyKit URL format: /parties/:partyName/:roomName
+  // PartyServer URL format: /parties/:partyName/:roomName
   // e.g. /parties/main/my-room  → roomName = "my-room"
   // Also support legacy: /party/:roomName
   const urlObj = new URL(

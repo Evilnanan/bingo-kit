@@ -18,9 +18,6 @@ dist-ssr
 # Dev image storage
 .dev-images/
 
-# undici proxy preload (for npm run ...:party)
-proxy-preload.mjs
-
 # Editor directories and files
 .claude/*
 .vscode/*

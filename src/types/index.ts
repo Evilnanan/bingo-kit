@@ -268,7 +268,7 @@ export type PlayerCallbackAction = Extract<
   { type: "UPDATE_PLAYER_COLOR" | "RENAME_PLAYER" | "ADD_CHAT" }
 >;
 
-/** Messages received from the PartyKit server. */
+/** Messages received from the PartyServer. */
 export type ServerMessage =
   | {
       type: "state";
@@ -298,7 +298,7 @@ export type ServerMessage =
   | { type: "start" }
   | { type: "bonus_score"; playerName: string; bonus: number };
 
-/** Messages sent to the PartyKit server. */
+/** Messages sent to the PartyServer. */
 export type ClientMessage =
   | {
       type: "join";

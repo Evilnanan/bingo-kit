@@ -293,7 +293,7 @@ export function useGameState(
     return rest;
   }
 
-  // Handle messages from the PartyKit server
+  // Handle messages from the PartyServer
   function handleServerMessage(msg: ServerMessage) {
     switch (msg.type) {
       case "state": {
@@ -426,7 +426,7 @@ export function useGameState(
     }
   }
 
-  // Connect to PartyKit server
+  // Connect to PartyServer
   // Strip originalPool/pickRule from config — they're only needed client-side for restart.
   // Strip image base64 data — keep only hashes for wire transmission.
   const lockout = (initialConfig as BoardConfig).lockout === true;

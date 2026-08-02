@@ -118,9 +118,7 @@ function PoolMetaEditor({
     const trimmed = renameText.trim();
     if (trimmed && trimmed !== images.find((a) => a.hash === hash)?.filename) {
       setImages((current) =>
-        current.map((a) =>
-          a.hash === hash ? { ...a, filename: trimmed } : a,
-        ),
+        current.map((a) => (a.hash === hash ? { ...a, filename: trimmed } : a)),
       );
     }
     setRenamingHash(null);
@@ -159,7 +157,11 @@ function PoolMetaEditor({
       >
         <div className="gp-header">
           <h2 className="gp-title">{t["goalPool.editInfo"]}</h2>
-          <button type="button" className="gp-close" onClick={handleCloseAndSave}>
+          <button
+            type="button"
+            className="gp-close"
+            onClick={handleCloseAndSave}
+          >
             ✕
           </button>
         </div>

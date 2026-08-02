@@ -6,7 +6,7 @@
 
 /** Main server host: env override, falling back to the local dev server. */
 export const DEFAULT_SERVER_URL =
-  import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
+  import.meta.env.VITE_PARTY_HOST || "localhost:1999";
 
 /**
  * Optional image API URL override.

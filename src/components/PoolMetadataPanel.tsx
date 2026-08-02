@@ -73,16 +73,12 @@ export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {
                       alt={att.filename}
                       loading="lazy"
                       onLoad={() => {
-                        setLoadedImages((prev) =>
-                          new Set(prev).add(att.hash),
-                        );
+                        setLoadedImages((prev) => new Set(prev).add(att.hash));
                       }}
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                         // 失败也标记为已结束，停止 spinner（图片本身已隐藏）
-                        setLoadedImages((prev) =>
-                          new Set(prev).add(att.hash),
-                        );
+                        setLoadedImages((prev) => new Set(prev).add(att.hash));
                       }}
                     />
                   </button>

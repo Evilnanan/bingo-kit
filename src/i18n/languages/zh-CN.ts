@@ -10,7 +10,7 @@ export const zh: Translations = {
   "landing.yourName": "你的名称",
   "landing.namePlaceholder": "显示名称",
   "landing.goalPoolHeading": "任务池",
-  "landing.server": "服务器",
+  "landing.server": "主机",
   "landing.joinButton": "创建 / 加入房间",
   "room.leave": "← 离开",
   "room.leaveTitle": "离开房间",
