@@ -95,7 +95,12 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
+  cursor: pointer;
   transition: border-color 0.15s;
+}
+
+.gp-item:hover {
+  border-color: var(--accent);
 }
 
 .gp-item--active {
@@ -117,19 +122,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.gp-rename-input {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  padding: 2px 6px;
-  width: 100%;
-  max-width: 200px;
-  outline: none;
 }
 
 .gp-item-count {
@@ -192,6 +184,18 @@
   opacity: 0.85;
 }
 
+label.gp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gp-import-input {
+  display: none;
+}
+
 @keyframes gp-pulse {
   from { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
   to   { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);   }
@@ -211,5 +215,232 @@
 .gp-footer {
   display: flex;
   justify-content: center;
+  gap: 8px;
   padding-top: 4px;
+}
+
+.gp-error {
+  color: var(--danger);
+  font-size: 13px;
+  text-align: center;
+  margin: 0;
+}
+
+/* ── metadata editor ─────────────────────────────────────────────── */
+
+.gp-meta-modal {
+  max-width: 560px;
+}
+
+.gp-meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gp-meta-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gp-meta-count {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.gp-meta-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  padding: 8px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.gp-meta-input:focus {
+  border-color: var(--accent);
+}
+
+.gp-meta-textarea {
+  font-family: inherit;
+  line-height: 1.5;
+  min-height: 72px;
+}
+
+.gp-meta-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.gp-meta-image-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.gp-meta-image-frame {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.gp-meta-image-frame:hover {
+  transform: scale(1.05);
+}
+
+.gp-meta-image-frame--error {
+  border-color: #dc2626;
+}
+
+.gp-meta-image-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.gp-meta-image-status {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  color: #fff;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.gp-meta-image-status--spinner {
+  background: transparent;
+  border: 2px solid rgba(37, 99, 235, 0.3);
+  border-top-color: #2563eb;
+  animation: gp-spin 0.8s linear infinite;
+}
+
+@keyframes gp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.gp-meta-image-status--done {
+  background: #16a34a;
+}
+
+.gp-meta-image-status--retry {
+  background: #dc2626;
+}
+
+.gp-meta-image-remove {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.gp-meta-image-frame:hover .gp-meta-image-remove {
+  opacity: 1;
+}
+
+.gp-meta-image-name {
+  font-size: 10px;
+  color: var(--text-secondary);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+  cursor: text;
+  padding: 1px 3px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.gp-meta-image-name:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.gp-meta-image-rename-input {
+  width: 96px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  font-family: inherit;
+  outline: none;
+  line-height: 1.4;
+}
+
+.gp-meta-image-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 56px;
+  padding: 0 14px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.gp-meta-image-add:hover {
+  opacity: 0.8;
+}
+
+.gp-meta-image-input {
+  display: none;
+}
+
+.gp-meta-footer {
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px 16px;
 }

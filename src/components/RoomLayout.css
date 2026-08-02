@@ -109,6 +109,25 @@
   color: var(--text);
 }
 
+.room-pool-info-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-size: 16px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.room-pool-info-btn:hover {
+  background: var(--accent-focus);
+  color: var(--text);
+}
+
 .room-settings-wrap {
   position: relative;
 }

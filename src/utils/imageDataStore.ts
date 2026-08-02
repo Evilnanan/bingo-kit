@@ -111,6 +111,25 @@ export async function getBatchImageData(
   return map;
 }
 
+/** Merge fetched data into an attachment list — only fills missing `data`, never removes. */
+export function mergeDataMapIntoAttachments(
+  images: ImageAttachment[] | undefined,
+  dataMap: Map<string, string>,
+): ImageAttachment[] | undefined {
+  if (!images || images.length === 0 || dataMap.size === 0) return images;
+  let changed = false;
+  const result = images.map((a) => {
+    if (a.data || !a.hash) return a;
+    const d = dataMap.get(a.hash);
+    if (d) {
+      changed = true;
+      return { ...a, data: d };
+    }
+    return a;
+  });
+  return changed ? result : images;
+}
+
 /** Merge fetched data into goals — only fills missing `data`, never removes. */
 export function mergeDataMapIntoGoals(
   goals: GoalItem[],
@@ -121,17 +140,8 @@ export function mergeDataMapIntoGoals(
   const result = goals.map((goal) => {
     if (typeof goal === "string" || !goal.images || goal.images.length === 0)
       return goal;
-    let goalChanged = false;
-    const images = goal.images.map((a) => {
-      if (a.data || !a.hash) return a;
-      const d = dataMap.get(a.hash);
-      if (d) {
-        goalChanged = true;
-        return { ...a, data: d };
-      }
-      return a;
-    });
-    if (goalChanged) {
+    const images = mergeDataMapIntoAttachments(goal.images, dataMap);
+    if (images !== goal.images) {
       changed = true;
       return { ...goal, images };
     }
@@ -156,6 +166,23 @@ export async function mergeDataIntoGoals(
   if (hashes.size === 0) return goals;
   const dataMap = await getBatchImageData([...hashes]);
   return mergeDataMapIntoGoals(goals, dataMap);
+}
+
+/**
+ * Fetch missing image data from IndexedDB and merge it into an attachment
+ * list (used for pool-level images on export).
+ */
+export async function mergeDataIntoAttachments(
+  images: ImageAttachment[] | undefined,
+): Promise<ImageAttachment[] | undefined> {
+  if (!images || images.length === 0) return images;
+  const hashes = new Set<string>();
+  for (const att of images) {
+    if (!att.data && att.hash) hashes.add(att.hash);
+  }
+  if (hashes.size === 0) return images;
+  const dataMap = await getBatchImageData([...hashes]);
+  return mergeDataMapIntoAttachments(images, dataMap);
 }
 
 /**

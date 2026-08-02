@@ -5,6 +5,7 @@ import type {
   GameMode,
   GoalItem,
   GoalPool,
+  PoolMetadata,
   RoomConfig,
 } from "../types";
 import {
@@ -22,6 +23,7 @@ import { GoalPoolManager } from "./GoalPoolManager";
 import { loadPools, savePools } from "../utils/goalPoolStorage";
 import {
   getBatchImageData,
+  mergeDataMapIntoAttachments,
   mergeDataMapIntoGoals,
   deleteOrphanedData,
   isAvailable as isIDBAvailable,
@@ -221,14 +223,21 @@ export function LandingPage({ onJoinRoom }: Props) {
   // 服务器已有该图片（哈希即存储键）时队列会通过 HEAD 复用跳过，不重复传数据。
   // 失败过的图片不自动重试（由编辑器手动重试）。
   useEffect(() => {
-    for (const goal of goals) {
-      for (const att of getGoalImages(goal)) {
+    for (const pool of pools) {
+      for (const att of pool.images ?? []) {
         if (!att.data) continue;
         if (uploadQueue.getStatus(att.hash).status === "error") continue;
         uploadQueue.enqueue(att);
       }
+      for (const goal of pool.goals) {
+        for (const att of getGoalImages(goal)) {
+          if (!att.data) continue;
+          if (uploadQueue.getStatus(att.hash).status === "error") continue;
+          uploadQueue.enqueue(att);
+        }
+      }
     }
-  }, [goals, uploadQueue]);
+  }, [pools, uploadQueue]);
 
   // 从 IndexedDB 恢复图片 base64 data（localStorage 只存元数据）。
   // 只用函数式 setState 填补缺失的 data，不覆盖并发编辑的其他字段。
@@ -237,6 +246,9 @@ export function LandingPage({ onJoinRoom }: Props) {
     let cancelled = false;
     const hashes = new Set<string>();
     for (const pool of pools) {
+      for (const att of pool.images ?? []) {
+        if (!att.data && att.hash) hashes.add(att.hash);
+      }
       for (const goal of pool.goals) {
         for (const att of getGoalImages(goal)) {
           if (!att.data && att.hash) hashes.add(att.hash);
@@ -249,6 +261,7 @@ export function LandingPage({ onJoinRoom }: Props) {
       setPools((current) =>
         current.map((pool) => ({
           ...pool,
+          images: mergeDataMapIntoAttachments(pool.images, dataMap),
           goals: mergeDataMapIntoGoals(pool.goals, dataMap),
         })),
       );
@@ -268,6 +281,9 @@ export function LandingPage({ onJoinRoom }: Props) {
     const timer = setTimeout(() => {
       const activeHashes = new Set<string>();
       for (const pool of pools) {
+        for (const att of pool.images ?? []) {
+          if (att.hash) activeHashes.add(att.hash);
+        }
         for (const goal of pool.goals) {
           for (const att of getGoalImages(goal)) {
             if (att.hash) activeHashes.add(att.hash);
@@ -350,6 +366,20 @@ export function LandingPage({ onJoinRoom }: Props) {
       return;
     }
 
+    // Pool metadata (name / description / images) travels inside the config
+    // so everyone in the room can open the pool info panel.
+    const poolMetadata = currentPool
+      ? {
+          name: currentPool.name,
+          ...(currentPool.description
+            ? { description: currentPool.description }
+            : {}),
+          ...(currentPool.images && currentPool.images.length > 0
+            ? { images: currentPool.images }
+            : {}),
+        }
+      : undefined;
+
     // Wait for any pending image uploads before joining
     if (uploadQueue.hasErrors) {
       setUploading(true);
@@ -402,6 +432,7 @@ export function LandingPage({ onJoinRoom }: Props) {
           sizeBlue: sBlue,
           sizeRed: sRed,
           goals: stripGoalMeta(picked),
+          ...(poolMetadata ? { metadata: poolMetadata } : {}),
           configHash,
         },
       });
@@ -429,6 +460,7 @@ export function LandingPage({ onJoinRoom }: Props) {
     const boardConfig: BoardConfig = {
       goals: stripGoalMeta(boardGoals),
       lockout,
+      ...(poolMetadata ? { metadata: poolMetadata } : {}),
       ...(selectedScoringRule ? { scoringRule: selectedScoringRule } : {}),
       originalPool: goals,
       pickRule,
@@ -450,6 +482,26 @@ export function LandingPage({ onJoinRoom }: Props) {
     setGoals(g);
     // Auto-save to current pool
     syncPoolGoals(g);
+  };
+
+  const handlePoolMetaChange = (meta: PoolMetadata) => {
+    const now = Date.now();
+    const updated = pools.map((p) => {
+      if (p.id !== currentPoolId) return p;
+      const next: GoalPool = {
+        ...p,
+        name: meta.name.trim() || p.name,
+        updatedAt: now,
+      };
+      if (meta.description && meta.description.trim())
+        next.description = meta.description.trim();
+      else delete next.description;
+      if (meta.images && meta.images.length > 0) next.images = meta.images;
+      else delete next.images;
+      return next;
+    });
+    setPools(updated);
+    savePools(updated);
   };
 
   const handleCloseEditor = () => {
@@ -814,6 +866,7 @@ export function LandingPage({ onJoinRoom }: Props) {
         <GoalEditor
           goals={goals}
           onChange={handleGoalsChange}
+          onPoolMetaChange={handlePoolMetaChange}
           onClose={handleCloseEditor}
           uploadQueue={uploadQueue}
         />
@@ -824,6 +877,7 @@ export function LandingPage({ onJoinRoom }: Props) {
           pools={pools}
           currentPoolId={currentPoolId}
           defaultGoals={DEFAULT_GOALS}
+          uploadQueue={uploadQueue}
           onSelect={(id) => {
             switchToPool(id);
           }}

@@ -157,7 +157,12 @@ export async function checkImageExists(
   baseUrl: string,
 ): Promise<boolean> {
   try {
-    const resp = await fetch(`${baseUrl}/images/${hash}`, { method: "HEAD" });
+    // 绕过浏览器缓存：服务端对 HEAD 也返回 30 天 Cache-Control，
+    // 否则清空存储后仍会命中缓存的 200 而跳过实际上传。
+    const resp = await fetch(`${baseUrl}/images/${hash}`, {
+      method: "HEAD",
+      cache: "no-store",
+    });
     return resp.ok || resp.status === 304;
   } catch {
     return false;

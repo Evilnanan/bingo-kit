@@ -54,6 +54,7 @@ export function BingoRoom({
   const goals = state.config?.goals || boardConfig.goals;
   const lockout =
     (state.config as import("../types").BoardConfig)?.lockout ?? false;
+  const metadata = state.metadata ?? boardConfig.metadata;
 
   const players = Object.values(state.players);
   const showBoard = state.phase === "playing";
@@ -79,6 +80,8 @@ export function BingoRoom({
         isOwner={isOwner && canRestart}
         phase={state.phase}
         onRestart={requestRestart}
+        metadata={metadata}
+        imageBaseUrl={imageHost || serverUrl}
         settings={settings}
         onSettingsChange={updateSetting}
       />

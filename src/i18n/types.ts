@@ -23,6 +23,8 @@ export interface Translations {
   "room.loading": string;
   "room.restart": string;
   "room.restartConfirm": string;
+  "room.poolInfo": string;
+  "room.poolInfoTitle": string;
   // PlayerList
   "players.waiting": string;
   "players.changeColor": string;
@@ -37,6 +39,7 @@ export interface Translations {
   "editor.jsonParseError": string;
   "editor.jsonNotArray": string;
   "editor.jsonInvalidItem": string;
+  "editor.jsonInvalidMetadata": string;
   // Tooltip
   "tooltip.info": string;
   "tooltip.close": string;
@@ -148,13 +151,18 @@ export interface Translations {
   "goalPool.delete": string;
   "goalPool.deleteConfirm": string;
   "goalPool.confirmDelete": string;
-  "goalPool.rename": string;
-  "goalPool.renamePrompt": string;
-  "goalPool.newPrompt": string;
   "goalPool.defaultName": string;
   "goalPool.newDefaultName": string;
+  "goalPool.importedName": string;
   "goalPool.goalCount": string;
-  "goalPool.selectBtn": string;
+  "goalPool.info": string;
+  "goalPool.editInfo": string;
+  "goalPool.namePlaceholder": string;
+  "goalPool.name": string;
+  "goalPool.description": string;
+  "goalPool.descriptionPlaceholder": string;
+  "goalPool.images": string;
+  "goalPool.cancel": string;
   // Room display settings
   "settings.title": string;
   "settings.hideCounters": string;
@@ -168,6 +176,7 @@ export interface Translations {
   "editor.imageTooLarge": string;
   "editor.imageNotImage": string;
   "editor.imageRemove": string;
+  "editor.imageRenameHint": string;
   "editor.imagesInJson": string;
   "editor.showJsonAnyway": string;
   "editor.exportJson": string;

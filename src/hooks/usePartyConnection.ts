@@ -11,6 +11,7 @@ import type {
   ServerMessage,
   GameMode,
   GameAction,
+  PoolMetadata,
 } from "../types";
 
 // ============================================================
@@ -170,6 +171,7 @@ export function usePartyConnection(params: {
   roomName: string;
   playerName: string;
   config: unknown;
+  metadata?: PoolMetadata;
   mode: GameMode;
   lockout: boolean;
   dispatch: React.Dispatch<GameAction>;
@@ -182,6 +184,7 @@ export function usePartyConnection(params: {
     roomName,
     playerName,
     config,
+    metadata,
     mode,
     lockout,
     dispatch,
@@ -224,6 +227,7 @@ export function usePartyConnection(params: {
           type: "join",
           name: playerName,
           config: config != null ? compressJson(config) : null,
+          metadata,
           mode,
           lockout,
           configHash:
@@ -255,7 +259,7 @@ export function usePartyConnection(params: {
       wsRef.current = null;
       genRef.current = 0;
     };
-    // Intentionally exclude config, mode, lockout from deps — they're
+    // Intentionally exclude config, metadata, mode, lockout from deps — they're
     // captured at connection time and shouldn't trigger reconnects.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverUrl, roomName, playerName, dispatch, enabled]);

@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { useT } from "../i18n/useT";
-import type { GamePhase } from "../types";
+import type { GamePhase, PoolMetadata } from "../types";
 import type { RoomSettings } from "../hooks/useRoomSettings";
 import { RoomSettingsPanel } from "./RoomSettingsPanel";
+import { PoolMetadataPanel } from "./PoolMetadataPanel";
 
 interface Props {
   roomName: string;
@@ -12,6 +13,8 @@ interface Props {
   isOwner?: boolean;
   phase?: GamePhase;
   onRestart?: () => void;
+  metadata?: PoolMetadata | null;
+  imageBaseUrl?: string;
   settings: RoomSettings;
   onSettingsChange: <K extends keyof RoomSettings>(
     key: K,
@@ -27,6 +30,8 @@ export function RoomHeader({
   isOwner,
   phase,
   onRestart,
+  metadata,
+  imageBaseUrl,
   settings,
   onSettingsChange,
 }: Props) {
@@ -35,6 +40,7 @@ export function RoomHeader({
   const [restartConfirm, setRestartConfirm] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelMounted, setPanelMounted] = useState(false);
+  const [poolInfoOpen, setPoolInfoOpen] = useState(false);
   const settingsWrapRef = useRef<HTMLDivElement>(null);
 
   const openPanel = () => {
@@ -128,7 +134,25 @@ export function RoomHeader({
             />
           )}
         </div>
+        {metadata && (
+          <button
+            type="button"
+            className="room-pool-info-btn"
+            onClick={() => setPoolInfoOpen((v) => !v)}
+            title={t["room.poolInfo"]}
+            aria-label={t["room.poolInfo"]}
+          >
+            !
+          </button>
+        )}
       </div>
+      {poolInfoOpen && metadata && (
+        <PoolMetadataPanel
+          metadata={metadata}
+          imageBaseUrl={imageBaseUrl}
+          onClose={() => setPoolInfoOpen(false)}
+        />
+      )}
     </header>
   );
 }

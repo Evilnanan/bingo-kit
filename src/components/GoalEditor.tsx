@@ -12,7 +12,7 @@ import { langCodes, langDescriptors } from "../i18n/translations";
 import { Lightbox } from "./Lightbox";
 import type { Lang } from "../i18n/translations";
 import type { Translations } from "../i18n/types";
-import type { GoalItem, ImageAttachment } from "../types";
+import type { GoalItem, ImageAttachment, PoolMetadata } from "../types";
 import {
   getGoalCounter,
   getGoalDifficulty,
@@ -28,7 +28,11 @@ import {
   type UploadStatusInfo,
   getImageSrc,
 } from "../utils/imageService";
-import { mergeDataIntoGoals } from "../utils/imageDataStore";
+import {
+  goalToJson,
+  normalizeGoalItem,
+  parsePoolJson,
+} from "../utils/poolJson";
 import "./GoalEditor.css";
 
 function LineNumberedTextArea({
@@ -67,34 +71,6 @@ function LineNumberedTextArea({
       />
     </div>
   );
-}
-
-function goalToJson(item: GoalItem): unknown {
-  if (typeof item === "string") return item;
-  const obj: Record<string, unknown> = { text: item.text };
-  if (item.tooltip) obj.tooltip = item.tooltip;
-  if (item.difficulty !== undefined) obj.difficulty = item.difficulty;
-  if (item.group) {
-    const eg = item.group;
-    obj.group = Array.isArray(eg) && eg.length === 1 ? eg[0] : eg;
-  }
-  if (item.globalGroup) {
-    const gg = item.globalGroup;
-    obj.globalGroup = Array.isArray(gg) && gg.length === 1 ? gg[0] : gg;
-  }
-  if (item.counter) obj.counter = item.counter;
-  if (item.text_i18n && Object.keys(item.text_i18n).length > 0)
-    obj.text_i18n = item.text_i18n;
-  if (item.tooltip_i18n && Object.keys(item.tooltip_i18n).length > 0)
-    obj.tooltip_i18n = item.tooltip_i18n;
-  if (item.images && item.images.length > 0)
-    obj.images = item.images.map(({ hash, filename, mimeType, data }) => ({
-      hash,
-      filename,
-      mimeType,
-      ...(data ? { data } : {}),
-    }));
-  return obj;
 }
 
 function goalToCsv(item: GoalItem): string {
@@ -211,34 +187,6 @@ function parseCsv(
   return items;
 }
 
-function normalizeGoalItem(item: GoalItem): GoalItem {
-  if (typeof item === "string") return item;
-  const {
-    text,
-    tooltip,
-    difficulty,
-    group,
-    globalGroup,
-    counter,
-    text_i18n,
-    tooltip_i18n,
-    images,
-  } = item;
-  if (
-    !tooltip &&
-    difficulty === undefined &&
-    !group &&
-    !globalGroup &&
-    !counter &&
-    !text_i18n &&
-    !tooltip_i18n &&
-    (!images || images.length === 0)
-  ) {
-    return text;
-  }
-  return item;
-}
-
 function hasTranslation(item: GoalItem): boolean {
   return (
     typeof item === "object" &&
@@ -252,87 +200,6 @@ function hasTranslation(item: GoalItem): boolean {
 // CSV 无法表示图片和翻译，任务池包含这些字段时 CSV 模式只读
 function hasCsvUnsupported(item: GoalItem): boolean {
   return getGoalImages(item).length > 0 || hasTranslation(item);
-}
-
-function isValidGoalItem(item: unknown): item is GoalItem {
-  if (typeof item === "string") return true;
-  if (
-    item &&
-    typeof item === "object" &&
-    typeof (item as Record<string, unknown>).text === "string"
-  ) {
-    const d = (item as Record<string, unknown>).difficulty;
-    if (
-      d !== undefined &&
-      d !== null &&
-      !(typeof d === "number" && Number.isInteger(d) && d >= 1 && d <= 5)
-    )
-      return false;
-    const eg = (item as Record<string, unknown>).group;
-    if (
-      eg !== undefined &&
-      eg !== null &&
-      typeof eg !== "string" &&
-      !(Array.isArray(eg) && eg.every((v) => typeof v === "string"))
-    )
-      return false;
-    const geg = (item as Record<string, unknown>).globalGroup;
-    if (
-      geg !== undefined &&
-      geg !== null &&
-      typeof geg !== "string" &&
-      !(Array.isArray(geg) && geg.every((v) => typeof v === "string"))
-    )
-      return false;
-    const cm = (item as Record<string, unknown>).counter;
-    if (
-      cm !== undefined &&
-      cm !== null &&
-      !(typeof cm === "number" && Number.isInteger(cm) && cm >= 0)
-    )
-      return false;
-    const imgs = (item as Record<string, unknown>).images;
-    if (imgs !== undefined && imgs !== null) {
-      if (!Array.isArray(imgs)) return false;
-      const HASH_RE = /^[a-f0-9]{64}$/;
-      if (
-        !imgs.every(
-          (img) =>
-            typeof img === "object" &&
-            img !== null &&
-            typeof (img as Record<string, unknown>).hash === "string" &&
-            HASH_RE.test((img as Record<string, unknown>).hash as string) &&
-            typeof (img as Record<string, unknown>).filename === "string" &&
-            typeof (img as Record<string, unknown>).mimeType === "string" &&
-            ((img as Record<string, unknown>).data === undefined ||
-              typeof (img as Record<string, unknown>).data === "string"),
-        )
-      )
-        return false;
-    }
-    const ti18n = (item as Record<string, unknown>).text_i18n;
-    if (ti18n !== undefined && ti18n !== null) {
-      if (typeof ti18n !== "object" || Array.isArray(ti18n)) return false;
-      if (
-        !Object.values(ti18n as Record<string, unknown>).every(
-          (v) => typeof v === "string",
-        )
-      )
-        return false;
-    }
-    const tpi18n = (item as Record<string, unknown>).tooltip_i18n;
-    if (tpi18n !== undefined && tpi18n !== null) {
-      if (typeof tpi18n !== "object" || Array.isArray(tpi18n)) return false;
-      if (
-        !Object.values(tpi18n as Record<string, unknown>).every(
-          (v) => typeof v === "string",
-        )
-      )
-        return false;
-    }
-    return true;
-  }
-  return false;
 }
 
 /* ── TagInput ────────────────────────────────────────────────────── */
@@ -956,11 +823,18 @@ function GoalEditorItem({
 interface Props {
   goals: GoalItem[];
   onChange: (goals: GoalItem[]) => void;
+  onPoolMetaChange: (meta: PoolMetadata) => void;
   onClose: () => void;
   uploadQueue?: ImageUploadQueue | null;
 }
 
-export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
+export function GoalEditor({
+  goals,
+  onChange,
+  onPoolMetaChange,
+  onClose,
+  uploadQueue,
+}: Props) {
   const { t, lang } = useT();
 
   const [editorMode, setEditorMode] = useState<
@@ -975,7 +849,6 @@ export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
   );
   const [translateTarget, setTranslateTarget] = useState<Lang>(lang);
   const [jsonFolded, setJsonFolded] = useState(false);
-  const [importError, setImportError] = useState("");
 
   const listRef = useRef<HTMLDivElement>(null);
   const mouseDownOnOverlay = useRef(false);
@@ -1008,39 +881,14 @@ export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
     [allGlobalGroupsKey],
   );
 
-  const tryApplyJson = (): GoalItem[] | null => {
+  const tryApplyJson = (): {
+    goals: GoalItem[];
+    metadata: PoolMetadata | null;
+  } | null => {
     setJsonError("");
     try {
       const parsed = JSON.parse(jsonText);
-      if (!Array.isArray(parsed)) {
-        setJsonError(t["editor.jsonNotArray"]);
-        return null;
-      }
-      const items: GoalItem[] = [];
-      for (let i = 0; i < parsed.length; i++) {
-        if (!isValidGoalItem(parsed[i])) {
-          setJsonError(format(t["editor.jsonInvalidItem"], i + 1));
-          return null;
-        }
-        const item = normalizeGoalItem(parsed[i]);
-        if (typeof item === "string") {
-          items.push(item.replace(/\r?\n/g, " "));
-        } else {
-          const cleanGroup = (g: string | string[]): string | string[] =>
-            typeof g === "string"
-              ? g.replace(/\r?\n/g, " ")
-              : g.map((s) => s.replace(/\r?\n/g, " "));
-          items.push({
-            ...item,
-            text: item.text.replace(/\r?\n/g, " "),
-            ...(item.group && { group: cleanGroup(item.group) }),
-            ...(item.globalGroup && {
-              globalGroup: cleanGroup(item.globalGroup),
-            }),
-          });
-        }
-      }
-      return items;
+      return parsePoolJson(parsed, t, format, (msg) => setJsonError(msg));
     } catch (e) {
       setJsonError(
         `${t["editor.jsonParseError"]}: ${e instanceof Error ? e.message : String(e)}`,
@@ -1053,14 +901,17 @@ export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
     if (mode === editorMode) return;
 
     let currentGoals = goalsRef.current;
-    const csvReadOnly = currentGoals.some(hasCsvUnsupported);
 
     if (editorMode === "json") {
-      const items = tryApplyJson();
-      if (!items) return;
-      onChange(items);
-      currentGoals = items;
-    } else if (editorMode === "csv" && !csvReadOnly) {
+      const result = tryApplyJson();
+      if (!result) return;
+      onChange(result.goals);
+      if (result.metadata) onPoolMetaChange(result.metadata);
+      currentGoals = result.goals;
+    }
+    const csvReadOnly = currentGoals.some(hasCsvUnsupported);
+
+    if (editorMode === "csv" && !csvReadOnly) {
       // Apply CSV edits only if no images/translations (CSV can't represent them)
       setCsvError("");
       const items = parseCsv(csvText, t, format, (msg) => setCsvError(msg));
@@ -1074,6 +925,8 @@ export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
     } else if (mode === "translate") {
       setEditorMode("translate");
     } else if (mode === "json") {
+      // JSON 模式只编辑任务（与 CSV 模式对齐）；完整的 { metadata, goals }
+      // 文档仍可在粘贴/导入时被接受并应用。
       setJsonText(JSON.stringify(currentGoals.map(goalToJson), null, 2));
       setJsonError("");
       // Auto-fold if goals contain images (base64 strings make JSON unreadable)
@@ -1086,63 +939,13 @@ export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
     }
   };
 
-  // JSON file import/export
-  const handleExportJson = useCallback(async () => {
-    // 导出前从 IndexedDB 补全图片 base64 data（localStorage 只存元数据），
-    // 保证导出的 JSON 携带完整图片数据（R2 图片只有 30 天生命周期）。
-    const exportGoals = await mergeDataIntoGoals(goals);
-    const json = JSON.stringify(exportGoals.map(goalToJson), null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "goal-pool.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [goals]);
-
-  const handleImportJson = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setImportError("");
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const parsed = JSON.parse(reader.result as string);
-          if (!Array.isArray(parsed)) {
-            setImportError(t["editor.jsonNotArray"]);
-            return;
-          }
-          const items: GoalItem[] = [];
-          for (let i = 0; i < parsed.length; i++) {
-            if (!isValidGoalItem(parsed[i])) {
-              setImportError(format(t["editor.jsonInvalidItem"], i + 1));
-              return;
-            }
-            items.push(normalizeGoalItem(parsed[i]));
-          }
-          onChange(items);
-          if (editorMode === "json") {
-            setJsonText(JSON.stringify(items.map(goalToJson), null, 2));
-            setJsonFolded(items.some((g) => getGoalImages(g).length > 0));
-          }
-        } catch (err) {
-          setImportError(
-            `${t["editor.jsonParseError"]}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      };
-      reader.readAsText(file);
-      e.target.value = "";
-    },
-    [onChange, t, editorMode],
-  );
-
   const handleClose = () => {
     if (editorMode === "json") {
-      const items = tryApplyJson();
-      if (items) onChange(items);
+      const result = tryApplyJson();
+      if (result) {
+        onChange(result.goals);
+        if (result.metadata) onPoolMetaChange(result.metadata);
+      }
     } else if (
       editorMode === "csv" &&
       !goalsRef.current.some(hasCsvUnsupported)
@@ -1270,27 +1073,6 @@ export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
               {t["editor.editCsv"]}
             </button>
           </div>
-          <div className="goal-editor-toolbar-actions">
-            <button
-              type="button"
-              className="ge-btn"
-              onClick={handleExportJson}
-              title={t["editor.exportJson"]}
-            >
-              📤 {t["editor.exportJson"]}
-            </button>
-            <label className="ge-btn" title={t["editor.importJson"]}>
-              📥 {t["editor.importJson"]}
-              <input
-                type="file"
-                accept=".json"
-                onChange={(e) => {
-                  void handleImportJson(e);
-                }}
-                style={{ display: "none" }}
-              />
-            </label>
-          </div>
         </div>
 
         {editorMode === "json" && (
@@ -1318,7 +1100,6 @@ export function GoalEditor({ goals, onChange, onClose, uploadQueue }: Props) {
                 {jsonError && <p className="ge-json-error">{jsonError}</p>}
               </>
             )}
-            {importError && <p className="ge-json-error">{importError}</p>}
           </div>
         )}
         {editorMode === "csv" && (

@@ -87,19 +87,27 @@ export function getGoalImages(item: GoalItem): ImageAttachment[] {
 }
 
 /** Remove base64 data from images — keep only hash/filename/mimeType for wire transmission. */
+export function stripAttachments(
+  images: ImageAttachment[] | undefined,
+): ImageAttachment[] | undefined {
+  if (!images || images.length === 0) return images;
+  let changed = false;
+  const stripped = images.map(({ hash, filename, mimeType, data }) => {
+    if (data) changed = true;
+    return { hash, filename, mimeType };
+  });
+  return changed ? stripped : images;
+}
+
 export function stripImageData(goals: GoalItem[]): GoalItem[] {
   let changed = false;
   const result = goals.map((g) => {
     if (typeof g === "string" || !g.images || g.images.length === 0) return g;
-    const stripped = g.images.map(({ hash, filename, mimeType }) => ({
-      hash,
-      filename,
-      mimeType,
-    }));
+    const stripped = stripAttachments(g.images);
     // Only strip if at least one image had data
-    if (stripped.some((s, i) => s !== g.images![i] || g.images![i].data)) {
+    if (stripped !== g.images) {
       changed = true;
-      return { ...g, images: stripped };
+      return { ...g, images: stripped as ImageAttachment[] };
     }
     return g;
   });
@@ -114,12 +122,38 @@ export function stripConfigImageData(cfg: unknown): unknown {
   if (!cfg || typeof cfg !== "object") return cfg;
   const obj = cfg as Record<string, unknown>;
   if (!Array.isArray(obj.goals)) return cfg;
-  return { ...obj, goals: stripImageData(obj.goals as GoalItem[]) };
+  const metadata = obj.metadata as PoolMetadata | undefined;
+  const strippedImages = stripAttachments(metadata?.images);
+  return {
+    ...obj,
+    goals: stripImageData(obj.goals as GoalItem[]),
+    ...(metadata
+      ? {
+          metadata: {
+            ...metadata,
+            ...(strippedImages !== metadata.images
+              ? { images: strippedImages }
+              : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+/** Pool-level metadata shared with the room: name, description and images. */
+export interface PoolMetadata {
+  name: string;
+  description?: string;
+  images?: ImageAttachment[];
 }
 
 export interface GoalPool {
   id: string;
   name: string;
+  /** Optional human-readable description of the pool. */
+  description?: string;
+  /** Optional pool-level images (shown in the room via the info panel). */
+  images?: ImageAttachment[];
   goals: GoalItem[];
   createdAt: number;
   updatedAt: number;
@@ -129,6 +163,8 @@ export interface BoardConfig {
   goals: GoalItem[];
   lockout?: boolean;
   scoringRule?: import("../scoring/types").ScoringRule;
+  /** Task pool metadata (name / description / images) shown in the room. */
+  metadata?: PoolMetadata;
   /** Full goal pool before random pick — preserved for restart (client-side only, not sent to server). */
   originalPool?: GoalItem[];
   /** Pick rule used to select goals — preserved for restart (client-side only, not sent to server). */
@@ -179,6 +215,8 @@ import type { HexConfig } from "../hex/hexTypes";
 export interface GameState {
   mode: GameMode;
   config: BoardConfig | HexConfig | null;
+  /** Pool metadata — available as soon as the player joins, before the board config. */
+  metadata: PoolMetadata | null;
   marks: Record<number, MarkEntry[]>;
   players: Record<string, Player>;
   localClientId: string | null;
@@ -203,6 +241,7 @@ export type GameAction =
       type: "SET_STATE";
       state: {
         config?: BoardConfig | HexConfig;
+        metadata?: PoolMetadata | null;
         marks?: Record<number, MarkEntry[]>;
         players: Record<string, Player>;
         phase?: GamePhase;
@@ -234,6 +273,7 @@ export type ServerMessage =
   | {
       type: "state";
       config: unknown;
+      metadata?: PoolMetadata | null;
       marks: Record<string, MarkEntry[]>;
       players: Record<string, Player>;
       phase: GamePhase;
@@ -264,6 +304,7 @@ export type ClientMessage =
       type: "join";
       name: string;
       config?: unknown;
+      metadata?: PoolMetadata;
       mode?: GameMode;
       lockout?: boolean;
       configHash?: string;

@@ -1,5 +1,5 @@
 import type { GoalPool } from "../types";
-import { getGoalImages, stripImageData } from "../types";
+import { getGoalImages, stripAttachments, stripImageData } from "../types";
 import { storeImageData, isAvailable } from "./imageDataStore";
 
 const STORAGE_KEY = "bingo-goal-pools";
@@ -12,6 +12,9 @@ const STORAGE_KEY = "bingo-goal-pools";
 function persistImageData(pools: GoalPool[]): void {
   if (!isAvailable()) return;
   for (const pool of pools) {
+    for (const att of pool.images ?? []) {
+      if (att.data) storeImageData(att).catch(() => {});
+    }
     for (const goal of pool.goals) {
       for (const att of getGoalImages(goal)) {
         if (att.data) storeImageData(att).catch(() => {});
@@ -42,6 +45,7 @@ export function savePools(pools: GoalPool[]): void {
       // IndexedDB holds the image data — localStorage stores stripped metadata
       const stripped = pools.map((pool) => ({
         ...pool,
+        images: stripAttachments(pool.images),
         goals: stripImageData(pool.goals),
       }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped));

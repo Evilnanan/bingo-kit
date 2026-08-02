@@ -61,6 +61,7 @@ export function HexRoom({
   // Map team names ("red"/"blue") to their hex colors so PlayerList can
   // look up scores by player.color (e.g. "#dc2626") correctly.
   const hexGoals = effectiveConfig.goals;
+  const metadata = state.metadata ?? effectiveConfig.metadata;
   const { scores } = useScoring(
     state.marks,
     state.players,
@@ -82,6 +83,8 @@ export function HexRoom({
         isOwner={isOwner && canRestart}
         phase={state.phase}
         onRestart={requestRestart}
+        metadata={metadata}
+        imageBaseUrl={imageHost || serverUrl}
         settings={settings}
         onSettingsChange={updateSetting}
       />

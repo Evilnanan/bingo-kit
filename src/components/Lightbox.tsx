@@ -39,7 +39,20 @@ export function Lightbox({
         e.preventDefault();
         e.stopPropagation();
       }}
-      onClick={onClose}
+      onClick={(e) => {
+        // 弹窗是 portal，React 合成事件仍会沿组件树冒泡到格子按钮，
+        // 点遮罩关闭时必须 stopPropagation，否则会顺带触发格子标记。
+        e.stopPropagation();
+        if (e.target === e.currentTarget) onClose();
+      }}
+      onTouchEnd={(e) => {
+        e.stopPropagation();
+        if (e.target === e.currentTarget) {
+          // preventDefault 取消随后的合成 click，避免遮罩点击触发格子标记
+          e.preventDefault();
+          onClose();
+        }
+      }}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           onClose();

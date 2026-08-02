@@ -7,8 +7,13 @@ import type {
   MarkEntry,
   GameMode,
   GoalItem,
+  PoolMetadata,
 } from "../types";
-import { stripGoalMeta, stripConfigImageData } from "../types";
+import {
+  stripGoalMeta,
+  stripConfigImageData,
+  stripAttachments,
+} from "../types";
 import { TEAM_COLORS } from "../utils/colors";
 import type { Team } from "../utils/colors";
 import {
@@ -34,6 +39,7 @@ function createInitialState(
   return {
     mode,
     config,
+    metadata: config.metadata ?? null,
     marks: {},
     players: {},
     localClientId: null,
@@ -156,6 +162,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         ...(action.state.config !== undefined
           ? { config: action.state.config }
+          : {}),
+        ...(action.state.metadata !== undefined
+          ? { metadata: action.state.metadata }
           : {}),
         ...(action.state.marks !== undefined
           ? { marks: action.state.marks }
@@ -309,6 +318,7 @@ export function useGameState(
           type: "SET_STATE",
           state: {
             config: cfg as BoardConfig | HexConfig | undefined,
+            metadata: msg.metadata ?? null,
             marks: msg.marks as Record<number, MarkEntry[]>,
             players: msg.players,
             phase: msg.phase,
@@ -425,11 +435,23 @@ export function useGameState(
       ? stripRestartMeta(initialConfig as BoardConfig)
       : initialConfig,
   );
+  // Pool metadata is sent separately at join so it can be shared in the
+  // lobby — the board config (goals) is only broadcast when the game starts.
+  const initialMeta = (initialConfig as BoardConfig | HexConfig).metadata;
+  const wireMetadata: PoolMetadata | undefined = initialMeta
+    ? {
+        ...initialMeta,
+        ...(initialMeta.images && initialMeta.images.length > 0
+          ? { images: stripAttachments(initialMeta.images) }
+          : {}),
+      }
+    : undefined;
   usePartyConnection({
     serverUrl,
     roomName,
     playerName,
     config: wireConfig,
+    metadata: wireMetadata,
     mode,
     lockout,
     dispatch,

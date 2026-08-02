@@ -45,6 +45,8 @@ export interface PlayerInfo {
 
 export interface RoomState {
   config: unknown;
+  /** Pool metadata (name/description/images) — shared at join, unlike board config. */
+  metadata: unknown;
   marks: Record<string, MarkEntry[]>;
   players: Record<string, PlayerInfo>;
   phase: GamePhase;
@@ -62,6 +64,7 @@ export type ClientMsg =
       type: "join";
       name: string;
       config?: unknown;
+      metadata?: unknown;
       mode?: GameMode;
       lockout?: boolean;
       configHash?: string;
@@ -80,6 +83,7 @@ export type ServerMsg =
   | {
       type: "state";
       config: unknown;
+      metadata: unknown;
       marks: Record<string, MarkEntry[]>;
       players: Record<string, PlayerInfo>;
       phase: GamePhase;
@@ -130,6 +134,8 @@ export interface GameTransport {
 export class GameRoom {
   // ---------- state ----------
   config: unknown = null;
+  /** Pool metadata — sent to clients immediately on join, unlike the board config. */
+  metadata: unknown = null;
   marks: Record<string, MarkEntry[]> = {};
   players: Record<string, PlayerInfo> = {};
   phase: GamePhase = "lobby";
@@ -167,6 +173,7 @@ export class GameRoom {
     return {
       type: "state",
       config: this.config,
+      metadata: this.metadata,
       marks: this.marks,
       players: this.players,
       phase: this.phase,
@@ -186,6 +193,7 @@ export class GameRoom {
     return {
       type: "state",
       config: null,
+      metadata: this.metadata,
       marks: {},
       players: this.players,
       phase: this.phase,
@@ -284,6 +292,7 @@ export class GameRoom {
 
   private resetRoom(): void {
     this.config = null;
+    this.metadata = null;
     this.phase = "lobby";
     this.marks = {};
     this.lockout = false;
@@ -316,7 +325,13 @@ export class GameRoom {
 
     switch (msg.type) {
       case "join": {
-        const { name, config, mode, lockout: cfgLockout } = msg;
+        const {
+          name,
+          config,
+          metadata,
+          mode,
+          lockout: cfgLockout,
+        } = msg;
         const cleanName = name.trim();
         if (!cleanName) return;
 
@@ -325,6 +340,7 @@ export class GameRoom {
         // stores it as-is and forwards to clients without decompressing.
         if (config && !this.config) {
           this.config = config;
+          if (metadata !== undefined) this.metadata = metadata;
           if (mode) this.mode = mode;
           if (cfgLockout !== undefined) this.lockout = cfgLockout;
           this.owner = cleanName;
