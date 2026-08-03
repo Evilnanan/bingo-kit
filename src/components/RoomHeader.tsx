@@ -14,7 +14,7 @@ interface Props {
   phase?: GamePhase;
   onRestart?: () => void;
   metadata?: PoolMetadata | null;
-  imageBaseUrl?: string;
+  imageBaseUrl: string;
   settings: RoomSettings;
   onSettingsChange: <K extends keyof RoomSettings>(
     key: K,
@@ -55,12 +55,13 @@ export function RoomHeader({
     const url = new URL(window.location.href);
     url.searchParams.set("room", roomName);
     url.searchParams.set("server", serverUrl);
-    url.searchParams.set("share", "1");
+    url.searchParams.set("images", imageBaseUrl);
     if (extraParams) {
       for (const [k, v] of Object.entries(extraParams)) {
         url.searchParams.set(k, v);
       }
     }
+    url.searchParams.set("share", "1");
     navigator.clipboard.writeText(url.toString()).then(
       () => {
         setCopied(true);

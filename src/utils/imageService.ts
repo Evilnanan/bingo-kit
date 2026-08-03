@@ -169,13 +169,18 @@ export async function checkImageExists(
   }
 }
 
-/** Get the display source for an image attachment. */
-export function getImageSrc(att: ImageAttachment, serverUrl?: string): string {
+/**
+ * Get the display source for an image attachment.
+ * An explicit base URL (custom image server) takes precedence over the
+ * build-time `VITE_IMAGE_URL` default, so rooms shared with a custom
+ * image server render images from that same server.
+ */
+export function getImageSrc(att: ImageAttachment, baseUrl?: string): string {
   if (att.data) {
     return `data:${att.mimeType};base64,${att.data}`;
   }
-  const baseUrl = serverUrl ? getImageBaseUrl(serverUrl) : getImageBaseUrl();
-  return `${baseUrl}/images/${att.hash}`;
+  const resolvedBase = baseUrl ? getBaseUrl(baseUrl) : getImageBaseUrl();
+  return `${resolvedBase}/images/${att.hash}`;
 }
 
 // ============================================================

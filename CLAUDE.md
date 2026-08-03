@@ -24,7 +24,7 @@ npm run format           # Prettier 格式化 (src/** + party/**)
 npm run preview          # 预览生产构建
 npm run deploy           # 部署前端到 GitHub Pages（自动先 buildgh）
 npm run deploy:party     # 部署 PartyServer 服务端（wrangler deploy）
-npm run deploy:images    # 部署图片 Worker（wrangler deploy --config image-worker/wrangler.json）
+npm run deploy:image    # 部署图片 Worker（wrangler deploy --config image-worker/wrangler.json）
 ```
 
 开发时同时运行 `npm run dev` 和 `npm run dev:server`（或 `dev:party`）。`dev:server` 默认监听 `ws://localhost:1999`；前端通过 `VITE_PARTY_HOST` 连接（默认 localhost:1999）。图片 API 由 `VITE_IMAGE_URL` 指定（生产指向 `image-worker`）；未设置时复用 `VITE_PARTY_HOST`（开发走 dev-server 的图片接口）。
@@ -47,7 +47,7 @@ npm run deploy:images    # 部署图片 Worker（wrangler deploy --config image-
 
 **Config 压缩**：goals 数组可能很大，join 前用 LZ-String 压缩为 base64（`usePartyConnection` 调 `compressJson`）；服务端把 config 当 opaque string 存转；客户端收到 `state` 后 `decompressJson()` 还原。
 
-**分享链接**：URL query 参数 `?room=<房间名>&server=<服务器>&share=1`（`RoomHeader` 复制链接时拼接），**不携带 config**——服务端持有权威 config，访客加入后推回。带 `share=1` 的访问者只读进入（`LandingPage` 的 `isSharedLink` 置灰全部配置项），join 只发最小 config（`{ goals: [] }`），跳过 goal 校验。
+**分享链接**：URL query 参数 `?room=<房间名>&server=<服务器>&share=1`（`RoomHeader` 复制链接时拼接），同时携带 `images=<图片服务器地址>` 让访客从同一图片服务加载哈希图片，**不携带 config**——服务端持有权威 config，访客加入后推回。带 `share=1` 的访问者只读进入（`LandingPage` 的 `isSharedLink` 置灰全部配置项），join 只发最小 config（`{ goals: [] }`），跳过 goal 校验。
 
 **configHash**：创建房间时客户端计算并随 config 发送，服务端存储。用途是**授权 restart**：仅 owner 且 hash 匹配的连接能执行 `restart`（`game-room.ts`），客户端 `canRestart`（本地 hash === 服务端 hash）据此显示"重开"按钮。
 
