@@ -133,11 +133,13 @@ export function PlayerList({
     }
     if (cmp === 0) {
       // Tie: preserve the relative order from the previous render.
+      // This must NOT be negated by sortAsc, otherwise descending
+      // score sort would reverse the stable tie order too.
       const prev = prevOrderRef.current;
       const ai = prev.indexOf(a.name);
       const bi = prev.indexOf(b.name);
-      if (ai >= 0 && bi >= 0) cmp = ai - bi;
-      else cmp = (joinIndex.get(a.name) ?? 0) - (joinIndex.get(b.name) ?? 0);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      return (joinIndex.get(a.name) ?? 0) - (joinIndex.get(b.name) ?? 0);
     }
     return sortAsc ? cmp : -cmp;
   });
