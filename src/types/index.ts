@@ -246,6 +246,8 @@ export type GameAction =
         players: Record<string, Player>;
         phase?: GamePhase;
         countdownSeconds?: number;
+        /** 服务端权威模式：加入房间后以房主设置覆盖本地主页设置。 */
+        mode?: GameMode;
         bonusScores?: Record<string, number>;
         owner?: string | null;
       };
@@ -278,6 +280,8 @@ export type ServerMessage =
       players: Record<string, Player>;
       phase: GamePhase;
       countdownSeconds: number | null;
+      /** 房主设定的棋盘模式，加入房间时以此为准。 */
+      mode: GameMode;
       bonusScores: Record<string, number>;
       owner?: string | null;
       configHash?: string | null;

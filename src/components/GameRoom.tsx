@@ -1,38 +1,54 @@
-import { TEAM_COLORS } from "../utils/colors";
-import { HexBoard } from "./HexBoard";
-import type { HexConfig } from "../hex/hexTypes";
 import { useGameState } from "../hooks/useGameState";
 import { useScoring } from "../scoring/useScoring";
 import { useT } from "../i18n/useT";
 import { useRoomSettings } from "../hooks/useRoomSettings";
+import { BingoBoard } from "./BingoBoard";
+import { HexBoard } from "./HexBoard";
 import { ChatPanel } from "./ChatPanel";
 import { PlayerList } from "./PlayerList";
 import { ReadyPanel } from "./ReadyPanel";
 import { RoomHeader } from "./RoomHeader";
 import { RoomSidebar } from "./RoomSidebar";
 import { ScoringRuleCard } from "./ScoringRuleCard";
+import { TEAM_COLORS } from "../utils/colors";
+import type { BoardConfig, GameMode } from "../types";
+import type { HexConfig } from "../hex/hexTypes";
 import "./RoomLayout.css";
-import "./HexRoom.css";
 
 interface Props {
   roomName: string;
   playerName: string;
-  hexConfig: HexConfig;
+  boardConfig: BoardConfig;
+  hexConfig?: HexConfig;
   serverUrl: string;
   imageHost?: string;
+  /**
+   * 主页/URL 选择的初始模式，仅在创建房间（第一个提供 config 的玩家）时生效。
+   * 进入已有房间后一律以服务端 state.mode（房主设定）为准。
+   */
+  gameMode: GameMode;
   onLeave: () => void;
 }
 
-export function HexRoom({
+/**
+ * 统一房间组件：根据服务端权威的 state.mode 渲染经典棋盘或 Hex 棋盘，
+ * 避免加入者用自己主页的模式渲染出与房主不一致的棋盘。
+ */
+export function GameRoom({
   roomName,
   playerName,
+  boardConfig,
   hexConfig,
   serverUrl,
   imageHost,
+  gameMode,
   onLeave,
 }: Props) {
+  const initialConfig =
+    gameMode === "hex" && hexConfig ? hexConfig : boardConfig;
   const {
     state,
+    markSquare,
     markCell,
     changeColor,
     changeName,
@@ -42,35 +58,50 @@ export function HexRoom({
     setBonusScore,
     requestRestart,
     canRestart,
-  } = useGameState(roomName, playerName, hexConfig, serverUrl, "hex", onLeave);
+  } = useGameState(
+    roomName,
+    playerName,
+    initialConfig,
+    serverUrl,
+    gameMode,
+    onLeave,
+  );
   const { t } = useT();
   const { settings, updateSetting } = useRoomSettings();
 
+  const isHex = state.mode === "hex";
   const players = Object.values(state.players);
   const showBoard = state.phase === "playing";
   const showLobby = state.phase === "lobby" || state.phase === "countdown";
   const isOwner =
     state.localPlayerName != null && state.localPlayerName === state.owner;
 
-  // Fall back to the initial hexConfig prop when the server hasn't sent
-  // the config yet (e.g. single-player start without countdown skips the
-  // state-message broadcast). This mirrors BingoRoom's boardConfig fallback.
-  const effectiveConfig = (state.config as HexConfig) || hexConfig;
+  // Classic board data (server config wins once it arrives).
+  const classicGoals =
+    (state.config as BoardConfig | null)?.goals ?? boardConfig.goals;
+  const lockout = (state.config as BoardConfig | null)?.lockout ?? false;
 
-  // Scoring — Hex always uses default rule.
-  // Map team names ("red"/"blue") to their hex colors so PlayerList can
-  // look up scores by player.color (e.g. "#dc2626") correctly.
-  const hexGoals = effectiveConfig.goals;
-  const metadata = state.metadata ?? effectiveConfig.metadata;
-  const { scores } = useScoring(
+  // Hex board data: server config wins once it arrives; hexConfig is the
+  // fallback for the player who created the room.
+  const effectiveHexConfig =
+    (state.config as HexConfig | null) ?? hexConfig ?? null;
+  const hexGoals = effectiveHexConfig?.goals ?? [];
+
+  const metadata = isHex
+    ? (state.metadata ?? effectiveHexConfig?.metadata ?? null)
+    : (state.metadata ?? boardConfig.metadata);
+
+  // Scoring: Hex always uses the default rule.
+  const rule = isHex
+    ? undefined
+    : (state.config as BoardConfig | null)?.scoringRule;
+
+  const { scores, cellScores } = useScoring(
     state.marks,
     state.players,
-    hexGoals,
-    undefined,
-    {
-      red: TEAM_COLORS.red,
-      blue: TEAM_COLORS.blue,
-    },
+    isHex ? hexGoals : classicGoals,
+    rule,
+    isHex ? { red: TEAM_COLORS.red, blue: TEAM_COLORS.blue } : undefined,
   );
 
   return (
@@ -79,7 +110,7 @@ export function HexRoom({
         roomName={roomName}
         serverUrl={serverUrl}
         onLeave={leaveRoom}
-        extraParams={{ mode: "hex" }}
+        extraParams={isHex ? { mode: "hex" } : undefined}
         isOwner={isOwner && canRestart}
         phase={state.phase}
         onRestart={requestRestart}
@@ -103,13 +134,29 @@ export function HexRoom({
             />
           )}
           {showBoard &&
-            (effectiveConfig ? (
-              <HexBoard
-                config={effectiveConfig}
+            (isHex ? (
+              effectiveHexConfig ? (
+                <HexBoard
+                  config={effectiveHexConfig}
+                  marks={state.marks}
+                  players={state.players}
+                  localPlayerName={state.localPlayerName}
+                  onMarkCell={markCell}
+                  settings={settings}
+                  imageBaseUrl={imageHost || serverUrl}
+                />
+              ) : (
+                <p className="room-loading">{t["room.loading"]}</p>
+              )
+            ) : classicGoals.length === 25 ? (
+              <BingoBoard
+                goals={classicGoals}
                 marks={state.marks}
+                lockout={lockout}
                 players={state.players}
                 localPlayerName={state.localPlayerName}
-                onMarkCell={markCell}
+                onMarkSquare={markSquare}
+                cellScores={cellScores}
                 settings={settings}
                 imageBaseUrl={imageHost || serverUrl}
               />
@@ -126,9 +173,11 @@ export function HexRoom({
             onChangeColor={changeColor}
             onChangeName={changeName}
             onSetBonusScore={setBonusScore}
-            allowedColors={[TEAM_COLORS.red, TEAM_COLORS.blue]}
+            allowedColors={
+              isHex ? [TEAM_COLORS.red, TEAM_COLORS.blue] : undefined
+            }
           />
-          {showBoard && <ScoringRuleCard rule={undefined} />}
+          {showBoard && <ScoringRuleCard rule={rule} />}
           <div className="room-chat">
             <ChatPanel chats={state.chats} onSend={sendChat} />
           </div>

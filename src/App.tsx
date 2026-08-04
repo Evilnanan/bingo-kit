@@ -1,7 +1,6 @@
 import { useState } from "react";
 import "./App.css";
-import { BingoRoom } from "./components/BingoRoom";
-import { HexRoom } from "./components/HexRoom";
+import { GameRoom } from "./components/GameRoom";
 import { LandingPage } from "./components/LandingPage";
 import RandomPickTest from "./components/RandomPickTest";
 import ExpressionTester from "./components/ExpressionTester";
@@ -75,26 +74,18 @@ function App() {
       {testParam === "expression" && !roomConfig && <ExpressionTester />}
       {testParam === "fontbase64" && !roomConfig && <FontBase64Converter />}
 
-      {roomConfig &&
-        (roomConfig.gameMode === "hex" && roomConfig.hexConfig ? (
-          <HexRoom
-            roomName={roomConfig.roomName}
-            playerName={roomConfig.playerName}
-            hexConfig={roomConfig.hexConfig}
-            serverUrl={roomConfig.serverUrl}
-            imageHost={roomConfig.imageHost}
-            onLeave={handleLeaveRoom}
-          />
-        ) : (
-          <BingoRoom
-            roomName={roomConfig.roomName}
-            playerName={roomConfig.playerName}
-            boardConfig={roomConfig.boardConfig}
-            serverUrl={roomConfig.serverUrl}
-            imageHost={roomConfig.imageHost}
-            onLeave={handleLeaveRoom}
-          />
-        ))}
+      {roomConfig && (
+        <GameRoom
+          roomName={roomConfig.roomName}
+          playerName={roomConfig.playerName}
+          boardConfig={roomConfig.boardConfig}
+          hexConfig={roomConfig.hexConfig}
+          serverUrl={roomConfig.serverUrl}
+          imageHost={roomConfig.imageHost}
+          gameMode={roomConfig.gameMode}
+          onLeave={handleLeaveRoom}
+        />
+      )}
     </div>
   );
 }

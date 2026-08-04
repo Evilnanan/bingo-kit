@@ -163,6 +163,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...(action.state.config !== undefined
           ? { config: action.state.config }
           : {}),
+        ...(action.state.mode !== undefined ? { mode: action.state.mode } : {}),
         ...(action.state.metadata !== undefined
           ? { metadata: action.state.metadata }
           : {}),
@@ -305,7 +306,13 @@ export function useGameState(
         }
         // Merge local originalPool/pickRule into the server config (they're
         // never sent to the server — only kept client-side for restart).
-        if (cfg != null && mode === "classic" && restartPoolRef.current) {
+        // Use the server-authoritative mode, not the local homepage mode.
+        const effectiveMode = msg.mode ?? mode;
+        if (
+          cfg != null &&
+          effectiveMode === "classic" &&
+          restartPoolRef.current
+        ) {
           (cfg as BoardConfig).originalPool = restartPoolRef.current;
           (cfg as BoardConfig).pickRule = restartRuleRef.current;
         }
@@ -318,6 +325,7 @@ export function useGameState(
           type: "SET_STATE",
           state: {
             config: cfg as BoardConfig | HexConfig | undefined,
+            mode: effectiveMode,
             metadata: msg.metadata ?? null,
             marks: msg.marks as Record<number, MarkEntry[]>,
             players: msg.players,
