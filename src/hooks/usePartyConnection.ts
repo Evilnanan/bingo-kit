@@ -71,6 +71,7 @@ export function handleCommonAction<S extends CommonStateFields>(
         players: newPlayers,
         localPlayerName:
           state.localPlayerName === oldName ? newName : state.localPlayerName,
+        owner: state.owner === oldName ? newName : state.owner,
       };
     }
 

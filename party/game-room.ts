@@ -482,6 +482,8 @@ export class GameRoom {
           this.counters[newName] = this.counters[msg.oldName];
           delete this.counters[msg.oldName];
         }
+        // Room owner follows the rename so they keep restart rights.
+        if (this.owner === msg.oldName) this.owner = newName;
         this.transport.broadcast(msg, [connId]);
         break;
       }

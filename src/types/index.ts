@@ -199,6 +199,8 @@ export interface CommonStateFields {
   localClientId: string | null;
   localPlayerName: string | null;
   chats: ChatMessage[];
+  /** Room owner — follows renames so the owner keeps restart rights. */
+  owner?: string | null;
 }
 
 export type CommonAction =
