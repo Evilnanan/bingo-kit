@@ -56,8 +56,12 @@ export function GameRoom({
     toggleReady,
     leaveRoom,
     setBonusScore,
+    toggleStar,
+    setCounter,
     requestRestart,
     canRestart,
+    stars,
+    counters,
   } = useGameState(
     roomName,
     playerName,
@@ -142,6 +146,10 @@ export function GameRoom({
                   players={state.players}
                   localPlayerName={state.localPlayerName}
                   onMarkCell={markCell}
+                  stars={stars}
+                  counters={counters}
+                  onToggleStar={toggleStar}
+                  onCounterChange={setCounter}
                   settings={settings}
                   imageBaseUrl={imageHost || serverUrl}
                 />
@@ -156,6 +164,10 @@ export function GameRoom({
                 players={state.players}
                 localPlayerName={state.localPlayerName}
                 onMarkSquare={markSquare}
+                stars={stars}
+                counters={counters}
+                onToggleStar={toggleStar}
+                onCounterChange={setCounter}
                 cellScores={cellScores}
                 settings={settings}
                 imageBaseUrl={imageHost || serverUrl}

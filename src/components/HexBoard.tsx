@@ -23,6 +23,12 @@ interface Props {
   players: Record<string, Player>;
   localPlayerName: string | null;
   onMarkCell: (index: number) => void;
+  /** Personal star marks (same-name devices share this). */
+  stars: Set<number>;
+  /** Personal counter progress (same-name devices share this). */
+  counters: Record<number, number>;
+  onToggleStar: (index: number, starred: boolean) => void;
+  onCounterChange: (index: number, value: number) => void;
   settings: RoomSettings;
   imageBaseUrl?: string;
 }
@@ -33,6 +39,10 @@ export function HexBoard({
   players,
   localPlayerName,
   onMarkCell,
+  stars,
+  counters,
+  onToggleStar,
+  onCounterChange,
   settings,
   imageBaseUrl,
 }: Props) {
@@ -55,25 +65,15 @@ export function HexBoard({
   const numCols = sizeBlue + sizeRed - 1;
   const numRows = (sizeBlue + sizeRed) * 0.5;
 
-  const [starMarkedCells, setStarMarkedCells] = useState<Set<number>>(
-    new Set(),
-  );
-
   const {
-    counters,
     handleClick: rawCounterClick,
     handleContextMenu: rawCounterContextMenu,
     handleTouchStart: rawCounterTouchStart,
     handleTouchEnd: rawCounterTouchEnd,
-  } = useCounters(goals);
+  } = useCounters(goals, counters, onCounterChange);
 
   const toggleStarMark = (idx: number) => {
-    setStarMarkedCells((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
+    onToggleStar(idx, !stars.has(idx));
   };
 
   const starMarkAlt = useLongPressAlt(toggleStarMark);
@@ -359,7 +359,7 @@ export function HexBoard({
               <span className="bg" />
               <span className="fill" />
               <span className="content">
-                {starMarkedCells.has(cell.idx) && <span className="star" />}
+                {stars.has(cell.idx) && <span className="star" />}
                 <span
                   className="text"
                   style={

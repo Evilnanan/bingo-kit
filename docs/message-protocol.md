@@ -83,16 +83,40 @@ name: string     // 玩家名称
 ready: boolean   // true = 已准备，false = 未准备
 ```
 
+### `toggle_star` — 切换星标
+
+仅同步给**同名客户端**（同一玩家的多个设备）。载荷为切换后的结果状态。
+
+```
+type: "toggle_star"
+name: string    // 玩家名称（服务端按 name 归组，同 chat/ready，不做发送者身份校验）
+index: number   // 格子索引
+starred: boolean // 切换后是否已星标
+```
+
+### `set_counter` — 设置计数器进度
+
+仅同步给**同名客户端**。载荷为变更后的进度值（0 表示清除）。
+
+```
+type: "set_counter"
+name: string    // 玩家名称（服务端按 name 归组，同 chat/ready，不做发送者身份校验）
+index: number   // 格子索引
+value: number   // 变更后的进度（0 ≤ value ≤ 目标计数）
+```
+
 ## 3. 服务端 → 客户端消息
 
 ### `state` — 完整状态同步
 
-在新玩家加入或阶段变更时发送。客户端应以此消息为准。
+在新玩家加入或阶段变更时发送。客户端应以此消息为准。发送给单个连接时（加入/重连/重开），会额外携带该玩家的个人字段 `myStars` / `myCounters`；广播给所有人的 `state` 不包含个人字段。
 
 ```
 type: "state"
 config: BoardConfig | HexConfig | null
 marks: { [index: string]: MarkEntry[] }
+myStars?: number[]                     // 个人星标索引（仅逐连接发送）
+myCounters?: { [index: string]: number } // 个人计数器进度（仅逐连接发送）
 players: { [name: string]: Player }
 phase: "lobby" | "countdown" | "playing"
 countdownSeconds: number | null
@@ -138,6 +162,24 @@ players: { [name: string]: Player }  // 当前权威玩家列表
 
 ```
 type: "start"
+```
+
+### `star` / `counter` — 同名客户端个人状态同步
+
+服务端将个人星标 / 计数器变更**只转发给同名连接**（不含发起者，发起者通过乐观更新即时反馈）：
+
+```
+type: "star"
+name: string
+index: number
+starred: boolean
+```
+
+```
+type: "counter"
+name: string
+index: number
+value: number
 ```
 
 ## 4. 游戏阶段
@@ -196,6 +238,8 @@ type: "start"
 | `change_color` | C→S, S→C | `name, color` |
 | `chat` | C→S, S→C | `name, color, text` |
 | `ready` | C→S, S→C | `name, ready` |
+| `toggle_star` / `set_counter` | C→S | `name, index, starred` / `name, index, value` |
+| `star` / `counter` | S→C | `name, index, starred` / `name, index, value` |
 | `player_joined` | S→C | `name, color` |
 | `player_left` | S→C | `name` |
 

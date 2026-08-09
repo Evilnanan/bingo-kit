@@ -42,6 +42,8 @@ function createInitialState(
     config,
     metadata: config.metadata ?? null,
     marks: {},
+    stars: new Set<number>(),
+    counters: {},
     players: {},
     localClientId: null,
     localPlayerName: null,
@@ -180,6 +182,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...(action.state.owner !== undefined
           ? { owner: action.state.owner }
           : {}),
+        ...(action.state.stars !== undefined
+          ? { stars: new Set(action.state.stars) }
+          : {}),
+        ...(action.state.counters !== undefined
+          ? { counters: action.state.counters }
+          : {}),
       };
     }
 
@@ -234,10 +242,26 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case "APPLY_STAR": {
+      const next = new Set(state.stars);
+      if (action.starred) next.add(action.index);
+      else next.delete(action.index);
+      return { ...state, stars: next };
+    }
+
+    case "APPLY_COUNTER": {
+      const next = { ...state.counters };
+      if (action.value > 0) next[action.index] = action.value;
+      else delete next[action.index];
+      return { ...state, counters: next };
+    }
+
     case "CLEAR_SESSION":
       return {
         ...handleCommonAction(state, action),
         marks: {},
+        stars: new Set<number>(),
+        counters: {},
       };
 
     case "RENAME_PLAYER":
@@ -338,6 +362,9 @@ export function useGameState(
             bonusScores: (msg as { bonusScores?: Record<string, number> })
               .bonusScores,
             owner: (msg as { owner?: string | null }).owner,
+            stars: (msg as { myStars?: number[] }).myStars,
+            counters: (msg as { myCounters?: Record<number, number> })
+              .myCounters,
           },
         });
         break;
@@ -433,6 +460,19 @@ export function useGameState(
           playerName: msg.playerName,
           bonus: msg.bonus,
         });
+        break;
+      }
+
+      case "star": {
+        // Server already routes to same-name clients only; guard anyway.
+        if (msg.name !== stateRef.current.localPlayerName) break;
+        dispatch({ type: "APPLY_STAR", index: msg.index, starred: msg.starred });
+        break;
+      }
+
+      case "counter": {
+        if (msg.name !== stateRef.current.localPlayerName) break;
+        dispatch({ type: "APPLY_COUNTER", index: msg.index, value: msg.value });
         break;
       }
     }
@@ -636,6 +676,24 @@ export function useGameState(
     dispatch({ type: "SET_BONUS_SCORE", playerName, bonus });
   }
 
+  function toggleStar(index: number, starred: boolean) {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (!myName || !ws) return;
+    ws.send(
+      JSON.stringify({ type: "toggle_star", name: myName, index, starred }),
+    );
+    dispatch({ type: "APPLY_STAR", index, starred });
+  }
+
+  function setCounter(index: number, value: number) {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (!myName || !ws) return;
+    ws.send(JSON.stringify({ type: "set_counter", name: myName, index, value }));
+    dispatch({ type: "APPLY_COUNTER", index, value });
+  }
+
   // Only allow restart if this device's config hash matches the server's.
   const localHash = (initialConfig as BoardConfig | HexConfig).configHash;
   const canRestart = (() => {
@@ -654,7 +712,11 @@ export function useGameState(
     toggleReady,
     leaveRoom,
     setBonusScore,
+    toggleStar,
+    setCounter,
     requestRestart,
     canRestart,
+    stars: state.stars,
+    counters: state.counters,
   };
 }

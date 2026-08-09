@@ -24,6 +24,12 @@ interface Props {
   players: Record<string, Player>;
   localPlayerName: string | null;
   onMarkSquare: (index: number) => void;
+  /** Personal star marks (same-name devices share this). */
+  stars: Set<number>;
+  /** Personal counter progress (same-name devices share this). */
+  counters: Record<number, number>;
+  onToggleStar: (index: number, starred: boolean) => void;
+  onCounterChange: (index: number, value: number) => void;
   cellScores: Record<number, Record<string, number>>;
   settings: RoomSettings;
   imageBaseUrl?: string;
@@ -122,28 +128,25 @@ export function BingoBoard({
   players,
   localPlayerName,
   onMarkSquare,
+  stars,
+  counters,
+  onToggleStar,
+  onCounterChange,
   cellScores,
   settings,
   imageBaseUrl,
 }: Props) {
   const { lang } = useT();
-  const [starMarks, setStarMarks] = useState<Set<number>>(new Set());
 
   const {
-    counters,
     handleClick: handleCounterClick,
     handleContextMenu: handleCounterContextMenu,
     handleTouchStart: handleCounterTouchStart,
     handleTouchEnd: handleCounterTouchEnd,
-  } = useCounters(goals);
+  } = useCounters(goals, counters, onCounterChange);
 
   const toggleStarMark = (index: number) => {
-    setStarMarks((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
+    onToggleStar(index, !stars.has(index));
   };
 
   const markAlt = useLongPressAlt(toggleStarMark);
@@ -213,7 +216,7 @@ export function BingoBoard({
             colorSegments={colorSegments}
             borderColor={borderColor}
             hoverColor={localPlayerColor}
-            isStarMarked={starMarks.has(i)}
+            isStarMarked={stars.has(i)}
             counter={counter}
             counterValue={counter > 0 ? (counters[i] ?? 0) : 0}
             counterHandlers={{

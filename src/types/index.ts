@@ -218,6 +218,10 @@ export interface GameState {
   /** Pool metadata — available as soon as the player joins, before the board config. */
   metadata: PoolMetadata | null;
   marks: Record<number, MarkEntry[]>;
+  /** Cell indices starred by the local player — synced across same-name devices. */
+  stars: Set<number>;
+  /** Counter progress per cell for the local player — synced across same-name devices. */
+  counters: Record<number, number>;
   players: Record<string, Player>;
   localClientId: string | null;
   localPlayerName: string | null;
@@ -250,6 +254,10 @@ export type GameAction =
         mode?: GameMode;
         bonusScores?: Record<string, number>;
         owner?: string | null;
+        /** Personal star marks (indices), sent only to the matching player. */
+        stars?: number[];
+        /** Personal counter progress, sent only to the matching player. */
+        counters?: Record<number, number>;
       };
     }
   | {
@@ -263,7 +271,9 @@ export type GameAction =
   | { type: "ADD_CHAT"; msg: ChatMessage }
   | { type: "SET_READY"; playerName: string; ready: boolean }
   | { type: "SET_PHASE"; phase: GamePhase; countdownSeconds?: number }
-  | { type: "SET_BONUS_SCORE"; playerName: string; bonus: number };
+  | { type: "SET_BONUS_SCORE"; playerName: string; bonus: number }
+  | { type: "APPLY_STAR"; index: number; starred: boolean }
+  | { type: "APPLY_COUNTER"; index: number; value: number };
 
 export type PlayerCallbackAction = Extract<
   GameAction,
@@ -285,6 +295,10 @@ export type ServerMessage =
       bonusScores: Record<string, number>;
       owner?: string | null;
       configHash?: string | null;
+      /** Personal star marks (indices), present only in per-player state. */
+      myStars?: number[];
+      /** Personal counter progress, present only in per-player state. */
+      myCounters?: Record<string, number>;
     }
   | {
       type: "rename_rejected";
@@ -300,7 +314,9 @@ export type ServerMessage =
   | { type: "chat"; name: string; color: string; text: string }
   | { type: "ready"; name: string; ready: boolean }
   | { type: "start" }
-  | { type: "bonus_score"; playerName: string; bonus: number };
+  | { type: "bonus_score"; playerName: string; bonus: number }
+  | { type: "star"; name: string; index: number; starred: boolean }
+  | { type: "counter"; name: string; index: number; value: number };
 
 /** Messages sent to the PartyServer. */
 export type ClientMessage =
@@ -320,4 +336,6 @@ export type ClientMessage =
   | { type: "chat"; name: string; color: string; text: string }
   | { type: "ready"; name: string; ready: boolean }
   | { type: "bonus_score"; playerName: string; bonus: number }
-  | { type: "restart"; config?: unknown; configHash?: string };
+  | { type: "restart"; config?: unknown; configHash?: string }
+  | { type: "toggle_star"; name: string; index: number; starred: boolean }
+  | { type: "set_counter"; name: string; index: number; value: number };

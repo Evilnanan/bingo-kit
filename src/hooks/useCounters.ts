@@ -1,39 +1,43 @@
-import { useState } from "react";
+import { useEffect, useRef } from "react";
 import type { GoalItem } from "../types";
 import { getGoalCounter } from "../types";
 import { useLongPressAlt } from "./useLongPress";
 
 /**
- * Shared counter state and handlers.
+ * Counter handlers backed by shared (synced) state.
  * Left-click increments, right-click / long-press decrements.
+ * `counters` / `onChange` come from the room so progress is shared across
+ * the same player's devices.
  */
-export function useCounters(goals: GoalItem[]) {
-  const [counters, setCounters] = useState<Record<number, number>>({});
+export function useCounters(
+  goals: GoalItem[],
+  counters: Record<number, number>,
+  onChange: (idx: number, value: number) => void,
+) {
+  // Long-press fires from a timer, so always read the latest state/emit fn.
+  const latestRef = useRef({ counters, onChange });
+  useEffect(() => {
+    latestRef.current = { counters, onChange };
+  });
 
   const counterAlt = useLongPressAlt((idx: number) => {
-    setCounters((prev) => {
-      const cur = prev[idx] ?? 0;
-      const max = getGoalCounter(goals[idx]);
-      if (max <= 0) return prev;
-      const next = Math.max(0, Math.min(max, cur - 1));
-      if (next === cur) return prev;
-      const updated = { ...prev, [idx]: next };
-      if (next === 0) delete updated[idx];
-      return updated;
-    });
+    const { counters: latest, onChange: emit } = latestRef.current;
+    const cur = latest[idx] ?? 0;
+    const max = getGoalCounter(goals[idx]);
+    if (max <= 0) return;
+    const next = Math.max(0, Math.min(max, cur - 1));
+    if (next === cur) return;
+    emit(idx, next);
   });
 
   const updateCounter = (idx: number, delta: number) => {
-    setCounters((prev) => {
-      const cur = prev[idx] ?? 0;
-      const max = getGoalCounter(goals[idx]);
-      if (max <= 0) return prev;
-      const next = Math.max(0, Math.min(max, cur + delta));
-      if (next === cur) return prev;
-      const updated = { ...prev, [idx]: next };
-      if (next === 0) delete updated[idx];
-      return updated;
-    });
+    const { counters: latest, onChange: emit } = latestRef.current;
+    const cur = latest[idx] ?? 0;
+    const max = getGoalCounter(goals[idx]);
+    if (max <= 0) return;
+    const next = Math.max(0, Math.min(max, cur + delta));
+    if (next === cur) return;
+    emit(idx, next);
   };
 
   const handleClick = (idx: number) => {
@@ -54,7 +58,6 @@ export function useCounters(goals: GoalItem[]) {
   };
 
   return {
-    counters,
     handleClick,
     handleContextMenu,
     handleTouchStart,

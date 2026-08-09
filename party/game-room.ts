@@ -56,6 +56,10 @@ export interface RoomState {
   bonusScores: Record<string, number>;
   owner: string | null;
   configHash: string | null;
+  /** Per-player star marks (cell indices), only sent back to the same name. */
+  starMarks: Record<string, number[]>;
+  /** Per-player counter progress, only sent back to the same name. */
+  counters: Record<string, Record<string, number>>;
 }
 
 // Client → Server messages
@@ -76,7 +80,9 @@ export type ClientMsg =
   | { type: "chat"; name: string; color: string; text: string }
   | { type: "ready"; name: string; ready: boolean }
   | { type: "bonus_score"; playerName: string; bonus: number }
-  | { type: "restart"; config?: unknown; configHash?: string };
+  | { type: "restart"; config?: unknown; configHash?: string }
+  | { type: "toggle_star"; name: string; index: number; starred: boolean }
+  | { type: "set_counter"; name: string; index: number; value: number };
 
 // Server → Client messages
 export type ServerMsg =
@@ -93,6 +99,8 @@ export type ServerMsg =
       bonusScores: Record<string, number>;
       owner: string | null;
       configHash: string | null;
+      myStars?: number[];
+      myCounters?: Record<string, number>;
     }
   | {
       type: "rename_rejected";
@@ -108,7 +116,9 @@ export type ServerMsg =
   | { type: "chat"; name: string; color: string; text: string }
   | { type: "ready"; name: string; ready: boolean }
   | { type: "start" }
-  | { type: "bonus_score"; playerName: string; bonus: number };
+  | { type: "bonus_score"; playerName: string; bonus: number }
+  | { type: "star"; name: string; index: number; starred: boolean }
+  | { type: "counter"; name: string; index: number; value: number };
 
 // ============================================================
 // Transport interface
@@ -150,6 +160,10 @@ export class GameRoom {
   owner: string | null = null;
   /** Hash of the original goal pool + pick rule — used to authorize restart. */
   configHash: string | null = null;
+  /** Per-player star marks: player name -> set of cell indices. */
+  starMarks: Record<string, Set<number>> = {};
+  /** Per-player counter progress: player name -> { cell index -> value }. */
+  counters: Record<string, Record<string, number>> = {};
 
   constructor(private transport: GameTransport) {}
 
@@ -204,6 +218,37 @@ export class GameRoom {
       owner: this.owner,
       configHash: this.configHash,
     };
+  }
+
+  /**
+   * Personal state message for a single connection: the shared room state
+   * plus that player's own star marks and counter progress. Same-name
+   * devices therefore start (or reconnect) with the same personal data.
+   */
+  private stateMsgFor(connId: string): ServerMsg & { type: "state" } {
+    const base = this.phase === "lobby" ? this.lobbyStateMsg : this.stateMsg;
+    const name = this.connPlayers.get(connId);
+    if (!name) return base;
+    // Always include the personal fields (empty after a restart) so clients
+    // replace their local star/counter state with the server's version.
+    return {
+      ...base,
+      myStars: this.starMarks[name] ? [...this.starMarks[name]!] : [],
+      myCounters: this.counters[name] ? { ...this.counters[name]! } : {},
+    };
+  }
+
+  /** Send a message only to connections registered under the given name. */
+  private sendToSameName(
+    name: string,
+    msg: ServerMsg,
+    excludeConnId?: string,
+  ): void {
+    for (const [connId, pname] of this.connPlayers) {
+      if (pname === name && connId !== excludeConnId) {
+        this.transport.send(connId, msg);
+      }
+    }
   }
 
   // ---------- color assignment ----------
@@ -295,6 +340,8 @@ export class GameRoom {
     this.metadata = null;
     this.phase = "lobby";
     this.marks = {};
+    this.starMarks = {};
+    this.counters = {};
     this.lockout = false;
     this.bonusScores = {};
     this.owner = null;
@@ -345,10 +392,7 @@ export class GameRoom {
         const existing = this.players[cleanName];
         if (existing) {
           this.connPlayers.set(connId, cleanName);
-          this.transport.send(
-            connId,
-            this.phase === "lobby" ? this.lobbyStateMsg : this.stateMsg,
-          );
+          this.transport.send(connId, this.stateMsgFor(connId));
           return;
         }
 
@@ -359,10 +403,7 @@ export class GameRoom {
         this.connPlayers.set(connId, cleanName);
 
         // Send state to the new player — omit config & marks during lobby
-        this.transport.send(
-          connId,
-          this.phase === "lobby" ? this.lobbyStateMsg : this.stateMsg,
-        );
+        this.transport.send(connId, this.stateMsgFor(connId));
 
         // Notify others
         this.transport.broadcast(
@@ -426,7 +467,21 @@ export class GameRoom {
         delete this.players[msg.oldName];
         player.name = newName;
         this.players[newName] = player;
-        this.connPlayers.set(connId, newName);
+        // Update the mapping for every connection of this player, not just
+        // the sender — same-name devices must keep receiving this player's
+        // personal star/counter sync after the rename.
+        for (const [cid, pname] of this.connPlayers) {
+          if (pname === msg.oldName) this.connPlayers.set(cid, newName);
+        }
+        // Keep the player's personal data under their new name.
+        if (this.starMarks[msg.oldName]) {
+          this.starMarks[newName] = this.starMarks[msg.oldName];
+          delete this.starMarks[msg.oldName];
+        }
+        if (this.counters[msg.oldName]) {
+          this.counters[newName] = this.counters[msg.oldName];
+          delete this.counters[msg.oldName];
+        }
         this.transport.broadcast(msg, [connId]);
         break;
       }
@@ -484,6 +539,10 @@ export class GameRoom {
 
         // Reset game state
         this.marks = {};
+        // Re-randomized board: personal star/counter indices no longer
+        // map to the same goals, so clear them too.
+        this.starMarks = {};
+        this.counters = {};
         this.phase = "lobby";
         this.bonusScores = {};
 
@@ -499,8 +558,55 @@ export class GameRoom {
         }
         this.countdownEnd = null;
 
-        // Broadcast new lobby state to all players
-        this.transport.broadcast(this.lobbyStateMsg);
+        // Broadcast new lobby state to all players, personalized per
+        // connection so everyone also clears their star/counter state.
+        for (const [connId] of this.connPlayers) {
+          this.transport.send(connId, this.stateMsgFor(connId));
+        }
+        break;
+      }
+
+      case "toggle_star": {
+        // Personal star marks are keyed by the player name in the message,
+        // like chat/ready — no sender-identity check. Delivery is still
+        // restricted to connections registered under that same name.
+        const playerName = msg.name;
+        if (!this.players[playerName]) return;
+        if (!Number.isInteger(msg.index) || msg.index < 0) return;
+        const stars = (this.starMarks[playerName] ??= new Set<number>());
+        if (msg.starred) stars.add(msg.index);
+        else stars.delete(msg.index);
+        this.sendToSameName(
+          playerName,
+          {
+            type: "star",
+            name: playerName,
+            index: msg.index,
+            starred: msg.starred,
+          },
+          connId,
+        );
+        break;
+      }
+
+      case "set_counter": {
+        const playerName = msg.name;
+        if (!this.players[playerName]) return;
+        if (!Number.isInteger(msg.index) || msg.index < 0) return;
+        if (!Number.isInteger(msg.value) || msg.value < 0) return;
+        const counters = (this.counters[playerName] ??= {});
+        if (msg.value > 0) counters[String(msg.index)] = msg.value;
+        else delete counters[String(msg.index)];
+        this.sendToSameName(
+          playerName,
+          {
+            type: "counter",
+            name: playerName,
+            index: msg.index,
+            value: msg.value,
+          },
+          connId,
+        );
         break;
       }
     }
@@ -519,6 +625,8 @@ export class GameRoom {
     }
 
     delete this.players[name];
+    delete this.starMarks[name];
+    delete this.counters[name];
     this.transport.broadcast({ type: "player_left", name });
 
     // Destroy room when empty: reset all state so a late-joiner starts fresh.
