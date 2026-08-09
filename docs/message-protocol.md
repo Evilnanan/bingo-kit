@@ -224,7 +224,12 @@ r = floor(index / sizeBlue)
 
 **HexConfig**:
 ```ts
-{ sizeBlue: number; sizeRed: number; goals: GoalItem[] }
+{
+  sizeBlue: number;
+  sizeRed: number;
+  goals: GoalItem[];
+  originalPool?: GoalItem[]; // client-side only, stripped before transmission
+}
 ```
 
 **GoalItem**:

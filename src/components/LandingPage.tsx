@@ -8,15 +8,11 @@ import type {
   PoolMetadata,
   RoomConfig,
 } from "../types";
-import {
-  getGoalText,
-  getGoalGlobalGroup,
-  getGoalImages,
-  stripGoalMeta,
-} from "../types";
+import { getGoalText, getGoalImages, stripGoalMeta } from "../types";
 import { pickGoals, type PickRule } from "../randomPicks";
 import { computeConfigHash } from "../utils/configHash";
 import { HEX_MIN_SIZE, HEX_MAX_SIZE } from "../hex/hexTypes";
+import { pickHexGoals } from "../hex/hexPick";
 import { GoalEditor } from "./GoalEditor";
 import { ScoringRulePicker } from "./ScoringRulePicker";
 import { GoalPoolManager } from "./GoalPoolManager";
@@ -399,16 +395,7 @@ export function LandingPage({ onJoinRoom }: Props) {
         HEX_DEFAULT_SIZE_RED;
       const totalCells = sBlue * sRed;
 
-      const shuffled = [...validGoals].sort(() => Math.random() - 0.5);
-      const usedGlobal = new Set<string>();
-      const picked: GoalItem[] = [];
-      for (const g of shuffled) {
-        if (picked.length >= totalCells) break;
-        const ggs = getGoalGlobalGroup(g);
-        if (ggs.some((gg) => usedGlobal.has(gg))) continue;
-        picked.push(g);
-        for (const gg of ggs) usedGlobal.add(gg);
-      }
+      const picked = pickHexGoals(validGoals, totalCells);
 
       if (picked.length < totalCells) {
         setError(t["landing.notEnoughGoals"]);
@@ -432,6 +419,7 @@ export function LandingPage({ onJoinRoom }: Props) {
           sizeBlue: sBlue,
           sizeRed: sRed,
           goals: stripGoalMeta(picked),
+          originalPool: validGoals,
           ...(poolMetadata ? { metadata: poolMetadata } : {}),
           configHash,
         },

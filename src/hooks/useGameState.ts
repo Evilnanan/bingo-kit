@@ -23,6 +23,7 @@ import {
 } from "./usePartyConnection";
 import { decompressJson, compressJson } from "../utils/compressMessage";
 import type { HexConfig } from "../hex/hexTypes";
+import { pickHexGoals } from "../hex/hexPick";
 import { pickGoals } from "../randomPicks";
 import type PartySocket from "partysocket";
 
@@ -275,7 +276,8 @@ export function useGameState(
   // originalPool + pickRule are needed for re-randomization on restart.
   // configHash is sent to the server to authorize restart.
   const restartPoolRef = useRef<GoalItem[] | undefined>(
-    (initialConfig as BoardConfig).originalPool,
+    (initialConfig as BoardConfig).originalPool ??
+      (initialConfig as HexConfig).originalPool,
   );
   const restartRuleRef = useRef<BoardConfig["pickRule"] | undefined>(
     (initialConfig as BoardConfig).pickRule,
@@ -287,10 +289,12 @@ export function useGameState(
   // re-computes when it arrives (refs can't be read during render).
   const [serverConfigHash, setServerConfigHash] = useState<string | null>(null);
 
-  // Strip restart-only fields before sending config to server.
-  function stripRestartMeta(cfg: BoardConfig): BoardConfig {
+  // Strip restart-only fields before sending config to server (classic:
+  // originalPool/pickRule; hex: originalPool).
+  function stripRestartMeta(cfg: unknown): unknown {
+    if (!cfg || typeof cfg !== "object") return cfg;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { originalPool, pickRule, ...rest } = cfg;
+    const { originalPool, pickRule, ...rest } = cfg as Record<string, unknown>;
     return rest;
   }
 
@@ -308,13 +312,13 @@ export function useGameState(
         // never sent to the server — only kept client-side for restart).
         // Use the server-authoritative mode, not the local homepage mode.
         const effectiveMode = msg.mode ?? mode;
-        if (
-          cfg != null &&
-          effectiveMode === "classic" &&
-          restartPoolRef.current
-        ) {
-          (cfg as BoardConfig).originalPool = restartPoolRef.current;
-          (cfg as BoardConfig).pickRule = restartRuleRef.current;
+        if (cfg != null && restartPoolRef.current) {
+          if (effectiveMode === "classic") {
+            (cfg as BoardConfig).originalPool = restartPoolRef.current;
+            (cfg as BoardConfig).pickRule = restartRuleRef.current;
+          } else if (effectiveMode === "hex") {
+            (cfg as HexConfig).originalPool = restartPoolRef.current;
+          }
         }
         // Track the server-authoritative configHash for canRestart check.
         const scHash = (msg as { configHash?: string | null }).configHash;
@@ -438,11 +442,7 @@ export function useGameState(
   // Strip originalPool/pickRule from config — they're only needed client-side for restart.
   // Strip image base64 data — keep only hashes for wire transmission.
   const lockout = (initialConfig as BoardConfig).lockout === true;
-  const wireConfig = stripConfigImageData(
-    mode === "classic"
-      ? stripRestartMeta(initialConfig as BoardConfig)
-      : initialConfig,
-  );
+  const wireConfig = stripConfigImageData(stripRestartMeta(initialConfig));
   // Pool metadata is sent separately at join so it can be shared in the
   // lobby — the board config (goals) is only broadcast when the game starts.
   const initialMeta = (initialConfig as BoardConfig | HexConfig).metadata;
@@ -488,8 +488,28 @@ export function useGameState(
         ...(cfg ?? { goals: [] }),
         goals: stripGoalMeta(newGoals),
       };
-      // Strip image data — keep only hashes for wire
-      newConfig = compressJson(stripConfigImageData(newBoardConfig));
+      // Strip image data + restart-only fields — keep only hashes for wire
+      newConfig = compressJson(
+        stripConfigImageData(stripRestartMeta(newBoardConfig)),
+      );
+    }
+
+    // Hex mode: re-pick goals from the original pool (same algorithm as
+    // room creation) so a restart produces a fresh board.
+    if (current.mode === "hex" && pool) {
+      const cfg = current.config as HexConfig | undefined;
+      const sizeBlue = cfg?.sizeBlue ?? (initialConfig as HexConfig).sizeBlue;
+      const sizeRed = cfg?.sizeRed ?? (initialConfig as HexConfig).sizeRed;
+      const newHexConfig: HexConfig = {
+        sizeBlue,
+        sizeRed,
+        goals: stripGoalMeta(pickHexGoals(pool, sizeBlue * sizeRed)),
+        ...(cfg?.metadata ? { metadata: cfg.metadata } : {}),
+      };
+      // Strip image data + restart-only fields — keep only hashes for wire
+      newConfig = compressJson(
+        stripConfigImageData(stripRestartMeta(newHexConfig)),
+      );
     }
 
     ws.send(
