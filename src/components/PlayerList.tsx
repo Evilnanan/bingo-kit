@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import type { Player } from "../types";
-import type { ScoreMap } from "../scoring/types";
+import type { ScoreMap, ScoringRule } from "../scoring/types";
 import { PLAYER_COLORS } from "../utils/colors";
 import { useT, format } from "../i18n/useT";
+import { ScoringRuleCard } from "./ScoringRuleCard";
 import "./PlayerList.css";
 
 type SortMode = "join" | "name" | "score";
@@ -16,6 +17,8 @@ interface Props {
   onChangeName: (newName: string) => void;
   onSetBonusScore?: (playerName: string, bonus: number) => void;
   allowedColors?: string[];
+  showScoringRule?: boolean;
+  rule?: ScoringRule | null | undefined;
 }
 
 export function PlayerList({
@@ -27,6 +30,8 @@ export function PlayerList({
   onChangeName,
   onSetBonusScore,
   allowedColors,
+  showScoringRule,
+  rule,
 }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -39,6 +44,27 @@ export function PlayerList({
   const bonusInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const { t } = useT();
+
+  // Collapse the player list so the chat/notes panel gets more vertical space.
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("bingo-player-list-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleCollapsed = () => {
+    setCollapsed((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("bingo-player-list-collapsed", next ? "1" : "0");
+      } catch {
+        /* noop */
+      }
+      return next;
+    });
+  };
 
   const hasScores = scores != null;
   const canEditBonus = onSetBonusScore != null;
@@ -289,12 +315,20 @@ export function PlayerList({
   }
 
   return (
-    <div className="player-list">
+    <div className={`player-list${collapsed ? " player-list--collapsed" : ""}`}>
       <div className="player-list-header">
-        <h3 className="player-list-title">
-          {format(t["players.title"], players.length)}
-        </h3>
-        {hasScores && (
+        <button
+          type="button"
+          className="player-list-title-row"
+          onClick={toggleCollapsed}
+          title={collapsed ? t["players.expand"] : t["players.collapse"]}
+          aria-expanded={!collapsed}
+        >
+          <h3 className="player-list-title">
+            {format(t["players.title"], players.length)}
+          </h3>
+        </button>
+        {!collapsed && hasScores && (
           <div className="player-list-sort">
             <span className="sort-label">{t["scoring.sortBy"]}</span>
             <button
@@ -396,6 +430,7 @@ export function PlayerList({
           ))}
         </div>
       )}
+      {showScoringRule && <ScoringRuleCard rule={rule} />}
     </div>
   );
 }

@@ -21,6 +21,70 @@
   margin: 0;
 }
 
+.player-list-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.player-list-title-row:hover .player-list-title {
+  color: var(--text);
+}
+
+.player-list--collapsed {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.player-list--collapsed .player-list-header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.player-list--collapsed .player-list-sort,
+.player-list--collapsed .player-list-empty,
+.player-list--collapsed .player-list-items,
+.player-list--collapsed .color-picker,
+.player-list--collapsed .rule-card {
+  display: none;
+}
+
+/* Scoring rule card, seamlessly included in the player list card */
+.player-list .rule-card {
+  margin: 8px -16px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  border-top: 1px solid var(--border);
+}
+
+/* Let the rule section reach the card's bottom edge, so there is no dead
+   strip below it that looks clickable but is not. */
+.player-list:not(.player-list--collapsed):has(.rule-card) {
+  padding-bottom: 0;
+}
+
+.player-list .rule-card .rule-card-header {
+  padding: 10px 16px;
+}
+
+.player-list .rule-card:not(.rule-card--open) .rule-card-header {
+  padding: 8px 16px;
+}
+
+.player-list .rule-card .rule-card-body {
+  padding: 10px 16px 12px;
+}
+
 .player-list-sort {
   display: flex;
   align-items: center;

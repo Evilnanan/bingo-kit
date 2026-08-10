@@ -26,6 +26,8 @@ export const en: Translations = {
   "players.changeColor": "Change color",
   "players.editName": "Edit name",
   "players.title": "Players ({0})",
+  "players.collapse": "Collapse player list",
+  "players.expand": "Expand player list",
   "chat.title": "Chat",
   "chat.empty": "No messages yet.",
   "chat.placeholder": "Type a message…",

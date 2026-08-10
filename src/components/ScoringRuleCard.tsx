@@ -32,7 +32,6 @@ export function ScoringRuleCard({ rule }: Props) {
           open ? t["scoring.ruleCard.collapse"] : t["scoring.ruleCard.expand"]
         }
       >
-        <span className="rule-card-icon">{open ? "▾" : "▸"}</span>
         <span className="rule-card-title">{t["scoring.title"]}</span>
         {!open && (
           <span className="rule-card-summary">

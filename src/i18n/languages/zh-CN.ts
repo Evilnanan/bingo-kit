@@ -26,6 +26,8 @@ export const zh: Translations = {
   "players.changeColor": "更改颜色",
   "players.editName": "编辑名称",
   "players.title": "玩家 ({0})",
+  "players.collapse": "收起玩家列表",
+  "players.expand": "展开玩家列表",
   "chat.title": "聊天",
   "chat.empty": "暂无消息。",
   "chat.placeholder": "输入消息…",

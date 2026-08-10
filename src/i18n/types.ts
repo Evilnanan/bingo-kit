@@ -30,6 +30,8 @@ export interface Translations {
   "players.changeColor": string;
   "players.editName": string;
   "players.title": string;
+  "players.collapse": string;
+  "players.expand": string;
   // ChatPanel
   "chat.title": string;
   "chat.empty": string;

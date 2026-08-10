@@ -35,13 +35,6 @@
   background: var(--bg-subtle);
 }
 
-.rule-card-icon {
-  font-size: 11px;
-  flex-shrink: 0;
-  width: 12px;
-  text-align: center;
-}
-
 .rule-card-title {
   font-weight: 600;
   white-space: nowrap;

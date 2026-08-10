@@ -9,7 +9,6 @@ import { PlayerList } from "./PlayerList";
 import { ReadyPanel } from "./ReadyPanel";
 import { RoomHeader } from "./RoomHeader";
 import { RoomSidebar } from "./RoomSidebar";
-import { ScoringRuleCard } from "./ScoringRuleCard";
 import { TEAM_COLORS } from "../utils/colors";
 import type { BoardConfig, GameMode } from "../types";
 import type { HexConfig } from "../hex/hexTypes";
@@ -193,8 +192,9 @@ export function GameRoom({
             allowedColors={
               isHex ? [TEAM_COLORS.red, TEAM_COLORS.blue] : undefined
             }
+            showScoringRule={showBoard}
+            rule={rule}
           />
-          {showBoard && <ScoringRuleCard rule={rule} />}
           <div className="room-chat">
             <ChatPanel
               chats={state.chats}
