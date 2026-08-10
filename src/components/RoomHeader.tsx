@@ -4,6 +4,7 @@ import type { GamePhase, PoolMetadata } from "../types";
 import type { RoomSettings } from "../hooks/useRoomSettings";
 import { RoomSettingsPanel } from "./RoomSettingsPanel";
 import { PoolMetadataPanel } from "./PoolMetadataPanel";
+import { DEFAULT_SERVER_URL, IMAGE_URL } from "../config";
 
 interface Props {
   roomName: string;
@@ -54,8 +55,18 @@ export function RoomHeader({
   const handleCopyLink = () => {
     const url = new URL(window.location.href);
     url.searchParams.set("room", roomName);
-    url.searchParams.set("server", serverUrl);
-    url.searchParams.set("images", imageBaseUrl);
+    // Only include server/images when they differ from the defaults, so links
+    // shared with the default server/image stay clean. Delete first to avoid
+    // carrying over stale params from the current URL.
+    url.searchParams.delete("server");
+    url.searchParams.delete("images");
+    if (serverUrl !== DEFAULT_SERVER_URL) {
+      url.searchParams.set("server", serverUrl);
+    }
+    const defaultImageBaseUrl = IMAGE_URL || DEFAULT_SERVER_URL;
+    if (imageBaseUrl !== defaultImageBaseUrl) {
+      url.searchParams.set("images", imageBaseUrl);
+    }
     if (extraParams) {
       for (const [k, v] of Object.entries(extraParams)) {
         url.searchParams.set(k, v);
