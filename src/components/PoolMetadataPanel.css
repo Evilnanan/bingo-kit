@@ -37,6 +37,8 @@
   font-size: 18px;
   color: var(--text);
   margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .pool-meta-close {
@@ -62,15 +64,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.pool-meta-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .pool-meta-desc {

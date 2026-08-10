@@ -23,8 +23,6 @@ export interface Translations {
   "room.loading": string;
   "room.restart": string;
   "room.restartConfirm": string;
-  "room.poolInfo": string;
-  "room.poolInfoTitle": string;
   // PlayerList
   "players.waiting": string;
   "players.changeColor": string;
@@ -175,6 +173,7 @@ export interface Translations {
   "goalPool.namePlaceholder": string;
   "goalPool.name": string;
   "goalPool.description": string;
+  "poolMeta.noDescription": string;
   "goalPool.descriptionPlaceholder": string;
   "goalPool.images": string;
   "goalPool.cancel": string;

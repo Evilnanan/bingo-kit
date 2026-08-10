@@ -151,8 +151,8 @@ export function RoomHeader({
             type="button"
             className="room-pool-info-btn"
             onClick={() => setPoolInfoOpen((v) => !v)}
-            title={t["room.poolInfo"]}
-            aria-label={t["room.poolInfo"]}
+            title={t["tooltip.info"]}
+            aria-label={t["tooltip.info"]}
           >
             !
           </button>

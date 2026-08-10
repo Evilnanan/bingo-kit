@@ -33,9 +33,12 @@ export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
+          aria-labelledby="pool-meta-title"
         >
           <div className="pool-meta-header">
-            <h2 className="pool-meta-title">{t["room.poolInfoTitle"]}</h2>
+            <h2 className="pool-meta-title" id="pool-meta-title">
+              {metadata.name}
+            </h2>
             <button
               type="button"
               className="pool-meta-close"
@@ -46,10 +49,9 @@ export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {
             </button>
           </div>
           <div className="pool-meta-scroll">
-            <h3 className="pool-meta-name">{metadata.name}</h3>
-            {metadata.description ? (
-              <p className="pool-meta-desc">{metadata.description}</p>
-            ) : null}
+            <p className="pool-meta-desc">
+              {metadata.description || t["poolMeta.noDescription"]}
+            </p>
             {images.length > 0 && (
               <div className="pool-meta-images">
                 {images.map((att, i) => (
