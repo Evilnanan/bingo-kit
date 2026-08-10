@@ -43,6 +43,16 @@ export interface PlayerInfo {
   ready?: boolean;
 }
 
+/** A personal planning note, synced only to same-name connections. */
+export interface PlayerNote {
+  id: string;
+  text: string;
+  /** When true the note is a todo item and shows a done checkbox. */
+  todo: boolean;
+  /** Completion state for todo notes. */
+  done: boolean;
+}
+
 export interface RoomState {
   config: unknown;
   /** Pool metadata (name/description/images) — shared at join, unlike board config. */
@@ -60,6 +70,8 @@ export interface RoomState {
   starMarks: Record<string, number[]>;
   /** Per-player counter progress, only sent back to the same name. */
   counters: Record<string, Record<string, number>>;
+  /** Per-player planning notes, only sent back to the same name. */
+  notes: Record<string, PlayerNote[]>;
 }
 
 // Client → Server messages
@@ -82,7 +94,18 @@ export type ClientMsg =
   | { type: "bonus_score"; playerName: string; bonus: number }
   | { type: "restart"; config?: unknown; configHash?: string }
   | { type: "toggle_star"; name: string; index: number; starred: boolean }
-  | { type: "set_counter"; name: string; index: number; value: number };
+  | { type: "set_counter"; name: string; index: number; value: number }
+  | { type: "add_note"; name: string; note: PlayerNote }
+  | {
+      type: "update_note";
+      name: string;
+      id: string;
+      text?: string;
+      todo?: boolean;
+      done?: boolean;
+    }
+  | { type: "delete_note"; name: string; id: string }
+  | { type: "reorder_notes"; name: string; ids: string[] };
 
 // Server → Client messages
 export type ServerMsg =
@@ -101,6 +124,7 @@ export type ServerMsg =
       configHash: string | null;
       myStars?: number[];
       myCounters?: Record<string, number>;
+      myNotes?: PlayerNote[];
     }
   | {
       type: "rename_rejected";
@@ -118,7 +142,11 @@ export type ServerMsg =
   | { type: "start" }
   | { type: "bonus_score"; playerName: string; bonus: number }
   | { type: "star"; name: string; index: number; starred: boolean }
-  | { type: "counter"; name: string; index: number; value: number };
+  | { type: "counter"; name: string; index: number; value: number }
+  | { type: "note_added"; name: string; note: PlayerNote }
+  | { type: "note_updated"; name: string; note: PlayerNote }
+  | { type: "note_deleted"; name: string; id: string }
+  | { type: "notes_reordered"; name: string; ids: string[] };
 
 // ============================================================
 // Transport interface
@@ -164,6 +192,8 @@ export class GameRoom {
   starMarks: Record<string, Set<number>> = {};
   /** Per-player counter progress: player name -> { cell index -> value }. */
   counters: Record<string, Record<string, number>> = {};
+  /** Per-player planning notes: player name -> ordered list. */
+  notes: Record<string, PlayerNote[]> = {};
 
   constructor(private transport: GameTransport) {}
 
@@ -235,6 +265,7 @@ export class GameRoom {
       ...base,
       myStars: this.starMarks[name] ? [...this.starMarks[name]!] : [],
       myCounters: this.counters[name] ? { ...this.counters[name]! } : {},
+      myNotes: this.notes[name] ? this.notes[name]!.map((n) => ({ ...n })) : [],
     };
   }
 
@@ -342,6 +373,7 @@ export class GameRoom {
     this.marks = {};
     this.starMarks = {};
     this.counters = {};
+    this.notes = {};
     this.lockout = false;
     this.bonusScores = {};
     this.owner = null;
@@ -482,6 +514,10 @@ export class GameRoom {
           this.counters[newName] = this.counters[msg.oldName];
           delete this.counters[msg.oldName];
         }
+        if (this.notes[msg.oldName]) {
+          this.notes[newName] = this.notes[msg.oldName];
+          delete this.notes[msg.oldName];
+        }
         // Room owner follows the rename so they keep restart rights.
         if (this.owner === msg.oldName) this.owner = newName;
         this.transport.broadcast(msg, [connId]);
@@ -545,6 +581,8 @@ export class GameRoom {
         // map to the same goals, so clear them too.
         this.starMarks = {};
         this.counters = {};
+        // Planned routes refer to the old board — clear notes as well.
+        this.notes = {};
         this.phase = "lobby";
         this.bonusScores = {};
 
@@ -611,6 +649,89 @@ export class GameRoom {
         );
         break;
       }
+
+      case "add_note": {
+        const playerName = msg.name;
+        if (!this.players[playerName]) return;
+        const note = msg.note;
+        if (!note || typeof note.id !== "string" || !note.id) return;
+        if (typeof note.text !== "string" || note.text.length > 2000) return;
+        const list = (this.notes[playerName] ??= []);
+        const clean: PlayerNote = {
+          id: note.id,
+          text: note.text,
+          todo: note.todo === true,
+          done: note.done === true,
+        };
+        list.push(clean);
+        this.sendToSameName(
+          playerName,
+          { type: "note_added", name: playerName, note: { ...clean } },
+          connId,
+        );
+        break;
+      }
+
+      case "update_note": {
+        const playerName = msg.name;
+        if (!this.players[playerName]) return;
+        const list = this.notes[playerName];
+        if (!list) return;
+        const idx = list.findIndex((n) => n.id === msg.id);
+        if (idx < 0) return;
+        if (msg.text !== undefined && msg.text.length > 2000) return;
+        const updated: PlayerNote = {
+          ...list[idx],
+          ...(msg.text !== undefined ? { text: msg.text } : {}),
+          ...(msg.todo !== undefined ? { todo: msg.todo } : {}),
+          ...(msg.done !== undefined ? { done: msg.done } : {}),
+        };
+        list[idx] = updated;
+        this.sendToSameName(
+          playerName,
+          { type: "note_updated", name: playerName, note: { ...updated } },
+          connId,
+        );
+        break;
+      }
+
+      case "delete_note": {
+        const playerName = msg.name;
+        if (!this.players[playerName]) return;
+        const list = this.notes[playerName];
+        if (!list) return;
+        const idx = list.findIndex((n) => n.id === msg.id);
+        if (idx < 0) return;
+        list.splice(idx, 1);
+        this.sendToSameName(
+          playerName,
+          { type: "note_deleted", name: playerName, id: msg.id },
+          connId,
+        );
+        break;
+      }
+
+      case "reorder_notes": {
+        const playerName = msg.name;
+        if (!this.players[playerName]) return;
+        const list = this.notes[playerName];
+        if (!list || !Array.isArray(msg.ids)) return;
+        const ids = msg.ids;
+        const idSet = new Set(ids);
+        if (idSet.size !== list.length || !list.every((n) => idSet.has(n.id))) {
+          return;
+        }
+        const byId = new Map(list.map((n) => [n.id, n]));
+        this.notes[playerName] = ids
+          .map((id) => byId.get(id))
+          .filter((n): n is PlayerNote => n !== undefined);
+        this.sendToSameName(
+          playerName,
+          { type: "notes_reordered", name: playerName, ids },
+          connId,
+        );
+        break;
+      }
     }
   }
 
@@ -629,6 +750,7 @@ export class GameRoom {
     delete this.players[name];
     delete this.starMarks[name];
     delete this.counters[name];
+    delete this.notes[name];
     this.transport.broadcast({ type: "player_left", name });
 
     // Destroy room when empty: reset all state so a late-joiner starts fresh.

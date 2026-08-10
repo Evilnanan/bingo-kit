@@ -58,10 +58,15 @@ export function GameRoom({
     setBonusScore,
     toggleStar,
     setCounter,
+    addNote,
+    updateNote,
+    deleteNote,
+    reorderNotes,
     requestRestart,
     canRestart,
     stars,
     counters,
+    notes,
   } = useGameState(
     roomName,
     playerName,
@@ -191,7 +196,15 @@ export function GameRoom({
           />
           {showBoard && <ScoringRuleCard rule={rule} />}
           <div className="room-chat">
-            <ChatPanel chats={state.chats} onSend={sendChat} />
+            <ChatPanel
+              chats={state.chats}
+              onSend={sendChat}
+              notes={notes}
+              onAddNote={addNote}
+              onUpdateNote={updateNote}
+              onDeleteNote={deleteNote}
+              onReorderNotes={reorderNotes}
+            />
           </div>
         </RoomSidebar>
       </div>

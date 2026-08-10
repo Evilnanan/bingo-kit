@@ -9,6 +9,16 @@ export interface MarkEntry {
   timestamp: number;
 }
 
+/** A personal planning note, synced only to same-name connections. */
+export interface PlayerNote {
+  id: string;
+  text: string;
+  /** When true the note is a todo item and shows a done checkbox. */
+  todo: boolean;
+  /** Completion state for todo notes. */
+  done: boolean;
+}
+
 export interface ImageAttachment {
   /** SHA-256 hex digest — used as R2 storage key and dedup identifier. */
   hash: string;
@@ -224,6 +234,8 @@ export interface GameState {
   stars: Set<number>;
   /** Counter progress per cell for the local player — synced across same-name devices. */
   counters: Record<number, number>;
+  /** Personal planning notes — synced across same-name devices. */
+  notes: PlayerNote[];
   players: Record<string, Player>;
   localClientId: string | null;
   localPlayerName: string | null;
@@ -260,6 +272,8 @@ export type GameAction =
         stars?: number[];
         /** Personal counter progress, sent only to the matching player. */
         counters?: Record<number, number>;
+        /** Personal planning notes, sent only to the matching player. */
+        notes?: PlayerNote[];
       };
     }
   | {
@@ -275,7 +289,11 @@ export type GameAction =
   | { type: "SET_PHASE"; phase: GamePhase; countdownSeconds?: number }
   | { type: "SET_BONUS_SCORE"; playerName: string; bonus: number }
   | { type: "APPLY_STAR"; index: number; starred: boolean }
-  | { type: "APPLY_COUNTER"; index: number; value: number };
+  | { type: "APPLY_COUNTER"; index: number; value: number }
+  | { type: "ADD_NOTE"; note: PlayerNote }
+  | { type: "UPDATE_NOTE"; id: string; note: PlayerNote }
+  | { type: "DELETE_NOTE"; id: string }
+  | { type: "REORDER_NOTES"; ids: string[] };
 
 export type PlayerCallbackAction = Extract<
   GameAction,
@@ -301,6 +319,8 @@ export type ServerMessage =
       myStars?: number[];
       /** Personal counter progress, present only in per-player state. */
       myCounters?: Record<string, number>;
+      /** Personal planning notes, present only in per-player state. */
+      myNotes?: PlayerNote[];
     }
   | {
       type: "rename_rejected";
@@ -318,7 +338,11 @@ export type ServerMessage =
   | { type: "start" }
   | { type: "bonus_score"; playerName: string; bonus: number }
   | { type: "star"; name: string; index: number; starred: boolean }
-  | { type: "counter"; name: string; index: number; value: number };
+  | { type: "counter"; name: string; index: number; value: number }
+  | { type: "note_added"; name: string; note: PlayerNote }
+  | { type: "note_updated"; name: string; note: PlayerNote }
+  | { type: "note_deleted"; name: string; id: string }
+  | { type: "notes_reordered"; name: string; ids: string[] };
 
 /** Messages sent to the PartyServer. */
 export type ClientMessage =
@@ -340,4 +364,15 @@ export type ClientMessage =
   | { type: "bonus_score"; playerName: string; bonus: number }
   | { type: "restart"; config?: unknown; configHash?: string }
   | { type: "toggle_star"; name: string; index: number; starred: boolean }
-  | { type: "set_counter"; name: string; index: number; value: number };
+  | { type: "set_counter"; name: string; index: number; value: number }
+  | { type: "add_note"; name: string; note: PlayerNote }
+  | {
+      type: "update_note";
+      name: string;
+      id: string;
+      text?: string;
+      todo?: boolean;
+      done?: boolean;
+    }
+  | { type: "delete_note"; name: string; id: string }
+  | { type: "reorder_notes"; name: string; ids: string[] };

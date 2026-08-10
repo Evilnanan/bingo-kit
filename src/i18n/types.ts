@@ -35,6 +35,18 @@ export interface Translations {
   "chat.empty": string;
   "chat.placeholder": string;
   "chat.send": string;
+  // NotesPanel
+  "notes.title": string;
+  "notes.placeholder": string;
+  "notes.add": string;
+  "notes.empty": string;
+  "notes.todo": string;
+  "notes.untodo": string;
+  "notes.delete": string;
+  "notes.edit": string;
+  "notes.save": string;
+  "notes.cancel": string;
+  "notes.drag": string;
   // JSON import
   "editor.jsonParseError": string;
   "editor.jsonNotArray": string;

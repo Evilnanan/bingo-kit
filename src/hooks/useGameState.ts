@@ -5,6 +5,7 @@ import type {
   GameAction,
   ServerMessage,
   MarkEntry,
+  PlayerNote,
   GameMode,
   GoalItem,
   PoolMetadata,
@@ -44,6 +45,7 @@ function createInitialState(
     marks: {},
     stars: new Set<number>(),
     counters: {},
+    notes: [],
     players: {},
     localClientId: null,
     localPlayerName: null,
@@ -188,6 +190,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...(action.state.counters !== undefined
           ? { counters: action.state.counters }
           : {}),
+        ...(action.state.notes !== undefined
+          ? { notes: action.state.notes }
+          : {}),
       };
     }
 
@@ -256,12 +261,41 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, counters: next };
     }
 
+    case "ADD_NOTE": {
+      return { ...state, notes: [...state.notes, action.note] };
+    }
+
+    case "UPDATE_NOTE": {
+      return {
+        ...state,
+        notes: state.notes.map((n) =>
+          n.id === action.id ? action.note : n,
+        ),
+      };
+    }
+
+    case "DELETE_NOTE": {
+      return {
+        ...state,
+        notes: state.notes.filter((n) => n.id !== action.id),
+      };
+    }
+
+    case "REORDER_NOTES": {
+      const byId = new Map(state.notes.map((n) => [n.id, n]));
+      const next = action.ids
+        .map((id) => byId.get(id))
+        .filter((n): n is PlayerNote => n !== undefined);
+      return { ...state, notes: next };
+    }
+
     case "CLEAR_SESSION":
       return {
         ...handleCommonAction(state, action),
         marks: {},
         stars: new Set<number>(),
         counters: {},
+        notes: [],
       };
 
     case "RENAME_PLAYER":
@@ -365,6 +399,7 @@ export function useGameState(
             stars: (msg as { myStars?: number[] }).myStars,
             counters: (msg as { myCounters?: Record<number, number> })
               .myCounters,
+            notes: (msg as { myNotes?: PlayerNote[] }).myNotes,
           },
         });
         break;
@@ -473,6 +508,30 @@ export function useGameState(
       case "counter": {
         if (msg.name !== stateRef.current.localPlayerName) break;
         dispatch({ type: "APPLY_COUNTER", index: msg.index, value: msg.value });
+        break;
+      }
+
+      case "note_added": {
+        if (msg.name !== stateRef.current.localPlayerName) break;
+        dispatch({ type: "ADD_NOTE", note: msg.note });
+        break;
+      }
+
+      case "note_updated": {
+        if (msg.name !== stateRef.current.localPlayerName) break;
+        dispatch({ type: "UPDATE_NOTE", id: msg.note.id, note: msg.note });
+        break;
+      }
+
+      case "note_deleted": {
+        if (msg.name !== stateRef.current.localPlayerName) break;
+        dispatch({ type: "DELETE_NOTE", id: msg.id });
+        break;
+      }
+
+      case "notes_reordered": {
+        if (msg.name !== stateRef.current.localPlayerName) break;
+        dispatch({ type: "REORDER_NOTES", ids: msg.ids });
         break;
       }
     }
@@ -694,6 +753,49 @@ export function useGameState(
     dispatch({ type: "APPLY_COUNTER", index, value });
   }
 
+  function addNote(text: string, todo: boolean) {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (!myName || !ws) return;
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const note: PlayerNote = { id, text, todo, done: false };
+    ws.send(JSON.stringify({ type: "add_note", name: myName, note }));
+    dispatch({ type: "ADD_NOTE", note });
+  }
+
+  function updateNote(
+    id: string,
+    patch: { text?: string; todo?: boolean; done?: boolean },
+  ) {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (!myName || !ws) return;
+    const current = stateRef.current.notes.find((n) => n.id === id);
+    if (!current) return;
+    const note: PlayerNote = { ...current, ...patch };
+    ws.send(JSON.stringify({ type: "update_note", name: myName, id, ...patch }));
+    dispatch({ type: "UPDATE_NOTE", id, note });
+  }
+
+  function deleteNote(id: string) {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (!myName || !ws) return;
+    ws.send(JSON.stringify({ type: "delete_note", name: myName, id }));
+    dispatch({ type: "DELETE_NOTE", id });
+  }
+
+  function reorderNotes(ids: string[]) {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (!myName || !ws) return;
+    ws.send(JSON.stringify({ type: "reorder_notes", name: myName, ids }));
+    dispatch({ type: "REORDER_NOTES", ids });
+  }
+
   // Only allow restart if this device's config hash matches the server's.
   const localHash = (initialConfig as BoardConfig | HexConfig).configHash;
   const canRestart = (() => {
@@ -714,9 +816,14 @@ export function useGameState(
     setBonusScore,
     toggleStar,
     setCounter,
+    addNote,
+    updateNote,
+    deleteNote,
+    reorderNotes,
     requestRestart,
     canRestart,
     stars: state.stars,
     counters: state.counters,
+    notes: state.notes,
   };
 }

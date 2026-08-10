@@ -105,11 +105,57 @@ index: number   // 格子索引
 value: number   // 变更后的进度（0 ≤ value ≤ 目标计数）
 ```
 
+### `add_note` — 添加笔记
+
+仅同步给**同名客户端**。笔记是玩家自己的路线规划，服务端按 `name` 归组。
+
+```
+type: "add_note"
+name: string   // 玩家名称
+note: {
+  id: string
+  text: string
+  todo: boolean  // 是否待办
+  done: boolean  // 待办是否已完成
+}
+```
+
+### `update_note` — 更新笔记
+
+只更新携带的字段，未携带的保持不变。
+
+```
+type: "update_note"
+name: string
+id: string
+text?: string
+todo?: boolean
+done?: boolean
+```
+
+### `delete_note` — 删除笔记
+
+```
+type: "delete_note"
+name: string
+id: string
+```
+
+### `reorder_notes` — 调整笔记顺序
+
+`ids` 为完整的新顺序（须包含当前全部笔记 id）。
+
+```
+type: "reorder_notes"
+name: string
+ids: string[]
+```
+
 ## 3. 服务端 → 客户端消息
 
 ### `state` — 完整状态同步
 
-在新玩家加入或阶段变更时发送。客户端应以此消息为准。发送给单个连接时（加入/重连/重开），会额外携带该玩家的个人字段 `myStars` / `myCounters`；广播给所有人的 `state` 不包含个人字段。
+在新玩家加入或阶段变更时发送。客户端应以此消息为准。发送给单个连接时（加入/重连/重开），会额外携带该玩家的个人字段 `myStars` / `myCounters` / `myNotes`；广播给所有人的 `state` 不包含个人字段。
 
 ```
 type: "state"
@@ -117,6 +163,7 @@ config: BoardConfig | HexConfig | null
 marks: { [index: string]: MarkEntry[] }
 myStars?: number[]                     // 个人星标索引（仅逐连接发送）
 myCounters?: { [index: string]: number } // 个人计数器进度（仅逐连接发送）
+myNotes?: PlayerNote[]                 // 个人笔记（仅逐连接发送）
 players: { [name: string]: Player }
 phase: "lobby" | "countdown" | "playing"
 countdownSeconds: number | null
@@ -182,6 +229,34 @@ index: number
 value: number
 ```
 
+### `note_added` / `note_updated` / `note_deleted` / `notes_reordered` — 同名客户端笔记同步
+
+服务端将个人笔记变更**只转发给同名连接**（不含发起者，发起者通过乐观更新即时反馈）：
+
+```
+type: "note_added"
+name: string
+note: PlayerNote
+```
+
+```
+type: "note_updated"
+name: string
+note: PlayerNote   // 完整更新后的笔记
+```
+
+```
+type: "note_deleted"
+name: string
+id: string
+```
+
+```
+type: "notes_reordered"
+name: string
+ids: string[]
+```
+
 ## 4. 游戏阶段
 
 - `lobby`：等待阶段，棋盘隐藏，玩家可切换准备状态
@@ -240,6 +315,8 @@ value: number
 | `ready` | C→S, S→C | `name, ready` |
 | `toggle_star` / `set_counter` | C→S | `name, index, starred` / `name, index, value` |
 | `star` / `counter` | S→C | `name, index, starred` / `name, index, value` |
+| `add_note` / `update_note` / `delete_note` / `reorder_notes` | C→S | `name, note` / `name, id, patch` / `name, id` / `name, ids` |
+| `note_added` / `note_updated` / `note_deleted` / `notes_reordered` | S→C | `name, note` / `name, note` / `name, id` / `name, ids` |
 | `player_joined` | S→C | `name, color` |
 | `player_left` | S→C | `name` |
 
