@@ -6,21 +6,34 @@ interface Props {
 }
 
 export function RoomSidebar({ children }: Props) {
-  const [open, setOpen] = useState(true);
+  // Desktop starts open; on mobile the sidebar is a drawer that starts
+  // collapsed so the board keeps the full screen.
+  const [open, setOpen] = useState(
+    () => !window.matchMedia("(max-width: 800px)").matches,
+  );
   const { t } = useT();
 
   return (
-    <aside className={`room-sidebar${open ? "" : " collapsed"}`}>
-      <button
-        type="button"
-        className="sidebar-toggle"
-        onClick={() => setOpen((v) => !v)}
-        title={open ? t["sidebar.collapse"] : t["sidebar.expand"]}
-        aria-label={open ? t["sidebar.collapse"] : t["sidebar.expand"]}
+    <>
+      {open && <div className="sidebar-scrim" onClick={() => setOpen(false)} />}
+      <aside
+        className={`room-sidebar${open ? "" : " collapsed"}`}
+        onClick={open ? undefined : () => setOpen(true)}
       >
-        {open ? "✕" : "☰"}
-      </button>
-      <div className="sidebar-inner">{children}</div>
-    </aside>
+        <button
+          type="button"
+          className="sidebar-toggle"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
+          title={open ? t["sidebar.collapse"] : t["sidebar.expand"]}
+          aria-label={open ? t["sidebar.collapse"] : t["sidebar.expand"]}
+        >
+          {open ? "✕" : "☰"}
+        </button>
+        <div className="sidebar-inner">{children}</div>
+      </aside>
+    </>
   );
 }

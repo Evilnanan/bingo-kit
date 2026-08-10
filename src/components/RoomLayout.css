@@ -217,6 +217,10 @@
   display: none;
 }
 
+.sidebar-scrim {
+  display: none;
+}
+
 .sidebar-inner {
   display: contents;
 }
@@ -258,25 +262,52 @@
 
 @media (max-width: 800px) {
   .room-body {
-    flex-direction: column;
-    align-items: center;
+    flex-direction: row;
+  }
+
+  .sidebar-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.35);
   }
 
   .room-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
     width: 100%;
-    max-width: 400px;
-    max-height: 50vh;
-    transition: max-height 0.25s ease;
+    min-width: 0;
+    max-width: none;
+    height: 75vh;
+    max-height: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+    transform: translateY(0);
+    transition: transform 0.25s ease;
   }
 
   .room-sidebar.collapsed {
     width: 100%;
     min-width: 0;
-    max-width: 400px;
-    max-height: 36px;
+    max-width: none;
+    transform: translateY(calc(100% - 36px));
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
   }
 
-  .room-sidebar.collapsed .sidebar-inner {
-    display: contents;
+  .room-sidebar.collapsed .sidebar-toggle {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    margin: 0;
   }
 }
