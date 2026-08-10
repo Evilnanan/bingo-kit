@@ -268,9 +268,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case "UPDATE_NOTE": {
       return {
         ...state,
-        notes: state.notes.map((n) =>
-          n.id === action.id ? action.note : n,
-        ),
+        notes: state.notes.map((n) => (n.id === action.id ? action.note : n)),
       };
     }
 
@@ -501,7 +499,11 @@ export function useGameState(
       case "star": {
         // Server already routes to same-name clients only; guard anyway.
         if (msg.name !== stateRef.current.localPlayerName) break;
-        dispatch({ type: "APPLY_STAR", index: msg.index, starred: msg.starred });
+        dispatch({
+          type: "APPLY_STAR",
+          index: msg.index,
+          starred: msg.starred,
+        });
         break;
       }
 
@@ -749,7 +751,9 @@ export function useGameState(
     const ws = wsRef.current;
     const myName = stateRef.current.localPlayerName;
     if (!myName || !ws) return;
-    ws.send(JSON.stringify({ type: "set_counter", name: myName, index, value }));
+    ws.send(
+      JSON.stringify({ type: "set_counter", name: myName, index, value }),
+    );
     dispatch({ type: "APPLY_COUNTER", index, value });
   }
 
@@ -776,7 +780,9 @@ export function useGameState(
     const current = stateRef.current.notes.find((n) => n.id === id);
     if (!current) return;
     const note: PlayerNote = { ...current, ...patch };
-    ws.send(JSON.stringify({ type: "update_note", name: myName, id, ...patch }));
+    ws.send(
+      JSON.stringify({ type: "update_note", name: myName, id, ...patch }),
+    );
     dispatch({ type: "UPDATE_NOTE", id, note });
   }
 

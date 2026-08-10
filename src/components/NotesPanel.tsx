@@ -73,9 +73,7 @@ export function NotesPanel({
     e.dataTransfer.dropEffect = "move";
     const list = listRef.current;
     if (!list) return;
-    const noteEls = Array.from(
-      list.querySelectorAll<HTMLElement>(".note"),
-    );
+    const noteEls = Array.from(list.querySelectorAll<HTMLElement>(".note"));
     const y = e.clientY;
     let idx = noteEls.length;
     for (let i = 0; i < noteEls.length; i++) {
@@ -256,7 +254,7 @@ export function NotesPanel({
                       className="note-action"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onUpdateNote(note.id, { todo: !note.todo })
+                        onUpdateNote(note.id, { todo: !note.todo });
                       }}
                     >
                       {note.todo ? t["notes.untodo"] : t["notes.todo"]}
