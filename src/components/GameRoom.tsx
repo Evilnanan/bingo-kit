@@ -63,6 +63,7 @@ export function GameRoom({
     reorderNotes,
     requestRestart,
     canRestart,
+    connectionStatus,
     stars,
     counters,
     notes,
@@ -132,6 +133,7 @@ export function GameRoom({
         <div className="room-board-wrapper">
           {showLobby && (
             <ReadyPanel
+              connecting={connectionStatus === "connecting"}
               players={players}
               localPlayerName={state.localPlayerName}
               phase={state.phase}

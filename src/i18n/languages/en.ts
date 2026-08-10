@@ -95,6 +95,7 @@ export const en: Translations = {
   "landing.notEnoughGoals":
     "Not enough goals for the board. Please add more goals to the pool.",
   "lobby.title": "Waiting Room",
+  "lobby.connecting": "Connecting to server…",
 
   "lobby.countdown": "Starting in 3 seconds...",
   "lobby.ready": "Ready",

@@ -91,6 +91,7 @@ export const zh: Translations = {
   "landing.noGoals": "任务池为空，请先添加任务。",
   "landing.notEnoughGoals": "任务数量不足以填满棋盘，请添加更多任务。",
   "lobby.title": "等待室",
+  "lobby.connecting": "正在连接服务器…",
 
   "lobby.countdown": "游戏将在 3 秒内开始...",
   "lobby.ready": "准备",

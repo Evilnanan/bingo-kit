@@ -20,6 +20,29 @@
   color: var(--text);
 }
 
+/* Connecting to server */
+.ready-connecting-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ready-spinner 0.8s linear infinite;
+}
+
+.ready-connecting-text {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0;
+}
+
+@keyframes ready-spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Player list */
 .ready-player-list {
   list-style: none;

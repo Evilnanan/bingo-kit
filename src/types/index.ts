@@ -227,6 +227,8 @@ import type { HexConfig } from "../hex/hexTypes";
 export interface GameState {
   mode: GameMode;
   config: BoardConfig | HexConfig | null;
+  /** Whether the server has acknowledged this player with authoritative state. */
+  connection: "connecting" | "connected";
   /** Pool metadata — available as soon as the player joins, before the board config. */
   metadata: PoolMetadata | null;
   marks: Record<number, MarkEntry[]>;
@@ -249,6 +251,7 @@ export interface GameState {
 
 export type GameAction =
   | { type: "SET_CLIENT_ID"; clientId: string }
+  | { type: "SET_CONNECTED" }
   | { type: "SET_LOCAL_PLAYER_NAME"; name: string }
   | { type: "ADD_PLAYER"; playerName: string; color: string }
   | { type: "REMOVE_PLAYER"; playerName: string }

@@ -112,6 +112,7 @@ export interface Translations {
   "landing.notEnoughGoals": string;
   // Lobby / Ready phase
   "lobby.title": string;
+  "lobby.connecting": string;
 
   "lobby.countdown": string;
   "lobby.ready": string;

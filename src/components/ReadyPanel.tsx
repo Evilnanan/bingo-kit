@@ -4,6 +4,7 @@ import { useT } from "../i18n/useT";
 import "./ReadyPanel.css";
 
 interface Props {
+  connecting: boolean;
   players: Player[];
   localPlayerName: string | null;
   phase: GamePhase;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function ReadyPanel({
+  connecting,
   players,
   localPlayerName,
   phase,
@@ -45,6 +47,15 @@ export function ReadyPanel({
   const showCountdown = phase === "countdown" && countdownSeconds != null;
 
   const myPlayer = players.find((p) => p.name === localPlayerName);
+
+  if (connecting) {
+    return (
+      <div className="ready-panel">
+        <div className="ready-connecting-spinner" aria-hidden="true" />
+        <p className="ready-connecting-text">{t["lobby.connecting"]}</p>
+      </div>
+    );
+  }
 
   if (showCountdown) {
     return (

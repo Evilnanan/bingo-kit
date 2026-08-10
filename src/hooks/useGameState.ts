@@ -41,6 +41,7 @@ function createInitialState(
   return {
     mode,
     config,
+    connection: "connecting",
     metadata: config.metadata ?? null,
     marks: {},
     stars: new Set<number>(),
@@ -290,11 +291,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case "CLEAR_SESSION":
       return {
         ...handleCommonAction(state, action),
+        connection: "connecting",
         marks: {},
         stars: new Set<number>(),
         counters: {},
         notes: [],
       };
+
+    case "SET_CONNECTED":
+      return { ...state, connection: "connected" };
 
     case "RENAME_PLAYER":
     case "SET_CLIENT_ID":
@@ -358,6 +363,8 @@ export function useGameState(
   function handleServerMessage(msg: ServerMessage) {
     switch (msg.type) {
       case "state": {
+        // The server has acknowledged us with authoritative room state.
+        dispatch({ type: "SET_CONNECTED" });
         // Server compresses config to base64 — decompress if needed
         let cfg: unknown = msg.config;
         if (typeof cfg === "string") {
@@ -828,6 +835,7 @@ export function useGameState(
     reorderNotes,
     requestRestart,
     canRestart,
+    connectionStatus: state.connection,
     stars: state.stars,
     counters: state.counters,
     notes: state.notes,
