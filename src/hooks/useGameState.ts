@@ -310,6 +310,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case "SET_CONNECTED":
       return { ...state, connection: "connected" };
 
+    case "SET_CHATS":
+      // Authoritative history from the server: replace the local list so a
+      // reconnecting client never ends up with duplicates or gaps.
+      return { ...state, chats: action.chats };
+
     case "RENAME_PLAYER":
     case "SET_CLIENT_ID":
     case "SET_LOCAL_PLAYER_NAME":
@@ -339,6 +344,8 @@ export function useGameState(
   );
   const wsRef = useRef<PartySocket | null>(null);
   const stateRef = useRef(state);
+  /** Last chat message seen by this client — baseline for the unread dot. */
+  const lastChatRef = useRef<ChatMessage | null>(null);
   useLayoutEffect(() => {
     stateRef.current = state;
   });
@@ -489,9 +496,19 @@ export function useGameState(
             name: msg.name,
             color: msg.color,
             text: msg.text,
-            timestamp: Date.now(),
+            timestamp: msg.timestamp ?? Date.now(),
           },
         });
+        break;
+      }
+
+      case "chat_history": {
+        // Full server-side history: replace the local list so no message is
+        // missing or duplicated. The last history entry becomes the unread
+        // baseline — only live messages that arrive after this point can
+        // light the unread dot.
+        lastChatRef.current = msg.chats[msg.chats.length - 1] ?? null;
+        dispatch({ type: "SET_CHATS", chats: msg.chats });
         break;
       }
 
@@ -600,7 +617,6 @@ export function useGameState(
   // visible (notes tab or collapsed sidebar), flag it and sync the flag to
   // same-name devices via the server. Messages the local player sent are
   // ignored (only "other people" count).
-  const lastChatRef = useRef<ChatMessage | null>(null);
   useEffect(() => {
     const latest = state.chats[state.chats.length - 1] ?? null;
     if (!latest) {

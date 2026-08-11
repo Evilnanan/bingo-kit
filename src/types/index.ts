@@ -298,6 +298,7 @@ export type GameAction =
   | { type: "APPLY_STAR"; index: number; starred: boolean }
   | { type: "APPLY_COUNTER"; index: number; value: number }
   | { type: "APPLY_CHAT_UNREAD"; unread: boolean }
+  | { type: "SET_CHATS"; chats: ChatMessage[] }
   | { type: "ADD_NOTE"; note: PlayerNote }
   | { type: "UPDATE_NOTE"; id: string; note: PlayerNote }
   | { type: "DELETE_NOTE"; id: string }
@@ -341,7 +342,13 @@ export type ServerMessage =
   | { type: "unmark"; index: number; by: string; marks: MarkEntry[] | null }
   | { type: "change_color"; name: string; color: string }
   | { type: "rename"; oldName: string; newName: string }
-  | { type: "chat"; name: string; color: string; text: string }
+  | {
+      type: "chat";
+      name: string;
+      color: string;
+      text: string;
+      timestamp?: number;
+    }
   | { type: "ready"; name: string; ready: boolean }
   | { type: "start" }
   | { type: "bonus_score"; playerName: string; bonus: number }
@@ -352,6 +359,7 @@ export type ServerMessage =
   | { type: "note_deleted"; name: string; id: string }
   | { type: "notes_reordered"; name: string; ids: string[] }
   | { type: "chat_unread"; name: string; unread: boolean }
+  | { type: "chat_history"; chats: ChatMessage[] }
   | { type: "pong" };
 
 /** Messages sent to the PartyServer. */

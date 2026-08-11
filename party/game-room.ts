@@ -61,6 +61,14 @@ export interface PlayerNote {
   done: boolean;
 }
 
+/** A stored chat message, timestamped by the server when it arrives. */
+export interface ChatRecord {
+  name: string;
+  color: string;
+  text: string;
+  timestamp: number;
+}
+
 export interface RoomState {
   config: unknown;
   /** Pool metadata (name/description/images) — shared at join, unlike board config. */
@@ -82,6 +90,8 @@ export interface RoomState {
   notes: Record<string, PlayerNote[]>;
   /** Per-player unread-chat flag, synced to same-name connections. */
   unreadChat: Record<string, boolean>;
+  /** Room chat history, replayed to late joiners and reconnecting players. */
+  chats: ChatRecord[];
 }
 
 // Client → Server messages
@@ -99,7 +109,13 @@ export type ClientMsg =
   | { type: "unmark"; index: number; by: string }
   | { type: "change_color"; name: string; color: string }
   | { type: "rename"; oldName: string; newName: string }
-  | { type: "chat"; name: string; color: string; text: string }
+  | {
+      type: "chat";
+      name: string;
+      color: string;
+      text: string;
+      timestamp: number;
+    }
   | { type: "ready"; name: string; ready: boolean }
   | { type: "bonus_score"; playerName: string; bonus: number }
   | { type: "restart"; config?: unknown; configHash?: string }
@@ -162,6 +178,7 @@ export type ServerMsg =
   | { type: "note_deleted"; name: string; id: string }
   | { type: "notes_reordered"; name: string; ids: string[] }
   | { type: "chat_unread"; name: string; unread: boolean }
+  | { type: "chat_history"; chats: ChatRecord[] }
   | { type: "pong" };
 
 // ============================================================
@@ -214,6 +231,8 @@ export class GameRoom {
   notes: Record<string, PlayerNote[]> = {};
   /** Per-player unread-chat flag: player name -> has unseen chat. */
   unreadChat: Record<string, boolean> = {};
+  /** Room chat history — replayed so no player ever misses a message. */
+  chats: ChatRecord[] = [];
 
   constructor(private transport: GameTransport) {}
 
@@ -288,6 +307,19 @@ export class GameRoom {
       myNotes: this.notes[name] ? this.notes[name]!.map((n) => ({ ...n })) : [],
       myUnreadChat: this.unreadChat[name] === true,
     };
+  }
+
+  /**
+   * Send the initial (or reconnection) bundle: authoritative room state plus
+   * the full chat history, so late joiners and players who were disconnected
+   * mid-game never miss a message. New messages continue via live broadcasts.
+   */
+  private sendJoinState(connId: string): void {
+    this.transport.send(connId, this.stateMsgFor(connId));
+    this.transport.send(connId, {
+      type: "chat_history",
+      chats: this.chats.map((c) => ({ ...c })),
+    });
   }
 
   /** Send a message only to connections registered under the given name. */
@@ -400,6 +432,7 @@ export class GameRoom {
     this.counters = {};
     this.notes = {};
     this.unreadChat = {};
+    this.chats = [];
     this.lockout = false;
     this.bonusScores = {};
     this.owner = null;
@@ -453,7 +486,7 @@ export class GameRoom {
         const existing = this.players[cleanName];
         if (existing) {
           this.connPlayers.set(connId, cleanName);
-          this.transport.send(connId, this.stateMsgFor(connId));
+          this.sendJoinState(connId);
           return;
         }
 
@@ -463,8 +496,8 @@ export class GameRoom {
         this.players[cleanName] = { name: cleanName, color };
         this.connPlayers.set(connId, cleanName);
 
-        // Send state to the new player — omit config & marks during lobby
-        this.transport.send(connId, this.stateMsgFor(connId));
+        // Send state + full chat history to the new player
+        this.sendJoinState(connId);
 
         // Notify others
         this.transport.broadcast(
@@ -583,7 +616,17 @@ export class GameRoom {
       }
 
       case "chat": {
-        this.transport.broadcast(msg, [connId]);
+        // Store the message (server-authoritative timestamp) so late joiners
+        // and reconnecting players get it via chat_history, then broadcast
+        // it live to everyone already in the room.
+        const record: ChatRecord = {
+          name: msg.name,
+          color: msg.color,
+          text: msg.text,
+          timestamp: Date.now(),
+        };
+        this.chats.push(record);
+        this.transport.broadcast({ type: "chat", ...record }, [connId]);
         break;
       }
 
