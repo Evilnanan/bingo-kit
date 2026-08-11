@@ -169,6 +169,7 @@ export const zh: Translations = {
   "settings.title": "显示设置",
   "settings.hideCounters": "隐藏计数器",
   "settings.hideTooltips": "隐藏详细说明",
+  "settings.hideStars": "隐藏星标",
   "settings.fontScale": "字体缩放",
   // Image attachments
   "editor.addImages": "添加图片",

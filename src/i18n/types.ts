@@ -181,6 +181,7 @@ export interface Translations {
   "settings.title": string;
   "settings.hideCounters": string;
   "settings.hideTooltips": string;
+  "settings.hideStars": string;
   "settings.fontScale": string;
   // Image attachments
   "editor.addImages": string;

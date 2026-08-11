@@ -227,6 +227,7 @@ export function BingoBoard({
             }}
             hideCounter={settings.hideCounters}
             hideTooltip={settings.hideTooltips}
+            hideStar={settings.hideStars}
             userFontScale={settings.fontScale}
             widgetScale={widgetScale}
             {...makeCellEventHandlers(markAlt, onMarkSquare, i)}

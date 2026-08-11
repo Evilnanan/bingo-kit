@@ -173,6 +173,7 @@ export const en: Translations = {
   "settings.title": "Display Settings",
   "settings.hideCounters": "Hide Counters",
   "settings.hideTooltips": "Hide Tooltips",
+  "settings.hideStars": "Hide Stars",
   "settings.fontScale": "Font Scale",
   // Image attachments
   "editor.addImages": "Add Images",

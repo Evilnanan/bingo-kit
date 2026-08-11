@@ -359,7 +359,9 @@ export function HexBoard({
               <span className="bg" />
               <span className="fill" />
               <span className="content">
-                {stars.has(cell.idx) && <span className="star" />}
+                {stars.has(cell.idx) && !settings.hideStars && (
+                  <span className="star" />
+                )}
                 <span
                   className="text"
                   style={

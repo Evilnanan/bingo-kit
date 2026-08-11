@@ -3,6 +3,7 @@ import { useState } from "react";
 export interface RoomSettings {
   hideCounters: boolean;
   hideTooltips: boolean;
+  hideStars: boolean;
   fontScale: number;
 }
 
@@ -10,6 +11,7 @@ const KEY = "bingo-room-settings";
 const DEFAULTS: RoomSettings = {
   hideCounters: false,
   hideTooltips: false,
+  hideStars: false,
   fontScale: 1.0,
 };
 
@@ -27,6 +29,10 @@ function readSettings(): RoomSettings {
           typeof parsed.hideTooltips === "boolean"
             ? parsed.hideTooltips
             : DEFAULTS.hideTooltips,
+        hideStars:
+          typeof parsed.hideStars === "boolean"
+            ? parsed.hideStars
+            : DEFAULTS.hideStars,
         fontScale:
           typeof parsed.fontScale === "number" &&
           !isNaN(parsed.fontScale) &&

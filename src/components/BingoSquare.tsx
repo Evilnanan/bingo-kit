@@ -40,6 +40,7 @@ interface Props {
   counterHandlers: CounterHandlers;
   hideCounter?: boolean;
   hideTooltip?: boolean;
+  hideStar?: boolean;
   /** User-controlled font scale from settings panel (multiplies with CSS variable). */
   userFontScale?: number;
   /** Uniform widget scale derived from board size — drives counter/tooltip/star sizes. */
@@ -65,6 +66,7 @@ export function BingoSquare({
   counterHandlers,
   hideCounter = false,
   hideTooltip = false,
+  hideStar = false,
   userFontScale = 1,
   widgetScale = 1,
   onClick,
@@ -185,7 +187,7 @@ export function BingoSquare({
         </div>
       )}
 
-      {isStarMarked && <span className="star" />}
+      {isStarMarked && !hideStar && <span className="star" />}
 
       {counter > 0 && !hideCounter && (
         <span
