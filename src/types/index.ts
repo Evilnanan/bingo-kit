@@ -358,6 +358,13 @@ export type ServerMessage =
   | { type: "code_changed"; name: string; code: string }
   | { type: "player_joined"; name: string; color: string }
   | { type: "player_left"; name: string }
+  | {
+      type: "kick_rejected";
+      /** The player that could not be removed. */
+      name: string;
+      /** The target still has a live connection, so removal is invalid. */
+      reason: "online";
+    }
   | { type: "mark"; index: number; by: string; marks: MarkEntry[] }
   | { type: "unmark"; index: number; by: string; marks: MarkEntry[] | null }
   | { type: "change_color"; name: string; color: string }
@@ -410,6 +417,7 @@ export type ClientMessage =
   | { type: "set_chat_unread"; name: string; unread: boolean }
   | { type: "ping" }
   | { type: "leave"; name: string }
+  | { type: "kick"; name: string }
   | {
       type: "update_note";
       name: string;

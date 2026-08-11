@@ -80,6 +80,8 @@ export function GameRoom({
     joinError,
     joinPending,
     retryJoin,
+    kickPlayer,
+    kickNotice,
     changeCode,
     connectionStatus,
     stars,
@@ -233,6 +235,8 @@ export function GameRoom({
             onChangeColor={changeColor}
             onChangeName={changeName}
             onSetBonusScore={setBonusScore}
+            onKickPlayer={isOwner ? kickPlayer : undefined}
+            kickNotice={kickNotice}
             allowedColors={
               isHex ? [TEAM_COLORS.red, TEAM_COLORS.blue] : undefined
             }

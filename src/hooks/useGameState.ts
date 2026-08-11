@@ -34,10 +34,7 @@ import type { HexConfig } from "../hex/hexTypes";
 import { pickHexGoals } from "../hex/hexPick";
 import { pickGoals } from "../randomPicks";
 import type PartySocket from "partysocket";
-import {
-  savePlayerCode,
-  renamePlayerCode,
-} from "../utils/playerCodeStorage";
+import { savePlayerCode, renamePlayerCode } from "../utils/playerCodeStorage";
 
 function isLockout(state: GameState): boolean {
   if (state.mode === "hex") return true;
@@ -374,8 +371,18 @@ export function useGameState(
    * the join attempt is in flight.
    */
   const [joinPending, setJoinPending] = useState<"code" | "name" | null>(null);
+  /**
+   * Name of the player the owner tried to remove but couldn't, because that
+   * player still has a live connection. Drives a short transient notice.
+   */
+  const [kickNotice, setKickNotice] = useState<string | null>(null);
   /** Last chat message seen by this client — baseline for the unread dot. */
   const lastChatRef = useRef<ChatMessage | null>(null);
+  useEffect(() => {
+    if (!kickNotice) return;
+    const id = window.setTimeout(() => setKickNotice(null), 3000);
+    return () => window.clearTimeout(id);
+  }, [kickNotice]);
   useLayoutEffect(() => {
     stateRef.current = state;
   });
@@ -502,6 +509,13 @@ export function useGameState(
 
       case "player_left": {
         dispatch({ type: "REMOVE_PLAYER", playerName: msg.name });
+        break;
+      }
+
+      case "kick_rejected": {
+        // The target still has a live connection, so removal was invalid.
+        // Show the owner a short notice naming the player.
+        setKickNotice(msg.name);
         break;
       }
 
@@ -770,6 +784,19 @@ export function useGameState(
   }
 
   /**
+   * Room owner: request removal of a player. The server only honors this for
+   * a fully disconnected player; if the target has any live connection, the
+   * request is rejected and a short notice is shown instead.
+   */
+  function kickPlayer(targetName: string) {
+    const ws = wsRef.current;
+    const current = stateRef.current;
+    if (!ws || !current.localPlayerName) return;
+    if (current.localPlayerName !== current.owner) return;
+    ws.send(JSON.stringify({ type: "kick", name: targetName }));
+  }
+
+  /**
    * Re-attempt joining after the server rejected the original join (name
    * already taken). Pass a different name to join as a new player, or the
    * same name plus the correct identity code to join as the same player on
@@ -1024,6 +1051,8 @@ export function useGameState(
     joinError,
     joinPending,
     retryJoin,
+    kickPlayer,
+    kickNotice,
     changeCode,
     connectionStatus: state.connection,
     stars: state.stars,

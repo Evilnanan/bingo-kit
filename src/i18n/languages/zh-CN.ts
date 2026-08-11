@@ -138,6 +138,8 @@ export const zh: Translations = {
   "players.scoreUnit": "分",
   "players.noScore": "--",
   "players.editBonus": "点击编辑额外得分",
+  "players.kickDisconnected": "移除掉线玩家",
+  "players.kickRejected": "玩家“{0}”仍在线，无法移除",
   // Scoring rule card
   "scoring.ruleCard.expand": "展开计分规则",
   "scoring.ruleCard.collapse": "收起计分规则",
@@ -180,7 +182,8 @@ export const zh: Translations = {
   // Join rejection (same-name player)
   "joinRejected.title": "这个名字已被占用",
   "joinRejected.text": "房间里已经有一位叫“{0}”的玩家了。",
-  "joinRejected.otherDevice": "如果你就是本人（另一台设备），请输入识别码，以该身份加入：",
+  "joinRejected.otherDevice":
+    "如果你就是本人（另一台设备），请输入识别码，以该身份加入：",
   "joinRejected.badCode": "识别码不正确，请确认后重试。",
   "joinRejected.codePlaceholder": "输入识别码",
   "joinRejected.joinAsSelf": "以本人身份加入",

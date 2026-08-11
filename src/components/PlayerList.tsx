@@ -16,6 +16,10 @@ interface Props {
   onChangeColor: (color: string) => void;
   onChangeName: (newName: string) => void;
   onSetBonusScore?: (playerName: string, bonus: number) => void;
+  /** Room owner: actively remove a disconnected player (server-validated). */
+  onKickPlayer?: (playerName: string) => void;
+  /** Short notice when a kick was rejected because the player is still online. */
+  kickNotice?: string | null;
   allowedColors?: string[];
   showScoringRule?: boolean;
   rule?: ScoringRule | null | undefined;
@@ -29,6 +33,8 @@ export function PlayerList({
   onChangeColor,
   onChangeName,
   onSetBonusScore,
+  onKickPlayer,
+  kickNotice,
   allowedColors,
   showScoringRule,
   rule,
@@ -40,9 +46,12 @@ export function PlayerList({
   const [sortAsc, setSortAsc] = useState(true);
   const [editingBonus, setEditingBonus] = useState<string | null>(null);
   const [bonusInput, setBonusInput] = useState("");
+  /** Player whose name menu (e.g. remove disconnected player) is open. */
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const bonusInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { t } = useT();
 
   // Collapse the player list so the chat/notes panel gets more vertical space.
@@ -106,6 +115,23 @@ export function PlayerList({
     }
   }, [editingBonus]);
 
+  // Close the player menu when clicking/touching anywhere outside of it.
+  useEffect(() => {
+    if (!menuFor) return;
+    menuRef.current?.focus();
+    const handleDown = (e: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuFor(null);
+      }
+    };
+    document.addEventListener("mousedown", handleDown);
+    document.addEventListener("touchstart", handleDown);
+    return () => {
+      document.removeEventListener("mousedown", handleDown);
+      document.removeEventListener("touchstart", handleDown);
+    };
+  }, [menuFor]);
+
   const startBonusEdit = (playerName: string) => {
     if (!canEditBonus) return;
     const current = bonusScores?.[playerName] ?? 0;
@@ -125,6 +151,20 @@ export function PlayerList({
 
   const cancelBonusEdit = () => {
     setEditingBonus(null);
+  };
+
+  const handleNameClick = (playerName: string) => {
+    if (playerName === localPlayerName) {
+      startEditing();
+      return;
+    }
+    if (!onKickPlayer) return;
+    setMenuFor((cur) => (cur === playerName ? null : playerName));
+  };
+
+  const handleKick = (playerName: string) => {
+    setMenuFor(null);
+    onKickPlayer?.(playerName);
   };
 
   const myPlayer = players.find((p) => p.name === localPlayerName);
@@ -358,6 +398,11 @@ export function PlayerList({
           </div>
         )}
       </div>
+      {kickNotice && (
+        <p className="player-kick-notice" role="status">
+          {format(t["players.kickRejected"], kickNotice)}
+        </p>
+      )}
       {players.length === 0 && (
         <p className="player-list-empty">{t["players.waiting"]}</p>
       )}
@@ -397,20 +442,46 @@ export function PlayerList({
                 />
               ) : (
                 <span
-                  className={`player-name${p.name === localPlayerName ? " player-name--editable" : ""}`}
+                  className={`player-name${
+                    p.name === localPlayerName
+                      ? " player-name--editable"
+                      : onKickPlayer
+                        ? " player-name--menu"
+                        : ""
+                  }`}
                   title={
                     p.name === localPlayerName
                       ? t["players.editName"]
-                      : undefined
+                      : onKickPlayer
+                        ? t["players.kickDisconnected"]
+                        : undefined
                   }
-                  onClick={
-                    p.name === localPlayerName ? startEditing : undefined
-                  }
+                  onClick={() => handleNameClick(p.name)}
                 >
                   {p.name}
                 </span>
               )}
               {renderScore(p)}
+              {menuFor === p.name &&
+                onKickPlayer &&
+                p.name !== localPlayerName && (
+                  <div
+                    className="player-menu"
+                    ref={menuRef}
+                    tabIndex={-1}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setMenuFor(null);
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="player-menu-item"
+                      onClick={() => handleKick(p.name)}
+                    >
+                      {t["players.kickDisconnected"]}
+                    </button>
+                  </div>
+                )}
             </li>
           );
         })}

@@ -197,9 +197,7 @@ export function usePartyConnection(params: {
   wsRef: React.RefObject<PartySocket | null>;
   onMessage: (msg: ServerMessage) => void;
   /** Imperative re-join hook: call to (re)join with a different name/code on the same socket. */
-  sendJoinRef: React.RefObject<
-    ((name: string, code?: string) => void) | null
-  >;
+  sendJoinRef: React.RefObject<((name: string, code?: string) => void) | null>;
   /** Latest authoritative player name, used for the leave message on pagehide. */
   localPlayerNameRef?: React.RefObject<string | null>;
   enabled?: boolean;

@@ -130,6 +130,12 @@
   font-style: italic;
 }
 
+.player-kick-notice {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--danger, #dc2626);
+}
+
 .player-list-items {
   list-style: none;
   padding: 0;
@@ -146,6 +152,7 @@
   font-size: 14px;
   padding: 4px 0;
   min-width: 0;
+  position: relative;
 }
 
 .player-name {
@@ -211,6 +218,55 @@
   text-decoration: underline;
   text-decoration-color: var(--text-secondary);
   text-underline-offset: 2px;
+}
+
+.player-name--menu {
+  cursor: pointer;
+}
+
+.player-name--menu:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--text-secondary);
+  text-underline-offset: 2px;
+}
+
+.player-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 20px;
+  z-index: 20;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.player-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.player-menu-item:hover {
+  background: var(--accent, #2563eb);
+  color: #fff;
 }
 
 .player-name-input {

@@ -98,7 +98,7 @@ export interface RoomState {
 
 // Client → Server messages
 export type ClientMsg =
-    | {
+  | {
       type: "join";
       name: string;
       /** Identity code proving this connection belongs to the same player. */
@@ -130,6 +130,7 @@ export type ClientMsg =
   | { type: "change_code"; name: string; code: string }
   | { type: "ping" }
   | { type: "leave"; name: string }
+  | { type: "kick"; name: string }
   | {
       type: "update_note";
       name: string;
@@ -180,6 +181,13 @@ export type ServerMsg =
   | { type: "code_changed"; name: string; code: string }
   | { type: "player_joined"; name: string; color: string }
   | { type: "player_left"; name: string }
+  | {
+      type: "kick_rejected";
+      /** The player that could not be removed. */
+      name: string;
+      /** The target still has a live connection, so removal is invalid. */
+      reason: "online";
+    }
   | { type: "mark"; index: number; by: string; marks: MarkEntry[] }
   | { type: "unmark"; index: number; by: string; marks: MarkEntry[] | null }
   | { type: "change_color"; name: string; color: string }
@@ -485,14 +493,7 @@ export class GameRoom {
 
     switch (msg.type) {
       case "join": {
-        const {
-          name,
-          config,
-          metadata,
-          mode,
-          lockout: cfgLockout,
-          code,
-        } = msg;
+        const { name, config, metadata, mode, lockout: cfgLockout, code } = msg;
         const cleanName = name.trim();
         if (!cleanName) return;
 
@@ -686,6 +687,30 @@ export class GameRoom {
           if (pname === name) return;
         }
         this.removePlayer(name);
+        break;
+      }
+
+      case "kick": {
+        // Only the room owner may remove a player. Removal is valid only for
+        // a fully disconnected player: if the target still has any live
+        // connection (a client that would answer heartbeats), the request is
+        // rejected and nothing changes.
+        const sender = this.connPlayers.get(connId);
+        if (!sender || sender !== this.owner) return;
+        const target = msg.name.trim();
+        if (!target || target === sender) return;
+        if (!this.players[target]) return;
+        for (const [, pname] of this.connPlayers) {
+          if (pname === target) {
+            this.transport.send(connId, {
+              type: "kick_rejected",
+              name: target,
+              reason: "online",
+            });
+            return;
+          }
+        }
+        this.removePlayer(target);
         break;
       }
 

@@ -77,14 +77,10 @@ export function JoinRejectedModal({
                 className="join-rejected-eye"
                 onClick={() => setCodeVisible((v) => !v)}
                 title={
-                  codeVisible
-                    ? t["settings.codeHide"]
-                    : t["settings.codeShow"]
+                  codeVisible ? t["settings.codeHide"] : t["settings.codeShow"]
                 }
                 aria-label={
-                  codeVisible
-                    ? t["settings.codeHide"]
-                    : t["settings.codeShow"]
+                  codeVisible ? t["settings.codeHide"] : t["settings.codeShow"]
                 }
               >
                 {codeVisible ? <EyeOffIcon /> : <EyeIcon />}

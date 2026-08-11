@@ -150,6 +150,9 @@ export interface Translations {
   "players.scoreUnit": string;
   "players.noScore": string;
   "players.editBonus": string;
+  // Room owner: remove a disconnected player
+  "players.kickDisconnected": string;
+  "players.kickRejected": string;
   // Scoring rule card
   "scoring.ruleCard.expand": string;
   "scoring.ruleCard.collapse": string;

@@ -142,6 +142,8 @@ export const en: Translations = {
   "players.scoreUnit": "pts",
   "players.noScore": "--",
   "players.editBonus": "Click to edit bonus score",
+  "players.kickDisconnected": "Remove disconnected player",
+  "players.kickRejected": "{0} is still online and can't be removed.",
   // Scoring rule card
   "scoring.ruleCard.expand": "Expand scoring rules",
   "scoring.ruleCard.collapse": "Collapse scoring rules",
@@ -183,7 +185,7 @@ export const en: Translations = {
   "settings.copied": "Copied!",
   // Join rejection (same-name player)
   "joinRejected.title": "This name is already taken",
-  "joinRejected.text": "There is already a player named \"{0}\" in this room.",
+  "joinRejected.text": 'There is already a player named "{0}" in this room.',
   "joinRejected.otherDevice":
     "If that's you on another device, enter the identity code to join as yourself:",
   "joinRejected.badCode":
@@ -194,7 +196,7 @@ export const en: Translations = {
   "joinRejected.namePlaceholder": "New name",
   "joinRejected.joinWithName": "Join with new name",
   "joinRejected.howTo":
-    "Click the \"Settings\" button in the top bar to find your \"Identity Code\".",
+    'Click the "Settings" button in the top bar to find your "Identity Code".',
   "joinRejected.cancel": "Cancel",
   // Image attachments
   "editor.addImages": "Add Images",

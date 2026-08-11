@@ -142,14 +142,10 @@ export function RoomSettingsPanel({
               className="settings-code-eye"
               onClick={() => setCodeVisible((v) => !v)}
               title={
-                codeVisible
-                  ? t["settings.codeHide"]
-                  : t["settings.codeShow"]
+                codeVisible ? t["settings.codeHide"] : t["settings.codeShow"]
               }
               aria-label={
-                codeVisible
-                  ? t["settings.codeHide"]
-                  : t["settings.codeShow"]
+                codeVisible ? t["settings.codeHide"] : t["settings.codeShow"]
               }
             >
               {codeVisible ? <EyeOffIcon /> : <EyeIcon />}
