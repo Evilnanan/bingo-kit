@@ -27,9 +27,22 @@ ws://{serverUrl}/parties/bingo-server/{roomName}
 ```
 type: "join"
 name: string               // 玩家名称
+code?: string              // 身份识别码（同名加入/重连时用于证明是本人其他设备）
 config?: BoardConfig | HexConfig  // 棋盘配置（首个玩家提供）
 mode?: "classic" | "hex"   // 游戏模式
 lockout?: boolean           // 是否独占格子（classic 模式）
+```
+
+**同名加入规则**：如果房间里没有同名玩家，服务端会随机生成一个 4 位识别码，通过个人 `state` 的 `myCode` 字段返回。如果已有同名玩家，则必须携带正确的 `code` 才能加入（视为本人另一台设备或断线重连）；否则服务端返回 `join_rejected`。
+
+### `change_code` — 修改识别码
+
+玩家可以随时修改自己的识别码。任意非空字符串，最长 32 位（不限于数字、不限于 4 位）。服务端校验后仅同步给**同名客户端**（不含发起者，发起者通过乐观更新获得即时反馈）。
+
+```
+type: "change_code"
+name: string   // 玩家名称
+code: string   // 新识别码（trim 后 1–32 个字符）
 ```
 
 ### `mark` — 标记
@@ -155,12 +168,14 @@ ids: string[]
 
 ### `state` — 完整状态同步
 
-在新玩家加入或阶段变更时发送。客户端应以此消息为准。发送给单个连接时（加入/重连/重开），会额外携带该玩家的个人字段 `myStars` / `myCounters` / `myNotes`；广播给所有人的 `state` 不包含个人字段。
+在新玩家加入或阶段变更时发送。客户端应以此消息为准。发送给单个连接时（加入/重连/重开），会额外携带该玩家的个人字段 `myName` / `myCode` / `myStars` / `myCounters` / `myNotes` / `myUnreadChat`；广播给所有人的 `state` 不包含个人字段。
 
 ```
 type: "state"
 config: BoardConfig | HexConfig | null
 marks: { [index: string]: MarkEntry[] }
+myName?: string                         // 本连接的服务端权威玩家名（重试改名后以它为准）
+myCode?: string | null                  // 本玩家的身份识别码（仅逐连接发送，首次加入时由服务端生成）
 myStars?: number[]                     // 个人星标索引（仅逐连接发送）
 myCounters?: { [index: string]: number } // 个人计数器进度（仅逐连接发送）
 myNotes?: PlayerNote[]                 // 个人笔记（仅逐连接发送）
@@ -184,6 +199,26 @@ color: string
 ```
 type: "player_left"
 name: string
+```
+
+### `join_rejected` — 加入被拒绝
+
+当使用一个已被占用的名字加入、且未提供正确识别码时，**仅发送给尝试加入的连接**，提示客户端改名或以本人身份（输入识别码）重试：
+
+```
+type: "join_rejected"
+name: string            // 被占用的玩家名称
+reason: "bad_code"      // 识别码缺失或不匹配（统一判定为识别码错误）
+```
+
+### `code_changed` — 识别码已变更
+
+服务端将识别码变更**仅转发给同名连接**（不含发起者，发起者通过乐观更新获得即时反馈）：
+
+```
+type: "code_changed"
+name: string   // 玩家名称
+code: string   // 新的识别码
 ```
 
 ### 转发的游戏消息
@@ -303,8 +338,11 @@ ids: string[]
 
 | type | 方向 | 关键载荷 |
 |------|------|----------|
-| `join` | C→S | `name, config?, mode?, lockout?` |
+| `join` | C→S | `name, code?, config?, mode?, lockout?` |
+| `change_code` | C→S | `name, code` |
 | `state` | S→C | `config, marks, players, phase, countdownSeconds, mode, lockout` |
+| `join_rejected` | S→C | `name, reason` |
+| `code_changed` | S→C | `name, code` |
 | `start` | S→C | 无载荷 |
 | `mark` | C→S, S→C | C→S: `index, by` / S→C: `index, by, marks` |
 | `unmark` | C→S, S→C | C→S: `index, by` / S→C: `index, by, marks` |
@@ -371,6 +409,8 @@ string | {
 ```ts
 { name: string; color: string; ready?: boolean }
 ```
+
+每个玩家在服务端还有一个**身份识别码**（`playerCodes`，随改名迁移，离开时删除）。识别码不会广播给其他玩家，只在个人 `state`（`myCode`）和 `code_changed` 消息中发送给同名连接。首次加入时由服务端生成 4 位数字，之后玩家可在房间设置中自行修改为任意非空字符串（最长 32 位）。
 
 **MarkEntry**:
 ```ts

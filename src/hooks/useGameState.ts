@@ -34,6 +34,10 @@ import type { HexConfig } from "../hex/hexTypes";
 import { pickHexGoals } from "../hex/hexPick";
 import { pickGoals } from "../randomPicks";
 import type PartySocket from "partysocket";
+import {
+  savePlayerCode,
+  renamePlayerCode,
+} from "../utils/playerCodeStorage";
 
 function isLockout(state: GameState): boolean {
   if (state.mode === "hex") return true;
@@ -55,6 +59,7 @@ function createInitialState(
     counters: {},
     notes: [],
     unreadChat: false,
+    myCode: null,
     players: {},
     localClientId: null,
     localPlayerName: null,
@@ -311,7 +316,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         counters: {},
         notes: [],
         unreadChat: false,
+        myCode: null,
       };
+
+    case "SET_MY_CODE":
+      return { ...state, myCode: action.code };
 
     case "SET_CONNECTED":
       return { ...state, connection: "connected" };
@@ -350,11 +359,29 @@ export function useGameState(
   );
   const wsRef = useRef<PartySocket | null>(null);
   const stateRef = useRef(state);
+  /** Imperative re-join (used after a join rejection). */
+  const sendJoinRef = useRef<((name: string, code?: string) => void) | null>(
+    null,
+  );
+  /** Latest authoritative local name, kept current for the leave-on-pagehide message. */
+  const localPlayerNameRef = useRef<string | null>(null);
+  /** Set when the server rejects our join: the name is taken and the
+   *  identity code is missing or wrong (treated as the same error). */
+  const [joinError, setJoinError] = useState<{ name: string } | null>(null);
+  /**
+   * Which retry path is currently awaiting the server's answer. Kept separate
+   * from `joinError` so the dialog stays mounted (and shows a spinner) while
+   * the join attempt is in flight.
+   */
+  const [joinPending, setJoinPending] = useState<"code" | "name" | null>(null);
   /** Last chat message seen by this client — baseline for the unread dot. */
   const lastChatRef = useRef<ChatMessage | null>(null);
   useLayoutEffect(() => {
     stateRef.current = state;
   });
+  useEffect(() => {
+    localPlayerNameRef.current = state.localPlayerName;
+  }, [state.localPlayerName]);
 
   // Keep originalPool, pickRule, and configHash client-side.
   // originalPool + pickRule are needed for re-randomization on restart.
@@ -388,6 +415,14 @@ export function useGameState(
       case "state": {
         // The server has acknowledged us with authoritative room state.
         dispatch({ type: "SET_CONNECTED" });
+        setJoinError(null);
+        setJoinPending(null);
+        // The server knows the authoritative name for this connection (it may
+        // differ from the homepage name after a retry join).
+        const myName = (msg as { myName?: string }).myName;
+        if (myName) {
+          dispatch({ type: "SET_LOCAL_PLAYER_NAME", name: myName });
+        }
         // Server compresses config to base64 — decompress if needed
         let cfg: unknown = msg.config;
         if (typeof cfg === "string") {
@@ -431,6 +466,28 @@ export function useGameState(
             unreadChat: (msg as { myUnreadChat?: boolean }).myUnreadChat,
           },
         });
+        // Cache the server-assigned identity code locally so a reload or a
+        // socket reconnect can re-join the same name without re-entering it.
+        const myCode = (msg as { myCode?: string | null }).myCode;
+        if (myCode !== undefined) {
+          dispatch({ type: "SET_MY_CODE", code: myCode ?? null });
+          if (myCode) {
+            savePlayerCode(
+              roomName,
+              myName ?? stateRef.current.localPlayerName ?? playerName,
+              myCode,
+            );
+          }
+        }
+        break;
+      }
+
+      case "join_rejected": {
+        // The name is taken and no matching identity code was provided.
+        // Show the modal that offers to rename or join as the same player
+        // with the correct code. Missing and wrong codes are the same error.
+        setJoinPending(null);
+        setJoinError({ name: msg.name });
         break;
       }
 
@@ -487,11 +544,21 @@ export function useGameState(
       }
 
       case "rename": {
+        // The identity code belongs to the player, so it follows renames in
+        // the local cache too.
+        renamePlayerCode(roomName, msg.oldName, msg.newName);
         dispatch({
           type: "RENAME_PLAYER",
           oldName: msg.oldName,
           newName: msg.newName,
         });
+        break;
+      }
+
+      case "code_changed": {
+        if (msg.name !== stateRef.current.localPlayerName) break;
+        dispatch({ type: "SET_MY_CODE", code: msg.code });
+        savePlayerCode(roomName, msg.name, msg.code);
         break;
       }
 
@@ -613,6 +680,8 @@ export function useGameState(
     dispatch,
     wsRef,
     onMessage: handleServerMessage,
+    sendJoinRef,
+    localPlayerNameRef,
   });
 
   // Note: the "start" message from the server is the sole authority for
@@ -698,6 +767,34 @@ export function useGameState(
       ws.send(JSON.stringify({ type: "leave", name: myName }));
     }
     onLeave?.();
+  }
+
+  /**
+   * Re-attempt joining after the server rejected the original join (name
+   * already taken). Pass a different name to join as a new player, or the
+   * same name plus the correct identity code to join as the same player on
+   * another device.
+   */
+  function retryJoin(name: string, code?: string) {
+    // Keep the dialog open and mark the submitted path as pending: the modal
+    // must not unmount while the server verifies the code/name, otherwise the
+    // input and error state get wiped.
+    setJoinPending(code ? "code" : "name");
+    dispatch({ type: "SET_LOCAL_PLAYER_NAME", name });
+    sendJoinRef.current?.(name, code);
+  }
+
+  /** Change this player's identity code (any non-empty string, max 32 chars). */
+  function changeCode(code: string) {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    const trimmed = code.trim();
+    if (!ws || !myName || !trimmed || trimmed.length > 32) return;
+    ws.send(
+      JSON.stringify({ type: "change_code", name: myName, code: trimmed }),
+    );
+    dispatch({ type: "SET_MY_CODE", code: trimmed });
+    savePlayerCode(roomName, myName, trimmed);
   }
 
   function toggleReady() {
@@ -924,11 +1021,16 @@ export function useGameState(
     reorderNotes,
     requestRestart,
     canRestart,
+    joinError,
+    joinPending,
+    retryJoin,
+    changeCode,
     connectionStatus: state.connection,
     stars: state.stars,
     counters: state.counters,
     notes: state.notes,
     unreadChat: state.unreadChat,
+    myCode: state.myCode,
     markChatUnread,
     clearChatUnread,
   };

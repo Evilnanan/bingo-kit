@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import PartySocket from "partysocket";
 import { compressJson } from "../utils/compressMessage";
 import { DEFAULT_SERVER_URL } from "../config";
+import { getPlayerCode } from "../utils/playerCodeStorage";
 import type {
   ChatMessage,
   PlayerCallbackAction,
@@ -182,6 +183,12 @@ export function usePartyConnection(params: {
   serverUrl: string;
   roomName: string;
   playerName: string;
+  /**
+   * Identity code for this player, if known locally. Only used for the very
+   * first join attempt; later retries (after a rejection) go through
+   * `sendJoinRef` with the updated name/code.
+   */
+  code?: string;
   config: unknown;
   metadata?: PoolMetadata;
   mode: GameMode;
@@ -189,12 +196,19 @@ export function usePartyConnection(params: {
   dispatch: React.Dispatch<GameAction>;
   wsRef: React.RefObject<PartySocket | null>;
   onMessage: (msg: ServerMessage) => void;
+  /** Imperative re-join hook: call to (re)join with a different name/code on the same socket. */
+  sendJoinRef: React.RefObject<
+    ((name: string, code?: string) => void) | null
+  >;
+  /** Latest authoritative player name, used for the leave message on pagehide. */
+  localPlayerNameRef?: React.RefObject<string | null>;
   enabled?: boolean;
 }) {
   const {
     serverUrl,
     roomName,
     playerName,
+    code,
     config,
     metadata,
     mode,
@@ -202,6 +216,8 @@ export function usePartyConnection(params: {
     dispatch,
     wsRef,
     onMessage,
+    sendJoinRef,
+    localPlayerNameRef,
     enabled = true,
   } = params;
 
@@ -211,11 +227,22 @@ export function usePartyConnection(params: {
   });
 
   const genRef = useRef(0);
+  // The name/code used for (re)join attempts. Updated on retries so a later
+  // PartySocket reconnect rejoins with the accepted identity, not the
+  // original (possibly rejected) one.
+  const joinParamsRef = useRef<{ name: string; code?: string }>({
+    name: playerName,
+    code,
+  });
 
   useEffect(() => {
     if (!enabled) return;
     const gen = ++genRef.current;
     dispatch({ type: "CLEAR_SESSION" });
+    joinParamsRef.current = {
+      name: playerName,
+      code: code ?? getPlayerCode(roomName, playerName) ?? undefined,
+    };
 
     const host = serverUrl || DEFAULT_SERVER_URL;
 
@@ -229,20 +256,15 @@ export function usePartyConnection(params: {
     wsRef.current = ws;
     let lastPong = Date.now();
 
-    ws.addEventListener("open", () => {
-      if (genRef.current !== gen) return;
-      lastPong = Date.now();
-
-      // Generate a synthetic client ID (server doesn't expose connection IDs to us)
-      const clientId = "c-" + Math.random().toString(36).slice(2, 10);
-      dispatch({ type: "SET_CLIENT_ID", clientId });
-      dispatch({ type: "SET_LOCAL_PLAYER_NAME", name: playerName });
-
-      // Announce ourselves to the server — compress config to save bandwidth
-      ws.send(
+    const sendJoin = (joinName: string, joinCode?: string) => {
+      const socket = wsRef.current;
+      if (!socket) return;
+      joinParamsRef.current = { name: joinName, code: joinCode };
+      socket.send(
         JSON.stringify({
           type: "join",
-          name: playerName,
+          name: joinName,
+          code: joinCode,
           config: config != null ? compressJson(config) : null,
           metadata,
           mode,
@@ -251,6 +273,23 @@ export function usePartyConnection(params: {
             (config as { configHash?: string } | null)?.configHash ?? undefined,
         } satisfies ClientMessage),
       );
+    };
+    sendJoinRef.current = sendJoin;
+
+    ws.addEventListener("open", () => {
+      if (genRef.current !== gen) return;
+      lastPong = Date.now();
+
+      // Generate a synthetic client ID (server doesn't expose connection IDs to us)
+      const clientId = "c-" + Math.random().toString(36).slice(2, 10);
+      dispatch({ type: "SET_CLIENT_ID", clientId });
+      dispatch({
+        type: "SET_LOCAL_PLAYER_NAME",
+        name: joinParamsRef.current.name,
+      });
+
+      // Announce ourselves to the server — compress config to save bandwidth
+      sendJoin(joinParamsRef.current.name, joinParamsRef.current.code);
     });
 
     ws.addEventListener("message", (event: Event) => {
@@ -307,10 +346,12 @@ export function usePartyConnection(params: {
       if (genRef.current !== gen) return;
       const socket = wsRef.current;
       if (socket && socket.readyState === socket.OPEN) {
+        const leaveName =
+          localPlayerNameRef?.current ?? joinParamsRef.current.name;
         socket.send(
           JSON.stringify({
             type: "leave",
-            name: playerName,
+            name: leaveName,
           } satisfies ClientMessage),
         );
       }
@@ -323,12 +364,21 @@ export function usePartyConnection(params: {
       window.removeEventListener("pagehide", handlePageHide);
       ws.close();
       wsRef.current = null;
+      sendJoinRef.current = null;
       genRef.current = 0;
     };
     // Intentionally exclude config, metadata, mode, lockout from deps — they're
     // captured at connection time and shouldn't trigger reconnects.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverUrl, roomName, playerName, dispatch, enabled]);
+  }, [
+    serverUrl,
+    roomName,
+    playerName,
+    dispatch,
+    enabled,
+    sendJoinRef,
+    localPlayerNameRef,
+  ]);
 }
 
 // Re-export for backward compatibility within the codebase

@@ -183,6 +183,24 @@ export interface Translations {
   "settings.hideTooltips": string;
   "settings.hideStars": string;
   "settings.fontScale": string;
+  "settings.codeLabel": string;
+  "settings.codeCopy": string;
+  "settings.codeShow": string;
+  "settings.codeHide": string;
+  "settings.codeSave": string;
+  "settings.copied": string;
+  // Join rejection (same-name player)
+  "joinRejected.title": string;
+  "joinRejected.text": string;
+  "joinRejected.otherDevice": string;
+  "joinRejected.badCode": string;
+  "joinRejected.codePlaceholder": string;
+  "joinRejected.joinAsSelf": string;
+  "joinRejected.orRename": string;
+  "joinRejected.namePlaceholder": string;
+  "joinRejected.joinWithName": string;
+  "joinRejected.howTo": string;
+  "joinRejected.cancel": string;
   // Image attachments
   "editor.addImages": string;
   "editor.imageUploading": string;

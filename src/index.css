@@ -39,6 +39,16 @@
     color 0.3s;
 }
 
+/*
+ * Hide the browser's built-in password reveal/clear icons (Edge and some
+ * Chromium browsers inject their own eye into password fields). We render
+ * our own in-input toggle instead, so only one eye is shown.
+ */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
 [data-theme="dark"] {
   --bg: #111827;
   --surface: #1f2937;

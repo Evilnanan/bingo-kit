@@ -1,0 +1,171 @@
+.join-rejected-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.join-rejected-modal {
+  width: 100%;
+  max-width: 440px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  padding: 20px 22px;
+}
+
+.join-rejected-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: var(--text);
+}
+
+.join-rejected-text {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.join-rejected-form {
+  margin-bottom: 12px;
+}
+
+.join-rejected-hint {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.join-rejected-row {
+  display: flex;
+  gap: 8px;
+}
+
+.join-rejected-code-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.join-rejected-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 32px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.join-rejected-eye {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.join-rejected-eye:hover {
+  color: var(--text);
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.join-rejected-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.join-rejected-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.join-rejected-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.join-rejected-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.join-rejected-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: 0.9;
+  animation: join-rejected-spin 0.8s linear infinite;
+}
+
+@keyframes join-rejected-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.join-rejected-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #dc2626;
+}
+
+.join-rejected-guide {
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--surface-raised, rgba(127, 127, 127, 0.08));
+  border-radius: var(--radius);
+}
+
+.join-rejected-cancel {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.join-rejected-cancel:hover {
+  color: var(--text);
+  background: rgba(127, 127, 127, 0.1);
+}

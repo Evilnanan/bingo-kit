@@ -75,6 +75,8 @@ export interface RoomState {
   metadata: unknown;
   marks: Record<string, MarkEntry[]>;
   players: Record<string, PlayerInfo>;
+  /** Per-player identity code, used to let a player's other devices join the same name. */
+  playerCodes: Record<string, string>;
   phase: GamePhase;
   countdownSeconds: number | null;
   mode: GameMode;
@@ -96,9 +98,11 @@ export interface RoomState {
 
 // Client → Server messages
 export type ClientMsg =
-  | {
+    | {
       type: "join";
       name: string;
+      /** Identity code proving this connection belongs to the same player. */
+      code?: string;
       config?: unknown;
       metadata?: unknown;
       mode?: GameMode;
@@ -123,6 +127,7 @@ export type ClientMsg =
   | { type: "set_counter"; name: string; index: number; value: number }
   | { type: "add_note"; name: string; note: PlayerNote }
   | { type: "set_chat_unread"; name: string; unread: boolean }
+  | { type: "change_code"; name: string; code: string }
   | { type: "ping" }
   | { type: "leave"; name: string }
   | {
@@ -155,12 +160,24 @@ export type ServerMsg =
       myCounters?: Record<string, number>;
       myNotes?: PlayerNote[];
       myUnreadChat?: boolean;
+      /** This connection's player name (authoritative, e.g. after a retry rename). */
+      myName?: string;
+      /** This player's identity code — only sent back to the matching connection. */
+      myCode?: string | null;
+    }
+  | {
+      type: "join_rejected";
+      /** The name that could not be joined. */
+      name: string;
+      /** Missing or mismatched identity code (treated as the same error). */
+      reason: "bad_code";
     }
   | {
       type: "rename_rejected";
       yourName: string;
       players: Record<string, PlayerInfo>;
     }
+  | { type: "code_changed"; name: string; code: string }
   | { type: "player_joined"; name: string; color: string }
   | { type: "player_left"; name: string }
   | { type: "mark"; index: number; by: string; marks: MarkEntry[] }
@@ -209,6 +226,8 @@ export class GameRoom {
   metadata: unknown = null;
   marks: Record<string, MarkEntry[]> = {};
   players: Record<string, PlayerInfo> = {};
+  /** Player name -> identity code. Generated on first join, changeable by the player. */
+  playerCodes: Record<string, string> = {};
   phase: GamePhase = "lobby";
   countdownEnd: number | null = null;
   mode: GameMode = "classic";
@@ -302,6 +321,8 @@ export class GameRoom {
     // replace their local star/counter state with the server's version.
     return {
       ...base,
+      myName: name,
+      myCode: this.playerCodes[name] ?? null,
       myStars: this.starMarks[name] ? [...this.starMarks[name]!] : [],
       myCounters: this.counters[name] ? { ...this.counters[name]! } : {},
       myNotes: this.notes[name] ? this.notes[name]!.map((n) => ({ ...n })) : [],
@@ -432,6 +453,7 @@ export class GameRoom {
     this.counters = {};
     this.notes = {};
     this.unreadChat = {};
+    this.playerCodes = {};
     this.chats = [];
     this.lockout = false;
     this.bonusScores = {};
@@ -463,7 +485,14 @@ export class GameRoom {
 
     switch (msg.type) {
       case "join": {
-        const { name, config, metadata, mode, lockout: cfgLockout } = msg;
+        const {
+          name,
+          config,
+          metadata,
+          mode,
+          lockout: cfgLockout,
+          code,
+        } = msg;
         const cleanName = name.trim();
         if (!cleanName) return;
 
@@ -485,8 +514,25 @@ export class GameRoom {
         // Handle reconnect: player name already exists
         const existing = this.players[cleanName];
         if (existing) {
-          this.connPlayers.set(connId, cleanName);
-          this.sendJoinState(connId);
+          // Only accept the join when the identity code matches: this covers
+          // auto-reconnects from the same device and an intentional second
+          // device of the same player. A wrong/missing code means a different
+          // person is trying to use the name — reject so the client can offer
+          // to rename or ask for the code.
+          const providedCode = typeof code === "string" ? code.trim() : "";
+          const storedCode = this.playerCodes[cleanName];
+          if (storedCode && providedCode === storedCode) {
+            this.connPlayers.set(connId, cleanName);
+            this.sendJoinState(connId);
+            return;
+          }
+          this.transport.send(connId, {
+            type: "join_rejected",
+            name: cleanName,
+            // A missing code and a wrong code are the same error: the client
+            // must present the correct identity code (or rename).
+            reason: "bad_code",
+          });
           return;
         }
 
@@ -494,6 +540,11 @@ export class GameRoom {
         const color =
           this.mode === "hex" ? this.assignTeamColor() : this.assignColor();
         this.players[cleanName] = { name: cleanName, color };
+        // Server generates a fresh 4-digit identity code and reports it via
+        // the personal state message (myCode).
+        this.playerCodes[cleanName] = String(
+          Math.floor(1000 + Math.random() * 9000),
+        );
         this.connPlayers.set(connId, cleanName);
 
         // Send state + full chat history to the new player
@@ -586,9 +637,32 @@ export class GameRoom {
           this.unreadChat[newName] = true;
           delete this.unreadChat[msg.oldName];
         }
+        // The identity code belongs to the player, not the name — it follows
+        // a rename so their other devices can keep joining under the new name.
+        if (this.playerCodes[msg.oldName] !== undefined) {
+          this.playerCodes[newName] = this.playerCodes[msg.oldName]!;
+          delete this.playerCodes[msg.oldName];
+        }
         // Room owner follows the rename so they keep restart rights.
         if (this.owner === msg.oldName) this.owner = newName;
         this.transport.broadcast(msg, [connId]);
+        break;
+      }
+
+      case "change_code": {
+        const playerName = msg.name;
+        if (!this.players[playerName]) return;
+        if (typeof msg.code !== "string") return;
+        const code = msg.code.trim();
+        // Any non-empty string up to 32 chars: not necessarily numeric,
+        // not necessarily 4 digits.
+        if (!code || code.length > 32) return;
+        this.playerCodes[playerName] = code;
+        this.sendToSameName(
+          playerName,
+          { type: "code_changed", name: playerName, code },
+          connId,
+        );
         break;
       }
 
@@ -919,6 +993,7 @@ export class GameRoom {
     delete this.counters[name];
     delete this.notes[name];
     delete this.unreadChat[name];
+    delete this.playerCodes[name];
     this.transport.broadcast({ type: "player_left", name });
 
     // Destroy room when empty: reset all state so a late-joiner starts fresh.

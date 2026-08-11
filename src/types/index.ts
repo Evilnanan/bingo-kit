@@ -240,6 +240,8 @@ export interface GameState {
   notes: PlayerNote[];
   /** Unread-chat flag — synced across same-name devices. */
   unreadChat: boolean;
+  /** This player's identity code (server-generated; changeable in settings). */
+  myCode: string | null;
   players: Record<string, Player>;
   localClientId: string | null;
   localPlayerName: string | null;
@@ -281,6 +283,10 @@ export type GameAction =
         notes?: PlayerNote[];
         /** Personal unread-chat flag, sent only to the matching player. */
         unreadChat?: boolean;
+        /** This connection's authoritative player name. */
+        myName?: string;
+        /** This player's identity code, sent only to the matching connection. */
+        myCode?: string | null;
       };
     }
   | {
@@ -288,6 +294,7 @@ export type GameAction =
       yourName: string;
       players: Record<string, Player>;
     }
+  | { type: "CODE_CHANGED"; name: string; code: string }
   | { type: "CLEAR_SESSION" }
   | { type: "UPDATE_PLAYER_COLOR"; playerName: string; color: string }
   | { type: "RENAME_PLAYER"; oldName: string; newName: string }
@@ -298,6 +305,7 @@ export type GameAction =
   | { type: "APPLY_STAR"; index: number; starred: boolean }
   | { type: "APPLY_COUNTER"; index: number; value: number }
   | { type: "APPLY_CHAT_UNREAD"; unread: boolean }
+  | { type: "SET_MY_CODE"; code: string | null }
   | { type: "SET_CHATS"; chats: ChatMessage[] }
   | { type: "ADD_NOTE"; note: PlayerNote }
   | { type: "UPDATE_NOTE"; id: string; note: PlayerNote }
@@ -330,12 +338,24 @@ export type ServerMessage =
       myCounters?: Record<string, number>;
       /** Personal planning notes, present only in per-player state. */
       myNotes?: PlayerNote[];
+      /** This connection's authoritative player name. */
+      myName?: string;
+      /** This player's identity code, present only in per-player state. */
+      myCode?: string | null;
+    }
+  | {
+      type: "join_rejected";
+      /** The name that could not be joined. */
+      name: string;
+      /** Missing or mismatched identity code (treated as the same error). */
+      reason: "bad_code";
     }
   | {
       type: "rename_rejected";
       yourName: string;
       players: Record<string, Player>;
     }
+  | { type: "code_changed"; name: string; code: string }
   | { type: "player_joined"; name: string; color: string }
   | { type: "player_left"; name: string }
   | { type: "mark"; index: number; by: string; marks: MarkEntry[] }
@@ -367,12 +387,15 @@ export type ClientMessage =
   | {
       type: "join";
       name: string;
+      /** Identity code proving this connection belongs to the same player. */
+      code?: string;
       config?: unknown;
       metadata?: PoolMetadata;
       mode?: GameMode;
       lockout?: boolean;
       configHash?: string;
     }
+  | { type: "change_code"; name: string; code: string }
   | { type: "mark"; index: number; by: string }
   | { type: "unmark"; index: number; by: string }
   | { type: "change_color"; name: string; color: string }

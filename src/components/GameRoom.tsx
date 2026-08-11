@@ -10,6 +10,7 @@ import { PlayerList } from "./PlayerList";
 import { ReadyPanel } from "./ReadyPanel";
 import { RoomHeader } from "./RoomHeader";
 import { RoomSidebar } from "./RoomSidebar";
+import { JoinRejectedModal } from "./JoinRejectedModal";
 import { TEAM_COLORS } from "../utils/colors";
 import type { BoardConfig, GameMode } from "../types";
 import type { HexConfig } from "../hex/hexTypes";
@@ -76,11 +77,16 @@ export function GameRoom({
     reorderNotes,
     requestRestart,
     canRestart,
+    joinError,
+    joinPending,
+    retryJoin,
+    changeCode,
     connectionStatus,
     stars,
     counters,
     notes,
     unreadChat,
+    myCode,
     clearChatUnread,
   } = useGameState(
     roomName,
@@ -157,6 +163,8 @@ export function GameRoom({
         imageBaseUrl={imageHost || serverUrl}
         settings={settings}
         onSettingsChange={updateSetting}
+        myCode={myCode}
+        onChangeCode={changeCode}
       />
 
       <div className="room-body">
@@ -247,6 +255,16 @@ export function GameRoom({
           </div>
         </RoomSidebar>
       </div>
+
+      {joinError && (
+        <JoinRejectedModal
+          name={joinError.name}
+          pending={joinPending}
+          onJoinWithName={(name) => retryJoin(name)}
+          onJoinWithCode={(code) => retryJoin(joinError.name, code)}
+          onCancel={leaveRoom}
+        />
+      )}
     </div>
   );
 }

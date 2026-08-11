@@ -175,6 +175,27 @@ export const en: Translations = {
   "settings.hideTooltips": "Hide Tooltips",
   "settings.hideStars": "Hide Stars",
   "settings.fontScale": "Font Scale",
+  "settings.codeLabel": "Identity Code",
+  "settings.codeCopy": "Copy identity code",
+  "settings.codeShow": "Show identity code",
+  "settings.codeHide": "Hide identity code",
+  "settings.codeSave": "Save",
+  "settings.copied": "Copied!",
+  // Join rejection (same-name player)
+  "joinRejected.title": "This name is already taken",
+  "joinRejected.text": "There is already a player named \"{0}\" in this room.",
+  "joinRejected.otherDevice":
+    "If that's you on another device, enter the identity code to join as yourself:",
+  "joinRejected.badCode":
+    "That identity code is incorrect. Please check it and try again.",
+  "joinRejected.codePlaceholder": "Enter identity code",
+  "joinRejected.joinAsSelf": "Join as myself",
+  "joinRejected.orRename": "Or join with a different name:",
+  "joinRejected.namePlaceholder": "New name",
+  "joinRejected.joinWithName": "Join with new name",
+  "joinRejected.howTo":
+    "Click the \"Settings\" button in the top bar to find your \"Identity Code\".",
+  "joinRejected.cancel": "Cancel",
   // Image attachments
   "editor.addImages": "Add Images",
   "editor.imageUploading": "Uploading…",

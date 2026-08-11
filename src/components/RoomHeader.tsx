@@ -21,6 +21,10 @@ interface Props {
     key: K,
     value: RoomSettings[K],
   ) => void;
+  /** This player's identity code, shown (masked) inside the settings panel. */
+  myCode?: string | null;
+  /** Persist a new identity code entered in the settings panel. */
+  onChangeCode?: (code: string) => void;
 }
 
 export function RoomHeader({
@@ -35,6 +39,8 @@ export function RoomHeader({
   imageBaseUrl,
   settings,
   onSettingsChange,
+  myCode,
+  onChangeCode,
 }: Props) {
   const { t } = useT();
   const [copied, setCopied] = useState(false);
@@ -143,6 +149,8 @@ export function RoomHeader({
               onClose={closePanel}
               onClosed={removePanel}
               anchorRef={settingsWrapRef}
+              myCode={myCode}
+              onChangeCode={onChangeCode}
             />
           )}
         </div>
