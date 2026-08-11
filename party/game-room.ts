@@ -25,6 +25,14 @@ export const PLAYER_COLORS = [
 
 export const TEAM_COLORS = { red: "#dc2626", blue: "#2563eb" } as const;
 
+/**
+ * How long a passively disconnected player is kept in the room before being
+ * removed. Long enough for PartySocket's reconnect backoff (and a background
+ * tab resuming) to restore the player, short enough that a dead session
+ * doesn't occupy a slot for long. An explicit "leave" removes immediately.
+ */
+export const RECONNECT_GRACE_MS = 300_000;
+
 // ============================================================
 // Data types
 // ============================================================
@@ -96,6 +104,8 @@ export type ClientMsg =
   | { type: "toggle_star"; name: string; index: number; starred: boolean }
   | { type: "set_counter"; name: string; index: number; value: number }
   | { type: "add_note"; name: string; note: PlayerNote }
+  | { type: "ping" }
+  | { type: "leave"; name: string }
   | {
       type: "update_note";
       name: string;
@@ -146,7 +156,8 @@ export type ServerMsg =
   | { type: "note_added"; name: string; note: PlayerNote }
   | { type: "note_updated"; name: string; note: PlayerNote }
   | { type: "note_deleted"; name: string; id: string }
-  | { type: "notes_reordered"; name: string; ids: string[] };
+  | { type: "notes_reordered"; name: string; ids: string[] }
+  | { type: "pong" };
 
 // ============================================================
 // Transport interface
@@ -183,6 +194,8 @@ export class GameRoom {
   countdownTimer: ReturnType<typeof setTimeout> | null = null;
   /** connId → player name */
   connPlayers = new Map<string, string>();
+  /** Player names waiting out the reconnect grace period after a passive disconnect. */
+  disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   bonusScores: Record<string, number> = {};
   /** Room owner — the player who first provided config. */
   owner: string | null = null;
@@ -367,6 +380,10 @@ export class GameRoom {
   // ---------- reset ----------
 
   private resetRoom(): void {
+    for (const timer of this.disconnectTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.disconnectTimers.clear();
     this.config = null;
     this.metadata = null;
     this.phase = "lobby";
@@ -407,6 +424,9 @@ export class GameRoom {
         const { name, config, metadata, mode, lockout: cfgLockout } = msg;
         const cleanName = name.trim();
         if (!cleanName) return;
+
+        // A reconnect during the grace period cancels the pending removal.
+        this.cancelRemoval(cleanName);
 
         // Store config if this is the first player to provide one.
         // Config is already a compressed base64 string — server just
@@ -499,6 +519,8 @@ export class GameRoom {
         delete this.players[msg.oldName];
         player.name = newName;
         this.players[newName] = player;
+        // A pending removal timer for the old name is now meaningless.
+        this.cancelRemoval(msg.oldName);
         // Update the mapping for every connection of this player, not just
         // the sender — same-name devices must keep receiving this player's
         // personal star/counter sync after the rename.
@@ -521,6 +543,29 @@ export class GameRoom {
         // Room owner follows the rename so they keep restart rights.
         if (this.owner === msg.oldName) this.owner = newName;
         this.transport.broadcast(msg, [connId]);
+        break;
+      }
+
+      case "ping": {
+        // Heartbeat ack — keeps the connection alive through proxies with an
+        // idle timeout (e.g. Cloudflare ~100s) without waking game logic.
+        this.transport.send(connId, { type: "pong" });
+        break;
+      }
+
+      case "leave": {
+        // Explicit user exit (leave button / page close): remove right away,
+        // unlike a passive disconnect which gets a reconnect grace period.
+        const name = msg.name.trim();
+        if (!name) return;
+        if (this.connPlayers.get(connId) !== name) return;
+        this.cancelRemoval(name);
+        this.connPlayers.delete(connId);
+        // Other same-name devices are still connected — keep the player.
+        for (const [, pname] of this.connPlayers) {
+          if (pname === name) return;
+        }
+        this.removePlayer(name);
         break;
       }
 
@@ -742,9 +787,58 @@ export class GameRoom {
 
     this.connPlayers.delete(connId);
 
-    // Only remove player if they have no other connections
+    // Still connected via another socket of the same player.
     for (const [, pname] of this.connPlayers) {
-      if (pname === name) return; // still connected via another socket
+      if (pname === name) return;
+    }
+
+    // Passive disconnect: give the player a grace period to reconnect
+    // (an explicit "leave" removes them immediately instead).
+    this.scheduleRemoval(name);
+  }
+
+  /**
+   * Cancel a pending delayed removal (player reconnected or renamed).
+   */
+  private cancelRemoval(name: string): void {
+    const timer = this.disconnectTimers.get(name);
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(name);
+    }
+  }
+
+  /**
+   * Start (or restart) the reconnect grace period for a player whose socket
+   * closed without an explicit "leave".
+   */
+  private scheduleRemoval(name: string): void {
+    this.cancelRemoval(name);
+    const timer = setTimeout(() => {
+      this.disconnectTimers.delete(name);
+      // Reconnected during the grace window? Keep the player.
+      for (const [, pname] of this.connPlayers) {
+        if (pname === name) return;
+      }
+      this.removePlayer(name);
+    }, RECONNECT_GRACE_MS);
+    this.disconnectTimers.set(name, timer);
+  }
+
+  /**
+   * Remove a player and all of their connections immediately, broadcasting
+   * the departure. Used by explicit "leave" and by grace-period expiry.
+   */
+  private removePlayer(name: string): void {
+    const timer = this.disconnectTimers.get(name);
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(name);
+    }
+    if (!this.players[name]) return;
+
+    for (const [connId, pname] of this.connPlayers) {
+      if (pname === name) this.connPlayers.delete(connId);
     }
 
     delete this.players[name];

@@ -630,6 +630,13 @@ export function useGameState(
   }
 
   function leaveRoom() {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (ws && myName) {
+      // Notify the server this is an active exit so it removes us right away.
+      // Passive disconnects (background tab drops) get a grace period instead.
+      ws.send(JSON.stringify({ type: "leave", name: myName }));
+    }
     onLeave?.();
   }
 

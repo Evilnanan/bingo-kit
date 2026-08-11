@@ -72,7 +72,10 @@ function getRoom(name: string): RoomEntry {
         }
       },
       onRoomEmpty: () => {
-        // No durable storage to clean up in dev mode.
+        // No durable storage to clean up in dev mode. Drop the room entry so
+        // the next join starts fresh; this only runs after the reconnect
+        // grace period expires and the last player is truly removed.
+        rooms.delete(name);
       },
     };
     const game = new GameRoom(transport);
@@ -87,9 +90,6 @@ function cleanupConnection(roomName: string, connId: string): void {
   if (!entry) return;
   entry.game.handleClose(connId);
   entry.sockets.delete(connId);
-  if (entry.sockets.size === 0) {
-    rooms.delete(roomName);
-  }
 }
 
 // ============================================================

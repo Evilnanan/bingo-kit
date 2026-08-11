@@ -167,6 +167,17 @@ export function usePlayerCallbacks(
 // usePartyConnection — main connection hook
 // ============================================================
 
+/** How often the client sends an app-level heartbeat while connected. */
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
+/**
+ * If the server hasn't answered a heartbeat within this window, treat the
+ * socket as a zombie (network blackholed, tab suspended) and force a fresh
+ * connection. Background-tab timers are throttled to ~1/min, so this is well
+ * above one interval and below Cloudflare's ~100s idle cutoff.
+ */
+const HEARTBEAT_STALE_MS = 90_000;
+
 export function usePartyConnection(params: {
   serverUrl: string;
   roomName: string;
@@ -216,9 +227,11 @@ export function usePartyConnection(params: {
       room: roomName,
     });
     wsRef.current = ws;
+    let lastPong = Date.now();
 
     ws.addEventListener("open", () => {
       if (genRef.current !== gen) return;
+      lastPong = Date.now();
 
       // Generate a synthetic client ID (server doesn't expose connection IDs to us)
       const clientId = "c-" + Math.random().toString(36).slice(2, 10);
@@ -249,6 +262,11 @@ export function usePartyConnection(params: {
       } catch {
         return;
       }
+      // Heartbeat ack — just refreshes liveness, nothing for game state.
+      if (data.type === "pong") {
+        lastPong = Date.now();
+        return;
+      }
       onMessageRef.current(data);
     });
 
@@ -256,9 +274,53 @@ export function usePartyConnection(params: {
       console.error("PartySocket error:", event);
     });
 
+    // Keep the connection alive while the tab is in the background: Cloudflare
+    // closes proxied WebSockets after ~100s without traffic, and a backgrounded
+    // tab produces no user-driven messages. Browsers can't send protocol-level
+    // ping frames, so we send a tiny app-level ping instead. If the server
+    // stops answering, force a reconnect rather than sitting on a dead socket.
+    const heartbeatId = window.setInterval(() => {
+      if (genRef.current !== gen) return;
+      const socket = wsRef.current;
+      if (!socket || socket.readyState !== socket.OPEN) return;
+      socket.send(JSON.stringify({ type: "ping" } satisfies ClientMessage));
+      if (Date.now() - lastPong > HEARTBEAT_STALE_MS) {
+        socket.reconnect();
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+
+    // When the tab becomes visible again after a drop, reconnect immediately
+    // instead of waiting for PartySocket's backoff timer.
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (genRef.current !== gen) return;
+      const socket = wsRef.current;
+      if (socket && socket.readyState !== socket.OPEN) socket.reconnect();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    // Explicitly leaving the page (close tab / navigate / back) is an active
+    // exit: tell the server so it removes us immediately instead of waiting
+    // out the reconnect grace period. Pure backgrounding (visibilitychange
+    // to "hidden") intentionally does NOT leave.
+    const handlePageHide = () => {
+      if (genRef.current !== gen) return;
+      const socket = wsRef.current;
+      if (socket && socket.readyState === socket.OPEN) {
+        socket.send(
+          JSON.stringify({
+            type: "leave",
+            name: playerName,
+          } satisfies ClientMessage),
+        );
+      }
+    };
+    window.addEventListener("pagehide", handlePageHide);
+
     return () => {
-      // Before disconnecting, notify the server? Not strictly needed —
-      // the server's onClose handler handles cleanup.
+      window.clearInterval(heartbeatId);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pagehide", handlePageHide);
       ws.close();
       wsRef.current = null;
       genRef.current = 0;

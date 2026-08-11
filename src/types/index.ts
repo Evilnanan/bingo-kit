@@ -345,7 +345,8 @@ export type ServerMessage =
   | { type: "note_added"; name: string; note: PlayerNote }
   | { type: "note_updated"; name: string; note: PlayerNote }
   | { type: "note_deleted"; name: string; id: string }
-  | { type: "notes_reordered"; name: string; ids: string[] };
+  | { type: "notes_reordered"; name: string; ids: string[] }
+  | { type: "pong" };
 
 /** Messages sent to the PartyServer. */
 export type ClientMessage =
@@ -369,6 +370,8 @@ export type ClientMessage =
   | { type: "toggle_star"; name: string; index: number; starred: boolean }
   | { type: "set_counter"; name: string; index: number; value: number }
   | { type: "add_note"; name: string; note: PlayerNote }
+  | { type: "ping" }
+  | { type: "leave"; name: string }
   | {
       type: "update_note";
       name: string;
