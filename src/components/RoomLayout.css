@@ -207,8 +207,24 @@
   color: #fff;
 }
 
+.sidebar-toggle-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1px solid var(--surface);
+  pointer-events: none;
+}
+
 .room-sidebar.collapsed .sidebar-toggle {
-  position: static;
+  /* Keep the button positioned so the unread dot anchors to it (the sidebar
+     clips overflow, so anchoring to the sidebar would cut the dot). */
+  position: relative;
+  top: auto;
+  right: auto;
   margin: 4px auto 0;
   flex-shrink: 0;
 }

@@ -238,6 +238,8 @@ export interface GameState {
   counters: Record<number, number>;
   /** Personal planning notes — synced across same-name devices. */
   notes: PlayerNote[];
+  /** Unread-chat flag — synced across same-name devices. */
+  unreadChat: boolean;
   players: Record<string, Player>;
   localClientId: string | null;
   localPlayerName: string | null;
@@ -277,6 +279,8 @@ export type GameAction =
         counters?: Record<number, number>;
         /** Personal planning notes, sent only to the matching player. */
         notes?: PlayerNote[];
+        /** Personal unread-chat flag, sent only to the matching player. */
+        unreadChat?: boolean;
       };
     }
   | {
@@ -293,6 +297,7 @@ export type GameAction =
   | { type: "SET_BONUS_SCORE"; playerName: string; bonus: number }
   | { type: "APPLY_STAR"; index: number; starred: boolean }
   | { type: "APPLY_COUNTER"; index: number; value: number }
+  | { type: "APPLY_CHAT_UNREAD"; unread: boolean }
   | { type: "ADD_NOTE"; note: PlayerNote }
   | { type: "UPDATE_NOTE"; id: string; note: PlayerNote }
   | { type: "DELETE_NOTE"; id: string }
@@ -346,6 +351,7 @@ export type ServerMessage =
   | { type: "note_updated"; name: string; note: PlayerNote }
   | { type: "note_deleted"; name: string; id: string }
   | { type: "notes_reordered"; name: string; ids: string[] }
+  | { type: "chat_unread"; name: string; unread: boolean }
   | { type: "pong" };
 
 /** Messages sent to the PartyServer. */
@@ -370,6 +376,7 @@ export type ClientMessage =
   | { type: "toggle_star"; name: string; index: number; starred: boolean }
   | { type: "set_counter"; name: string; index: number; value: number }
   | { type: "add_note"; name: string; note: PlayerNote }
+  | { type: "set_chat_unread"; name: string; unread: boolean }
   | { type: "ping" }
   | { type: "leave"; name: string }
   | {

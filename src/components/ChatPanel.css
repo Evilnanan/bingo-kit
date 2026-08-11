@@ -47,6 +47,17 @@
   border-radius: 1px;
 }
 
+.chat-tab-dot {
+  position: absolute;
+  top: 7px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  pointer-events: none;
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;

@@ -80,6 +80,8 @@ export interface RoomState {
   counters: Record<string, Record<string, number>>;
   /** Per-player planning notes, only sent back to the same name. */
   notes: Record<string, PlayerNote[]>;
+  /** Per-player unread-chat flag, synced to same-name connections. */
+  unreadChat: Record<string, boolean>;
 }
 
 // Client → Server messages
@@ -104,6 +106,7 @@ export type ClientMsg =
   | { type: "toggle_star"; name: string; index: number; starred: boolean }
   | { type: "set_counter"; name: string; index: number; value: number }
   | { type: "add_note"; name: string; note: PlayerNote }
+  | { type: "set_chat_unread"; name: string; unread: boolean }
   | { type: "ping" }
   | { type: "leave"; name: string }
   | {
@@ -135,6 +138,7 @@ export type ServerMsg =
       myStars?: number[];
       myCounters?: Record<string, number>;
       myNotes?: PlayerNote[];
+      myUnreadChat?: boolean;
     }
   | {
       type: "rename_rejected";
@@ -157,6 +161,7 @@ export type ServerMsg =
   | { type: "note_updated"; name: string; note: PlayerNote }
   | { type: "note_deleted"; name: string; id: string }
   | { type: "notes_reordered"; name: string; ids: string[] }
+  | { type: "chat_unread"; name: string; unread: boolean }
   | { type: "pong" };
 
 // ============================================================
@@ -207,6 +212,8 @@ export class GameRoom {
   counters: Record<string, Record<string, number>> = {};
   /** Per-player planning notes: player name -> ordered list. */
   notes: Record<string, PlayerNote[]> = {};
+  /** Per-player unread-chat flag: player name -> has unseen chat. */
+  unreadChat: Record<string, boolean> = {};
 
   constructor(private transport: GameTransport) {}
 
@@ -279,6 +286,7 @@ export class GameRoom {
       myStars: this.starMarks[name] ? [...this.starMarks[name]!] : [],
       myCounters: this.counters[name] ? { ...this.counters[name]! } : {},
       myNotes: this.notes[name] ? this.notes[name]!.map((n) => ({ ...n })) : [],
+      myUnreadChat: this.unreadChat[name] === true,
     };
   }
 
@@ -391,6 +399,7 @@ export class GameRoom {
     this.starMarks = {};
     this.counters = {};
     this.notes = {};
+    this.unreadChat = {};
     this.lockout = false;
     this.bonusScores = {};
     this.owner = null;
@@ -539,6 +548,10 @@ export class GameRoom {
         if (this.notes[msg.oldName]) {
           this.notes[newName] = this.notes[msg.oldName];
           delete this.notes[msg.oldName];
+        }
+        if (this.unreadChat[msg.oldName]) {
+          this.unreadChat[newName] = true;
+          delete this.unreadChat[msg.oldName];
         }
         // Room owner follows the rename so they keep restart rights.
         if (this.owner === msg.oldName) this.owner = newName;
@@ -695,6 +708,23 @@ export class GameRoom {
         break;
       }
 
+      case "set_chat_unread": {
+        const playerName = msg.name;
+        if (!this.players[playerName]) return;
+        if (msg.unread) this.unreadChat[playerName] = true;
+        else delete this.unreadChat[playerName];
+        this.sendToSameName(
+          playerName,
+          {
+            type: "chat_unread",
+            name: playerName,
+            unread: msg.unread === true,
+          },
+          connId,
+        );
+        break;
+      }
+
       case "add_note": {
         const playerName = msg.name;
         if (!this.players[playerName]) return;
@@ -845,6 +875,7 @@ export class GameRoom {
     delete this.starMarks[name];
     delete this.counters[name];
     delete this.notes[name];
+    delete this.unreadChat[name];
     this.transport.broadcast({ type: "player_left", name });
 
     // Destroy room when empty: reset all state so a late-joiner starts fresh.

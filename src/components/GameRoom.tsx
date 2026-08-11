@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { useGameState } from "../hooks/useGameState";
 import { useScoring } from "../scoring/useScoring";
 import { useT } from "../i18n/useT";
@@ -45,6 +46,18 @@ export function GameRoom({
 }: Props) {
   const initialConfig =
     gameMode === "hex" && hexConfig ? hexConfig : boardConfig;
+
+  // Sidebar collapse / chat tab are lifted here so the unread-chat dot can
+  // react to both, and so switching to the chat view can clear the flag.
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => !window.matchMedia("(max-width: 800px)").matches,
+  );
+  const [chatTab, setChatTab] = useState<"chat" | "notes">("chat");
+  const chatVisibleRef = useRef(false);
+  useLayoutEffect(() => {
+    chatVisibleRef.current = sidebarOpen && chatTab === "chat";
+  });
+
   const {
     state,
     markSquare,
@@ -67,6 +80,8 @@ export function GameRoom({
     stars,
     counters,
     notes,
+    unreadChat,
+    clearChatUnread,
   } = useGameState(
     roomName,
     playerName,
@@ -74,9 +89,24 @@ export function GameRoom({
     serverUrl,
     gameMode,
     onLeave,
+    chatVisibleRef,
   );
   const { t } = useT();
   const { settings, updateSetting } = useRoomSettings();
+
+  const handleTabChange = (next: "chat" | "notes") => {
+    setChatTab(next);
+    // Looking at the chat clears the unread flag (synced to same-name
+    // devices by the server). clearChatUnread no-ops when already clear.
+    if (next === "chat") clearChatUnread();
+  };
+
+  const handleSidebarToggle = () => {
+    const next = !sidebarOpen;
+    setSidebarOpen(next);
+    // Expanding straight into the chat view also counts as reading.
+    if (next && chatTab === "chat") clearChatUnread();
+  };
 
   const isHex = state.mode === "hex";
   const players = Object.values(state.players);
@@ -182,7 +212,11 @@ export function GameRoom({
               <p className="room-loading">{t["room.loading"]}</p>
             ))}
         </div>
-        <RoomSidebar>
+        <RoomSidebar
+          open={sidebarOpen}
+          onToggle={handleSidebarToggle}
+          unread={unreadChat && !sidebarOpen}
+        >
           <PlayerList
             players={players}
             scores={showBoard ? scores : undefined}
@@ -206,6 +240,9 @@ export function GameRoom({
               onUpdateNote={updateNote}
               onDeleteNote={deleteNote}
               onReorderNotes={reorderNotes}
+              tab={chatTab}
+              onTabChange={handleTabChange}
+              unreadChat={unreadChat}
             />
           </div>
         </RoomSidebar>

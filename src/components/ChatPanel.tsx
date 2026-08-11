@@ -15,6 +15,10 @@ interface Props {
   ) => void;
   onDeleteNote: (id: string) => void;
   onReorderNotes: (ids: string[]) => void;
+  tab: "chat" | "notes";
+  onTabChange: (tab: "chat" | "notes") => void;
+  /** Unread-chat flag shared with same-name devices. */
+  unreadChat: boolean;
 }
 
 export function ChatPanel({
@@ -25,9 +29,11 @@ export function ChatPanel({
   onUpdateNote,
   onDeleteNote,
   onReorderNotes,
+  tab,
+  onTabChange,
+  unreadChat,
 }: Props) {
   const [input, setInput] = useState("");
-  const [tab, setTab] = useState<"chat" | "notes">("chat");
   const bottomRef = useRef<HTMLDivElement>(null);
   const { t } = useT();
 
@@ -49,14 +55,17 @@ export function ChatPanel({
         <button
           type="button"
           className={`chat-tab${tab === "chat" ? " chat-tab--active" : ""}`}
-          onClick={() => setTab("chat")}
+          onClick={() => onTabChange("chat")}
         >
           {t["chat.title"]}
+          {unreadChat && tab === "notes" && (
+            <span className="chat-tab-dot" aria-hidden="true" />
+          )}
         </button>
         <button
           type="button"
           className={`chat-tab${tab === "notes" ? " chat-tab--active" : ""}`}
-          onClick={() => setTab("notes")}
+          onClick={() => onTabChange("notes")}
         >
           {t["notes.title"]}
         </button>

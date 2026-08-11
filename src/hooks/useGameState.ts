@@ -1,4 +1,4 @@
-import { useReducer, useLayoutEffect, useRef, useState } from "react";
+import { useReducer, useLayoutEffect, useRef, useState, useEffect } from "react";
 import type {
   BoardConfig,
   GameState,
@@ -6,6 +6,7 @@ import type {
   ServerMessage,
   MarkEntry,
   PlayerNote,
+  ChatMessage,
   GameMode,
   GoalItem,
   PoolMetadata,
@@ -47,6 +48,7 @@ function createInitialState(
     stars: new Set<number>(),
     counters: {},
     notes: [],
+    unreadChat: false,
     players: {},
     localClientId: null,
     localPlayerName: null,
@@ -194,6 +196,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...(action.state.notes !== undefined
           ? { notes: action.state.notes }
           : {}),
+        ...(action.state.unreadChat !== undefined
+          ? { unreadChat: action.state.unreadChat }
+          : {}),
       };
     }
 
@@ -262,6 +267,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, counters: next };
     }
 
+    case "APPLY_CHAT_UNREAD":
+      return { ...state, unreadChat: action.unread };
+
     case "ADD_NOTE": {
       return { ...state, notes: [...state.notes, action.note] };
     }
@@ -296,6 +304,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         stars: new Set<number>(),
         counters: {},
         notes: [],
+        unreadChat: false,
       };
 
     case "SET_CONNECTED":
@@ -321,6 +330,7 @@ export function useGameState(
   serverUrl: string,
   mode: GameMode,
   onLeave?: () => void,
+  chatVisibleRef?: React.RefObject<boolean>,
 ) {
   const [state, dispatch] = useReducer(
     gameReducer,
@@ -405,6 +415,7 @@ export function useGameState(
             counters: (msg as { myCounters?: Record<number, number> })
               .myCounters,
             notes: (msg as { myNotes?: PlayerNote[] }).myNotes,
+            unreadChat: (msg as { myUnreadChat?: boolean }).myUnreadChat,
           },
         });
         break;
@@ -520,6 +531,12 @@ export function useGameState(
         break;
       }
 
+      case "chat_unread": {
+        if (msg.name !== stateRef.current.localPlayerName) break;
+        dispatch({ type: "APPLY_CHAT_UNREAD", unread: msg.unread });
+        break;
+      }
+
       case "note_added": {
         if (msg.name !== stateRef.current.localPlayerName) break;
         dispatch({ type: "ADD_NOTE", note: msg.note });
@@ -578,6 +595,27 @@ export function useGameState(
   // Note: the "start" message from the server is the sole authority for
   // transitioning to "playing". The countdownSeconds field from "state"
   // is purely for UI — ReadyPanel uses it to display "3, 2, 1".
+
+  // Unread-chat indicator: when a new chat arrives while the chat view isn't
+  // visible (notes tab or collapsed sidebar), flag it and sync the flag to
+  // same-name devices via the server. Messages the local player sent are
+  // ignored (only "other people" count).
+  const lastChatRef = useRef<ChatMessage | null>(null);
+  useEffect(() => {
+    const latest = state.chats[state.chats.length - 1] ?? null;
+    if (!latest) {
+      lastChatRef.current = null;
+      return;
+    }
+    if (latest === lastChatRef.current) return;
+    lastChatRef.current = latest;
+    if (latest.name !== state.localPlayerName && !chatVisibleRef?.current) {
+      markChatUnread();
+    }
+    // chatVisibleRef is a stable ref provided by the caller; including it in
+    // the deps would re-run the effect every render for no reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.chats, state.localPlayerName]);
 
   function requestRestart() {
     const ws = wsRef.current;
@@ -771,6 +809,28 @@ export function useGameState(
     dispatch({ type: "APPLY_COUNTER", index, value });
   }
 
+  function markChatUnread() {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (!myName || !ws) return;
+    if (stateRef.current.unreadChat) return;
+    ws.send(
+      JSON.stringify({ type: "set_chat_unread", name: myName, unread: true }),
+    );
+    dispatch({ type: "APPLY_CHAT_UNREAD", unread: true });
+  }
+
+  function clearChatUnread() {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (!myName || !ws) return;
+    if (!stateRef.current.unreadChat) return;
+    ws.send(
+      JSON.stringify({ type: "set_chat_unread", name: myName, unread: false }),
+    );
+    dispatch({ type: "APPLY_CHAT_UNREAD", unread: false });
+  }
+
   function addNote(text: string, todo: boolean) {
     const ws = wsRef.current;
     const myName = stateRef.current.localPlayerName;
@@ -846,5 +906,8 @@ export function useGameState(
     stars: state.stars,
     counters: state.counters,
     notes: state.notes,
+    unreadChat: state.unreadChat,
+    markChatUnread,
+    clearChatUnread,
   };
 }
