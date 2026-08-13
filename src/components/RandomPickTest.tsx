@@ -73,10 +73,36 @@ const PRESET_EXCLUSIVE: GoalItem[] = [
   ...Array.from({ length: 22 }, (_, i) => `Plain ${i + 1}`),
 ];
 
+const PRESET_VARIANTS: GoalItem[] = [
+  {
+    text: "Defeat {boss} in {place}",
+    text_i18n: { "zh-CN": "在{place}击败{boss}" },
+    difficulty: 2,
+    variants: [
+      {
+        values: { boss: "the Dragon", place: "the Volcano" },
+        difficulty: 3,
+        counter: 2,
+      },
+      { values: { boss: "the Witch", place: "the Forest" } },
+      { values: { boss: "the Golem", place: "the Cave" }, difficulty: 4 },
+    ],
+  },
+  {
+    text: "Collect {thing} from {place}",
+    variants: [
+      { values: { thing: "10 coins", place: "the well" } },
+      { values: { thing: "5 gems", place: "the mine" } },
+    ],
+  },
+  ...Array.from({ length: 30 }, (_, i) => `Plain ${i + 1}`),
+];
+
 const PRESETS: Record<string, GoalItem[]> = {
   simple: PRESET_SIMPLE,
   difficulty: PRESET_DIFFICULTY,
   exclusive: PRESET_EXCLUSIVE,
+  variants: PRESET_VARIANTS,
 };
 
 /* ── helpers ──────────────────────────────────────────────────── */

@@ -7,7 +7,7 @@ A real-time multiplayer Bingo app.
 ## Features
 
 - **Two board types** — Classic 5×5 board + [Hex (Connect-6)](https://en.wikipedia.org/wiki/Hex_(board_game)) board
-- **Goal editor** — Visual editing with JSON/CSV import & export; supports tooltip, counters, difficulty levels, and exclusion groups
+- **Goal editor** — Visual editing with JSON/CSV import & export; supports tooltip, counters, difficulty levels, exclusion groups, and variants
 - **4 shuffle algorithms**
   - Pure random (ignores difficulty, but still respects exclusion groups)
   - Balanced difficulty (minimizes difficulty variance across each line)

@@ -1,4 +1,5 @@
 import type { GoalItem } from "../types";
+import { getVariantGroupId } from "./variants";
 
 /* ── shuffle ──────────────────────────────────────────────────────── */
 
@@ -80,7 +81,10 @@ export function canPlace(
   pos: number,
   board: (GoalItem | null)[],
   usedGlobalGroups: Set<string>,
+  usedVariants?: Set<string>,
 ): boolean {
+  const vg = getVariantGroupId(g);
+  if (vg && usedVariants?.has(vg)) return false;
   for (const gg of getGlobalExcl(g)) {
     if (usedGlobalGroups.has(gg)) return false;
   }

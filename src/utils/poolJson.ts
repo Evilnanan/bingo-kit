@@ -1,5 +1,15 @@
 import type { GoalItem, ImageAttachment, PoolMetadata } from "../types";
 import type { Translations } from "../i18n/types";
+import { isVariantDef } from "../randomPicks/variants";
+
+/** Replace newlines in variant placeholder values (single-line goals). */
+function cleanVariantValues(
+  values: Record<string, string>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(values).map(([k, s]) => [k, s.replace(/\r?\n/g, " ")]),
+  );
+}
 
 export function attachmentToJson({
   hash,
@@ -36,6 +46,7 @@ export function goalToJson(item: GoalItem): unknown {
     obj.globalGroup = Array.isArray(gg) && gg.length === 1 ? gg[0] : gg;
   }
   if (item.counter) obj.counter = item.counter;
+  if (item.variants && item.variants.length > 0) obj.variants = item.variants;
   if (item.text_i18n && Object.keys(item.text_i18n).length > 0)
     obj.text_i18n = item.text_i18n;
   if (item.tooltip_i18n && Object.keys(item.tooltip_i18n).length > 0)
@@ -73,6 +84,7 @@ export function normalizeGoalItem(item: GoalItem): GoalItem {
     text_i18n,
     tooltip_i18n,
     images,
+    variants,
   } = item;
   if (
     !tooltip &&
@@ -82,7 +94,8 @@ export function normalizeGoalItem(item: GoalItem): GoalItem {
     !counter &&
     !text_i18n &&
     !tooltip_i18n &&
-    (!images || images.length === 0)
+    (!images || images.length === 0) &&
+    (!variants || variants.length === 0)
   ) {
     return text;
   }
@@ -190,6 +203,13 @@ export function isValidGoalItem(item: unknown): item is GoalItem {
       )
         return false;
     }
+    const vs = (item as Record<string, unknown>).variants;
+    if (vs !== undefined && vs !== null) {
+      if (!Array.isArray(vs)) return false;
+      for (const v of vs) {
+        if (!isVariantDef(v)) return false;
+      }
+    }
     return true;
   }
   return false;
@@ -254,6 +274,20 @@ export function parsePoolJson(
         text: item.text.replace(/\r?\n/g, " "),
         ...(item.group && { group: cleanGroup(item.group) }),
         ...(item.globalGroup && { globalGroup: cleanGroup(item.globalGroup) }),
+        ...(item.variants && {
+          variants: item.variants.map((v) => ({
+            ...v,
+            values: cleanVariantValues(v.values),
+            ...(v.values_i18n && {
+              values_i18n: Object.fromEntries(
+                Object.entries(v.values_i18n).map(([lang, vals]) => [
+                  lang,
+                  cleanVariantValues(vals),
+                ]),
+              ),
+            }),
+          })),
+        }),
       });
     }
   }

@@ -73,9 +73,16 @@ export const en: Translations = {
   "editor.group": "Excl. group",
   "editor.globalGroup": "Global excl. group",
   "editor.counter": "Counter",
+  "editor.variants": "Variants",
+  "editor.addVariant": "+ Add Variant",
+  "editor.variantsNoPlaceholder":
+    "Add placeholders like {item} to the goal text first to use variants.",
+  "editor.variantsAnonymous":
+    "Anonymous placeholders are not supported. Use named placeholders like {item}.",
+  "editor.variantRemove": "Remove variant",
   "editor.csvHint": "text, tooltip, counter, difficulty, group, globalGroup",
   "editor.csvReadOnly":
-    "CSV is read-only when the goal pool contains images or translations.",
+    "CSV is read-only when the goal pool contains images, translations, or variants.",
   "editor.goalEditor": "Goal Editor",
   "editor.defaultGoalLabel": "Goal",
   "toggle.dark": "Switch to Dark",

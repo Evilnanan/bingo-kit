@@ -71,8 +71,15 @@ export const zh: Translations = {
   "editor.group": "互斥组",
   "editor.globalGroup": "全局互斥组",
   "editor.counter": "计数器",
+  "editor.variants": "变体",
+  "editor.addVariant": "+ 添加变体",
+  "editor.variantsNoPlaceholder":
+    "先在任务文本中添加占位符（如 {item}），才能使用变体。",
+  "editor.variantsAnonymous":
+    "不支持匿名占位符，请使用命名占位符（如 {item}）。",
+  "editor.variantRemove": "删除变体",
   "editor.csvHint": "text, tooltip, counter, difficulty, group, globalGroup",
-  "editor.csvReadOnly": "任务池包含图片或翻译时，CSV 为只读",
+  "editor.csvReadOnly": "任务池包含图片、翻译或变体时，CSV 为只读",
   "editor.goalEditor": "编辑",
   "editor.defaultGoalLabel": "任务",
   "toggle.dark": "切换为暗色",

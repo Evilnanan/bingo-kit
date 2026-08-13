@@ -80,6 +80,11 @@ export interface Translations {
   "editor.group": string;
   "editor.globalGroup": string;
   "editor.counter": string;
+  "editor.variants": string;
+  "editor.addVariant": string;
+  "editor.variantsNoPlaceholder": string;
+  "editor.variantsAnonymous": string;
+  "editor.variantRemove": string;
   "editor.csvHint": string;
   "editor.csvReadOnly": string;
   "editor.goalEditor": string;

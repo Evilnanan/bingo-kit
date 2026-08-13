@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/useT";
 import type {
   BoardConfig,
@@ -201,6 +201,14 @@ export function LandingPage({ onJoinRoom }: Props) {
     () => currentPool?.goals ?? [...DEFAULT_GOALS],
   );
   const goalsRef = useRef(goals);
+  const poolsRef = useRef(pools);
+  const currentPoolIdRef = useRef(currentPoolId);
+  useEffect(() => {
+    poolsRef.current = pools;
+  });
+  useEffect(() => {
+    currentPoolIdRef.current = currentPoolId;
+  });
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -307,14 +315,16 @@ export function LandingPage({ onJoinRoom }: Props) {
   const [cfgCenter, setCfgCenter] = useState(true);
   const [cfgPattern, setCfgPattern] = useState("1,1,1,2,3");
 
-  const syncPoolGoals = (g: GoalItem[]) => {
+  const syncPoolGoals = useCallback((g: GoalItem[]) => {
     const now = Date.now();
-    const updated = pools.map((p) =>
-      p.id === currentPoolId ? { ...p, goals: g, updatedAt: now } : p,
+    const updated = poolsRef.current.map((p) =>
+      p.id === currentPoolIdRef.current
+        ? { ...p, goals: g, updatedAt: now }
+        : p,
     );
     setPools(updated);
     savePools(updated);
-  };
+  }, []);
 
   const switchToPool = (poolId: string) => {
     const pool = pools.find((p) => p.id === poolId);
@@ -465,12 +475,15 @@ export function LandingPage({ onJoinRoom }: Props) {
     });
   };
 
-  const handleGoalsChange = (g: GoalItem[]) => {
-    goalsRef.current = g;
-    setGoals(g);
-    // Auto-save to current pool
-    syncPoolGoals(g);
-  };
+  const handleGoalsChange = useCallback(
+    (g: GoalItem[]) => {
+      goalsRef.current = g;
+      setGoals(g);
+      // Auto-save to current pool
+      syncPoolGoals(g);
+    },
+    [syncPoolGoals],
+  );
 
   const handlePoolMetaChange = (meta: PoolMetadata) => {
     const now = Date.now();

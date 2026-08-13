@@ -2,6 +2,13 @@ export { pureRandom } from "./algorithms/pureRandom";
 export { balancedDifficulty } from "./algorithms/balanced";
 export { pattern } from "./algorithms/pattern";
 export { fixed } from "./algorithms/fixed";
+export {
+  expandVariants,
+  countPlaceholders,
+  listPlaceholders,
+  hasAnonymousPlaceholder,
+  fillTemplate,
+} from "./variants";
 export type { BalancedConfig, PatternResult, PickRule } from "./types";
 
 import { pureRandom } from "./algorithms/pureRandom";
@@ -12,6 +19,9 @@ import type { PickRule } from "./types";
 import type { GoalItem } from "../types";
 
 export function pickGoals(pool: GoalItem[], rule: PickRule): GoalItem[] {
+  // Each algorithm expands variants itself: every variant becomes a concrete
+  // goal carrying an internal variantGroup id, so no two variants of the same
+  // goal can be picked onto the same board.
   switch (rule.algorithm) {
     case "pure":
       return pureRandom(pool);

@@ -29,6 +29,20 @@ export interface ImageAttachment {
   data?: string;
 }
 
+/** One concrete variant of a goal. `values` is a name -> value map filling
+ *  the named `{name}` placeholders in the goal text; `difficulty` / `counter`
+ *  optionally override the base goal's values. Named keys let translated
+ *  templates reorder placeholders without scrambling the values.
+ *  `values_i18n` optionally provides per-language overrides, so a variant can
+ *  fill each translated template with values in that language. */
+export interface VariantDef {
+  values: Record<string, string>;
+  /** Per-language placeholder overrides, keyed by language code. */
+  values_i18n?: Record<string, Record<string, string>>;
+  difficulty?: number;
+  counter?: number;
+}
+
 export type GoalItem =
   | string
   | {
@@ -41,6 +55,12 @@ export type GoalItem =
       globalGroup?: string | string[];
       counter?: number;
       images?: ImageAttachment[];
+      /** Task variants - when present, the text uses named `{name}`
+       *  placeholders and each variant fills them with its own values. */
+      variants?: VariantDef[];
+      /** Internal: shared id for expanded variants of one task, used only to
+       *  keep variants mutually exclusive during picking. Never persisted. */
+      variantGroup?: string;
     };
 
 export function getGoalText(item: GoalItem, lang?: string): string {
@@ -81,7 +101,7 @@ export function stripGoalMeta(goals: GoalItem[]): GoalItem[] {
   return goals.map((g) => {
     if (typeof g === "string") return g;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { group, globalGroup, ...rest } = g;
+    const { group, globalGroup, variants, variantGroup, ...rest } = g;
     return rest;
   });
 }
@@ -89,6 +109,14 @@ export function stripGoalMeta(goals: GoalItem[]): GoalItem[] {
 export function getGoalCounter(item: GoalItem | undefined): number {
   if (!item || typeof item === "string") return 0;
   return item.counter ?? 0;
+}
+
+export function getGoalVariants(item: GoalItem): VariantDef[] {
+  return typeof item === "string" ? [] : (item.variants ?? []);
+}
+
+export function hasGoalVariants(item: GoalItem): boolean {
+  return getGoalVariants(item).length > 0;
 }
 
 export function getGoalImages(item: GoalItem): ImageAttachment[] {

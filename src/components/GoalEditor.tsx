@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -12,7 +13,12 @@ import { langCodes, langDescriptors } from "../i18n/translations";
 import { Lightbox } from "./Lightbox";
 import type { Lang } from "../i18n/translations";
 import type { Translations } from "../i18n/types";
-import type { GoalItem, ImageAttachment, PoolMetadata } from "../types";
+import type {
+  GoalItem,
+  ImageAttachment,
+  PoolMetadata,
+  VariantDef,
+} from "../types";
 import {
   getGoalCounter,
   getGoalDifficulty,
@@ -21,7 +27,16 @@ import {
   getGoalText,
   getGoalTooltip,
   getGoalImages,
+  getGoalVariants,
+  hasGoalVariants,
 } from "../types";
+import {
+  getPlaceholderRenameMap,
+  remapVariantValues,
+  renameTemplateTokens,
+  listPlaceholders,
+  hasAnonymousPlaceholder,
+} from "../randomPicks/variants";
 import {
   fileToImageAttachment,
   type ImageUploadQueue,
@@ -197,9 +212,13 @@ function hasTranslation(item: GoalItem): boolean {
   );
 }
 
-// CSV 无法表示图片和翻译，任务池包含这些字段时 CSV 模式只读
+// CSV 无法表示图片、翻译和变体，任务池包含这些字段时 CSV 模式只读
 function hasCsvUnsupported(item: GoalItem): boolean {
-  return getGoalImages(item).length > 0 || hasTranslation(item);
+  return (
+    getGoalImages(item).length > 0 ||
+    hasTranslation(item) ||
+    hasGoalVariants(item)
+  );
 }
 
 /* ── TagInput ────────────────────────────────────────────────────── */
@@ -285,6 +304,7 @@ function TagInput({
           }}
           onKeyDown={handleKey}
           placeholder={value.length === 0 ? placeholder : ""}
+          title={placeholder}
         />
       </div>
       {showSuggestions && filtered.length > 0 && (
@@ -331,6 +351,54 @@ function getTargetTooltip(item: GoalItem, lang: Lang): string {
   return item.tooltip_i18n?.[lang] ?? "";
 }
 
+/** Per-language variant values, edited in the translate tab. */
+function VariantTranslateValues({
+  goal,
+  target,
+  onChange,
+  t,
+}: {
+  goal: GoalItem;
+  target: Lang;
+  onChange: (vi: number, key: string, value: string) => void;
+  t: Translations;
+}) {
+  const variants = getGoalVariants(goal);
+  const placeholders = listPlaceholders(getGoalText(goal));
+  if (variants.length === 0 || placeholders.length === 0) return null;
+  return (
+    <div className="ge-translate-variants">
+      <span className="ge-translate-variants-label">
+        {t["editor.variants"]}
+      </span>
+      {variants.map((v, vi) => {
+        const label =
+          Object.values(v.values ?? {})
+            .filter((s) => s.trim() !== "")
+            .join(" / ") || String(vi + 1);
+        return (
+          <div key={vi} className="ge-translate-variant-row">
+            <span className="ge-translate-variant-index" title={label}>
+              {label}
+            </span>
+            {placeholders.map((p) => (
+              <input
+                key={p.key}
+                className="ge-translate-variant-input"
+                type="text"
+                value={v.values_i18n?.[target]?.[p.key] ?? ""}
+                placeholder={v.values[p.key]?.trim() ? v.values[p.key] : p.key}
+                title={p.key}
+                onChange={(e) => onChange(vi, p.key, e.target.value)}
+              />
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 interface TranslateViewProps {
   goals: GoalItem[];
   source: SourceRef;
@@ -375,6 +443,39 @@ function TranslateView({
       delete (updated as Record<string, unknown>)[i18nKey];
     }
     next[index] = normalizeGoalItem(updated as GoalItem);
+    onChange(next);
+  };
+
+  const updateVariantValues = (
+    index: number,
+    vi: number,
+    key: string,
+    value: string,
+  ) => {
+    const next = [...goals];
+    const item = next[index];
+    if (typeof item === "string") return;
+    const variants = item.variants ?? [];
+    const variant = variants[vi];
+    if (!variant) return;
+    const langValues = {
+      ...(variant.values_i18n?.[target] ?? {}),
+      [key]: value,
+    };
+    const nextI18n = { ...(variant.values_i18n ?? {}) };
+    if (Object.values(langValues).every((s) => s === "")) {
+      delete nextI18n[target];
+    } else {
+      nextI18n[target] = langValues;
+    }
+    const updatedVariants = variants.map((v, i) => {
+      if (i !== vi) return v;
+      const nv: VariantDef = { ...v };
+      if (Object.keys(nextI18n).length > 0) nv.values_i18n = nextI18n;
+      else delete nv.values_i18n;
+      return nv;
+    });
+    next[index] = { ...item, variants: updatedVariants };
     onChange(next);
   };
 
@@ -454,6 +555,14 @@ function TranslateView({
                 }
                 rows={2}
               />
+              <VariantTranslateValues
+                goal={item}
+                target={target}
+                onChange={(vi, key, value) =>
+                  updateVariantValues(i, vi, key, value)
+                }
+                t={t}
+              />
             </div>
           </div>
         ))}
@@ -474,6 +583,7 @@ type GoalPatch = Partial<{
   globalGroup: string | string[];
   counter: number;
   images: ImageAttachment[];
+  variants: VariantDef[];
 }>;
 
 const EMPTY_STATUS_MAP = new Map<string, UploadStatusInfo>();
@@ -489,7 +599,7 @@ interface GoalEditorItemProps {
   uploadQueue: ImageUploadQueue | null;
 }
 
-function GoalEditorItem({
+const GoalEditorItem = memo(function GoalEditorItem({
   index,
   goal,
   allGroups,
@@ -502,8 +612,12 @@ function GoalEditorItem({
   const [previewIdx, setPreviewIdx] = useState(-1);
   const [renamingHash, setRenamingHash] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
+  const [variantsOpen, setVariantsOpen] = useState(false);
 
   const images = getGoalImages(goal);
+  const variants = getGoalVariants(goal);
+  const placeholders = listPlaceholders(getGoalText(goal));
+  const anonymousPlaceholder = hasAnonymousPlaceholder(getGoalText(goal));
 
   // Upload statuses — subscribe to the queue as an external store.
   // The snapshot reference only changes when a status does, so
@@ -613,25 +727,67 @@ function GoalEditorItem({
     },
     [handleCommitRename],
   );
+
+  const setVariant = useCallback(
+    (vi: number, patch: Partial<VariantDef>) => {
+      onUpdate(index, {
+        variants: variants.map((v, i) => (i === vi ? { ...v, ...patch } : v)),
+      });
+    },
+    [variants, index, onUpdate],
+  );
+
+  const addVariant = useCallback(() => {
+    onUpdate(index, {
+      variants: [
+        ...variants,
+        {
+          values: Object.fromEntries(placeholders.map((p) => [p.key, ""])),
+        },
+      ],
+    });
+  }, [variants, index, onUpdate, placeholders]);
+
+  const removeVariant = useCallback(
+    (vi: number) => {
+      onUpdate(index, { variants: variants.filter((_, i) => i !== vi) });
+    },
+    [variants, index, onUpdate],
+  );
+
   return (
     <div className="ge-item">
       <span className="ge-item-index">{index + 1}</span>
       <div className="ge-item-fields">
         <div className="ge-item-row">
-          <input
-            className="ge-item-text"
-            type="text"
-            value={getGoalText(goal)}
-            onChange={(e) =>
-              onUpdate(index, { text: e.target.value.replace(/\r?\n/g, " ") })
-            }
-            placeholder={t["editor.textPlaceholder"]}
-          />
+          <span className="ge-item-text-wrap">
+            <input
+              className="ge-item-text"
+              type="text"
+              value={getGoalText(goal)}
+              onChange={(e) =>
+                onUpdate(index, { text: e.target.value.replace(/\r?\n/g, " ") })
+              }
+              placeholder={t["editor.textPlaceholder"]}
+              title={t["editor.textPlaceholder"]}
+            />
+            <button
+              type="button"
+              className={`ge-variants-toggle${variantsOpen ? " ge-variants-toggle--open" : ""}`}
+              onClick={() => setVariantsOpen((v) => !v)}
+            >
+              {t["editor.variants"]}
+              {variants.length > 0 && (
+                <span className="ge-variants-count">{variants.length}</span>
+              )}
+            </button>
+          </span>
           <input
             className="ge-item-difficulty"
             type="number"
             min={1}
             max={5}
+            title={t["editor.difficulty"]}
             value={getGoalDifficulty(goal) || ""}
             onWheel={(e) => e.currentTarget.blur()}
             onChange={(e) => {
@@ -650,6 +806,7 @@ function GoalEditorItem({
             className="ge-item-counters"
             type="number"
             min={0}
+            title={t["editor.counter"]}
             value={getGoalCounter(goal) || ""}
             onWheel={(e) => e.currentTarget.blur()}
             onChange={(e) => {
@@ -659,12 +816,100 @@ function GoalEditorItem({
             placeholder={t["editor.counter"]}
           />
         </div>
+        {variantsOpen && (
+          <div className="ge-variants-panel">
+            {placeholders.length === 0 ? (
+              <p className="ge-variants-hint ge-variants-hint--warn">
+                {anonymousPlaceholder
+                  ? t["editor.variantsAnonymous"]
+                  : t["editor.variantsNoPlaceholder"]}
+              </p>
+            ) : (
+              <>
+                {variants.map((v, vi) => (
+                  <div key={vi} className="ge-variant-row">
+                    {placeholders.map((p) => (
+                      <input
+                        key={p.key}
+                        className="ge-variant-value"
+                        type="text"
+                        value={v.values[p.key] ?? ""}
+                        placeholder={p.key}
+                        title={p.key}
+                        onChange={(e) => {
+                          const values = { ...(v.values ?? {}) };
+                          values[p.key] = e.target.value;
+                          setVariant(vi, { values });
+                        }}
+                      />
+                    ))}
+                    <input
+                      className="ge-variant-num"
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={v.difficulty ?? ""}
+                      placeholder={t["editor.difficulty"]}
+                      title={t["editor.difficulty"]}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          setVariant(vi, { difficulty: undefined });
+                          return;
+                        }
+                        const n = parseInt(raw, 10);
+                        if (isNaN(n) || n < 1 || n > 5) return;
+                        setVariant(vi, { difficulty: n });
+                      }}
+                    />
+                    <input
+                      className="ge-variant-num"
+                      type="number"
+                      min={0}
+                      value={v.counter ?? ""}
+                      placeholder={t["editor.counter"]}
+                      title={t["editor.counter"]}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          setVariant(vi, { counter: undefined });
+                          return;
+                        }
+                        const n = parseInt(raw, 10);
+                        if (isNaN(n) || n < 0) return;
+                        setVariant(vi, { counter: n });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="ge-variant-remove"
+                      onClick={() => removeVariant(vi)}
+                      title={t["editor.variantRemove"]}
+                    >
+                      x
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="ge-add-variant-btn"
+                  onClick={addVariant}
+                >
+                  {t["editor.addVariant"]}
+                </button>
+              </>
+            )}
+          </div>
+        )}
         <div className="ge-item-meta">
           <textarea
             className="ge-item-tooltip"
             value={getGoalTooltip(goal) || ""}
             onChange={(e) => onUpdate(index, { tooltip: e.target.value })}
             placeholder={t["editor.tooltipPlaceholder"]}
+            title={t["editor.tooltipPlaceholder"]}
             rows={2}
           />
         </div>
@@ -818,7 +1063,7 @@ function GoalEditorItem({
       )}
     </div>
   );
-}
+});
 
 interface Props {
   goals: GoalItem[];
@@ -967,12 +1212,49 @@ export function GoalEditor({
       const merged: {
         text: string;
         tooltip?: string;
+        text_i18n?: Record<string, string>;
+        tooltip_i18n?: Record<string, string>;
         difficulty?: number;
         group?: string | string[];
         globalGroup?: string | string[];
         counter?: number;
         images?: ImageAttachment[];
+        variants?: VariantDef[];
       } = { ...base, ...patch };
+      // Renaming placeholders in the text must carry existing variant values
+      // (and the placeholder names in tooltip/translated templates) over to
+      // the new names, otherwise variant data silently disappears.
+      if (patch.text !== undefined && patch.text !== base.text) {
+        const renameMap = getPlaceholderRenameMap(base.text, patch.text);
+        if (renameMap.size > 0) {
+          if (merged.variants && merged.variants.length > 0) {
+            merged.variants = remapVariantValues(
+              merged.variants,
+              base.text,
+              patch.text,
+            );
+          }
+          merged.tooltip = merged.tooltip
+            ? renameTemplateTokens(merged.tooltip, renameMap)
+            : undefined;
+          if (merged.text_i18n) {
+            merged.text_i18n = Object.fromEntries(
+              Object.entries(merged.text_i18n).map(([lang, tpl]) => [
+                lang,
+                renameTemplateTokens(tpl, renameMap),
+              ]),
+            );
+          }
+          if (merged.tooltip_i18n) {
+            merged.tooltip_i18n = Object.fromEntries(
+              Object.entries(merged.tooltip_i18n).map(([lang, tpl]) => [
+                lang,
+                renameTemplateTokens(tpl, renameMap),
+              ]),
+            );
+          }
+        }
+      }
       if (!merged.tooltip) delete merged.tooltip;
       if (merged.difficulty === undefined || merged.difficulty === 0)
         delete merged.difficulty;
@@ -988,13 +1270,16 @@ export function GoalEditor({
         delete merged.globalGroup;
       if (!merged.counter || merged.counter === 0) delete merged.counter;
       if (!merged.images || merged.images.length === 0) delete merged.images;
+      if (!merged.variants || merged.variants.length === 0)
+        delete merged.variants;
       if (
         !merged.tooltip &&
         merged.difficulty === undefined &&
         !merged.group &&
         !merged.globalGroup &&
         !merged.counter &&
-        !merged.images
+        !merged.images &&
+        !merged.variants
       ) {
         next[index] = merged.text;
       } else {
@@ -1005,7 +1290,7 @@ export function GoalEditor({
     [onChange],
   );
 
-  const addGoal = () => {
+  const addGoal = useCallback(() => {
     const label = t["editor.defaultGoalLabel"];
     const currentAdd = goalsRef.current;
     onChange([...currentAdd, `${label} ${currentAdd.length + 1}`]);
@@ -1013,7 +1298,7 @@ export function GoalEditor({
       if (listRef.current)
         listRef.current.scrollTop = listRef.current.scrollHeight;
     }, 50);
-  };
+  }, [onChange, t]);
 
   const removeGoal = useCallback(
     (index: number) => onChange(goalsRef.current.filter((_, i) => i !== index)),

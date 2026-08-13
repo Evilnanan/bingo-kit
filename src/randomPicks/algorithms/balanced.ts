@@ -10,8 +10,9 @@ import {
   LINES,
   lineSum,
 } from "../utils";
+import { expandVariants, getVariantGroupId } from "../variants";
 
-/* ── global scoring ───────────────────────────────────────────────── */
+/* ===================== global scoring ===================== */
 
 function boardStdDev(board: GoalItem[]): number {
   const sums = LINES.map((l) =>
@@ -21,7 +22,7 @@ function boardStdDev(board: GoalItem[]): number {
   return Math.sqrt(sums.reduce((a, b) => a + (b - mean) ** 2, 0) / sums.length);
 }
 
-/* ── swap constraint check ────────────────────────────────────────── */
+/* ===================== swap constraint check ===================== */
 
 function canSwap(board: GoalItem[], a: number, b: number): boolean {
   const aGroups = getExcl(board[a]);
@@ -49,7 +50,7 @@ function canSwap(board: GoalItem[], a: number, b: number): boolean {
   return true;
 }
 
-/* ── swap optimization ────────────────────────────────────────────── */
+/* ===================== swap optimization ===================== */
 
 function optimizeSwaps(
   board: GoalItem[],
@@ -69,8 +70,8 @@ function optimizeSwaps(
         li,
         sum: l.reduce((s, i) => s + getDifficulty(board[i]), 0),
       }));
-      const hi = sums.reduce((a, b) => (a.sum > b.sum ? a : b));
-      const lo = sums.reduce((a, b) => (a.sum < b.sum ? a : b));
+      const hi = sums.reduce((x, y) => (x.sum > y.sum ? x : y));
+      const lo = sums.reduce((x, y) => (x.sum < y.sum ? x : y));
       a = LINES[hi.li][Math.floor(Math.random() * 5)];
       b = LINES[lo.li][Math.floor(Math.random() * 5)];
     } else {
@@ -95,7 +96,7 @@ function optimizeSwaps(
   }
 }
 
-/* ── greedy fill ──────────────────────────────────────────────────── */
+/* ===================== greedy fill ===================== */
 
 function greedyFill(
   candidates: GoalItem[],
@@ -104,6 +105,7 @@ function greedyFill(
   const board: (GoalItem | null)[] = Array(25).fill(null);
   const used = new Set<number>();
   const usedGlobal = new Set<string>();
+  const usedVariants = new Set<string>();
 
   // Place hardest in center
   if (config.centerHardest) {
@@ -112,7 +114,10 @@ function greedyFill(
     const hardest: { g: GoalItem; i: number }[] = [];
     for (let i = 0; i < candidates.length; i++) {
       if (used.has(i)) continue;
-      if (!canPlace(candidates[i], 12, board, usedGlobal)) continue;
+      const vg = getVariantGroupId(candidates[i]);
+      if (vg && usedVariants.has(vg)) continue;
+      if (!canPlace(candidates[i], 12, board, usedGlobal, usedVariants))
+        continue;
       const d = getDifficulty(candidates[i]);
       if (d > maxD) {
         maxD = d;
@@ -124,6 +129,8 @@ function greedyFill(
       const pick = hardest[Math.floor(Math.random() * hardest.length)];
       board[12] = pick.g;
       used.add(pick.i);
+      const vg = getVariantGroupId(pick.g);
+      if (vg) usedVariants.add(vg);
       for (const ggg of getGlobalExcl(pick.g)) usedGlobal.add(ggg);
     }
   }
@@ -136,9 +143,12 @@ function greedyFill(
     const sample = shuffle(
       candidates
         .map((g, i) => ({ g, i }))
-        .filter(
-          ({ i, g }) => !used.has(i) && canPlace(g, pos, board, usedGlobal),
-        ),
+        .filter(({ i, g }) => {
+          if (used.has(i)) return false;
+          const vg = getVariantGroupId(g);
+          if (vg && usedVariants.has(vg)) return false;
+          return canPlace(g, pos, board, usedGlobal, usedVariants);
+        }),
     ).slice(0, 15);
 
     let best: { g: GoalItem; idx: number; var: number } | null = null;
@@ -155,14 +165,21 @@ function greedyFill(
     if (best) {
       board[pos] = best.g;
       used.add(best.idx);
+      const vg = getVariantGroupId(best.g);
+      if (vg) usedVariants.add(vg);
       for (const ggg of getGlobalExcl(best.g)) usedGlobal.add(ggg);
     } else {
-      const fallback = candidates.find(
-        (g, i) => !used.has(i) && canPlace(g, pos, board, usedGlobal),
-      );
+      const fallback = candidates.find((g, i) => {
+        if (used.has(i)) return false;
+        const vg = getVariantGroupId(g);
+        if (vg && usedVariants.has(vg)) return false;
+        return canPlace(g, pos, board, usedGlobal, usedVariants);
+      });
       if (fallback) {
         board[pos] = fallback;
         used.add(candidates.indexOf(fallback));
+        const vg = getVariantGroupId(fallback);
+        if (vg) usedVariants.add(vg);
         for (const ggg of getGlobalExcl(fallback)) usedGlobal.add(ggg);
       }
     }
@@ -171,10 +188,16 @@ function greedyFill(
   // Fill remaining nulls
   for (let i = 0; i < 25; i++) {
     if (board[i] === null) {
-      const fill = candidates.find((_g, j) => !used.has(j));
+      const fill = candidates.find((g, j) => {
+        if (used.has(j)) return false;
+        const vg = getVariantGroupId(g);
+        return !(vg && usedVariants.has(vg));
+      });
       if (fill) {
         board[i] = fill;
         used.add(candidates.indexOf(fill));
+        const vg = getVariantGroupId(fill);
+        if (vg) usedVariants.add(vg);
       }
     }
   }
@@ -182,17 +205,18 @@ function greedyFill(
   return board.filter((g): g is GoalItem => g !== null);
 }
 
-/* ── public API ───────────────────────────────────────────────────── */
+/* ===================== public API ===================== */
 
 export function balancedDifficulty(
   pool: GoalItem[],
   config: BalancedConfig,
 ): GoalItem[] {
-  let candidates = pool.filter((g) => {
+  const expanded = expandVariants(pool);
+  let candidates = expanded.filter((g) => {
     const d = getDifficulty(g);
     return d >= config.minDifficulty && d <= config.maxDifficulty;
   });
-  if (candidates.length < 25) candidates = [...pool];
+  if (candidates.length < 25) candidates = [...expanded];
   if (candidates.length < 25) {
     throw new Error(`任务池不足（${candidates.length} < 25），无法生成棋盘`);
   }

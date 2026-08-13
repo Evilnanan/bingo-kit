@@ -10,8 +10,9 @@ import {
   LINES,
   POSITION_LINES,
 } from "../utils";
+import { expandVariants, getVariantGroupId } from "../variants";
 
-/* ── grid layout ──────────────────────────────────────────────────── */
+/* ===================== grid layout ===================== */
 
 function buildSequenceGridFormula(pattern: number[]): number[][] {
   const grid: number[][] = [];
@@ -91,7 +92,7 @@ function buildSequenceGrid(pattern: number[]): {
   return { grid: result, attempts };
 }
 
-/* ── backtracking goal assignment ─────────────────────────────────── */
+/* ===================== backtracking goal assignment ===================== */
 
 function fillByBacktrack(
   pool: GoalItem[],
@@ -126,6 +127,7 @@ function fillByBacktrack(
     const board: (GoalItem | null)[] = Array(25).fill(null);
     const used = new Set<number>();
     const usedGlobal = new Set<string>();
+    const usedVariants = new Set<string>();
     const relaxed = new Set<number>();
     const positions = shuffle(Array.from({ length: 25 }, (_, i) => i));
     const stack: { pos: number; g: GoalItem; idx: number }[] = [];
@@ -133,6 +135,8 @@ function fillByBacktrack(
     function place(pos: number, g: GoalItem, idx: number) {
       board[pos] = g;
       used.add(idx);
+      const vg = getVariantGroupId(g);
+      if (vg) usedVariants.add(vg);
       for (const gg of getGlobalExcl(g)) usedGlobal.add(gg);
       stack.push({ pos, g, idx });
     }
@@ -141,19 +145,24 @@ function fillByBacktrack(
       const last = stack.pop()!;
       board[last.pos] = null;
       used.delete(last.idx);
+      const vg = getVariantGroupId(last.g);
+      if (vg) usedVariants.delete(vg);
       for (const gg of getGlobalExcl(last.g)) usedGlobal.delete(gg);
     }
 
     function tempState(ignoreCount: number) {
       const tBoard: (GoalItem | null)[] = Array(25).fill(null);
       const tGlobal = new Set<string>();
+      const tVariants = new Set<string>();
       const limit = stack.length - ignoreCount;
       for (let j = 0; j < limit; j++) {
         const p = stack[j];
         tBoard[p.pos] = p.g;
         for (const gg of getGlobalExcl(p.g)) tGlobal.add(gg);
+        const vg = getVariantGroupId(p.g);
+        if (vg) tVariants.add(vg);
       }
-      return { tBoard, tGlobal };
+      return { tBoard, tGlobal, tVariants };
     }
 
     function canPlaceTemp(
@@ -161,7 +170,10 @@ function fillByBacktrack(
       pos: number,
       tBoard: (GoalItem | null)[],
       tGlobal: Set<string>,
+      tVariants: Set<string>,
     ): boolean {
+      const vg = getVariantGroupId(g);
+      if (vg && tVariants.has(vg)) return false;
       for (const gg of getGlobalExcl(g)) {
         if (tGlobal.has(gg)) return false;
       }
@@ -182,7 +194,7 @@ function fillByBacktrack(
       target: number,
       ignoreCount: number,
     ): { candidates: { g: GoalItem; idx: number }[]; range: number } | null {
-      const { tBoard, tGlobal } = tempState(ignoreCount);
+      const { tBoard, tGlobal, tVariants } = tempState(ignoreCount);
       const freedIndices = new Set<number>();
       if (ignoreCount > 0) {
         for (let j = stack.length - ignoreCount; j < stack.length; j++) {
@@ -211,7 +223,7 @@ function fillByBacktrack(
       if (diffCandidates === null) return null;
 
       const valid = diffCandidates.filter(({ g }) =>
-        canPlaceTemp(g, pos, tBoard, tGlobal),
+        canPlaceTemp(g, pos, tBoard, tGlobal, tVariants),
       );
       return { candidates: valid, range: usedRange };
     }
@@ -292,7 +304,7 @@ function fillByBacktrack(
   return { diag };
 }
 
-/* ── greedy fallback ──────────────────────────────────────────────── */
+/* ===================== greedy fallback ===================== */
 
 function fillGreedy(
   pool: GoalItem[],
@@ -302,6 +314,7 @@ function fillGreedy(
     const board: (GoalItem | null)[] = Array(25).fill(null);
     const used = new Set<number>();
     const usedGlobal = new Set<string>();
+    const usedVariants = new Set<string>();
     const relaxed: number[] = [];
 
     const flatPositions = shuffle(Array.from({ length: 25 }, (_, i) => i));
@@ -311,30 +324,52 @@ function fillGreedy(
 
       const candidates = pool
         .map((g, i) => ({ g, i }))
-        .filter(({ i }) => !used.has(i))
-        .filter(({ g }) => getDifficulty(g) === target)
+        .filter(({ i, g }) => {
+          if (used.has(i)) return false;
+          const vg = getVariantGroupId(g);
+          if (vg && usedVariants.has(vg)) return false;
+          return getDifficulty(g) === target;
+        })
         .filter(({ g }) =>
-          canPlace(g, pos, board, strictGlobal ? usedGlobal : new Set()),
+          canPlace(
+            g,
+            pos,
+            board,
+            strictGlobal ? usedGlobal : new Set(),
+            usedVariants,
+          ),
         );
 
       if (candidates.length > 0) {
         const pick = candidates[Math.floor(Math.random() * candidates.length)];
         board[pos] = pick.g;
         used.add(pick.i);
+        const vg = getVariantGroupId(pick.g);
+        if (vg) usedVariants.add(vg);
         const gg = getGlobalExcl(pick.g);
         for (const ggg of gg) usedGlobal.add(ggg);
       } else {
         relaxed.push(pos);
         const fallback = pool
           .map((g, i) => ({ g, i }))
-          .filter(({ i }) => !used.has(i))
-          .filter(({ g }) =>
-            canPlace(g, pos, board, strictGlobal ? usedGlobal : new Set()),
-          );
+          .filter(({ i, g }) => {
+            if (used.has(i)) return false;
+            const vg = getVariantGroupId(g);
+            if (vg && usedVariants.has(vg)) return false;
+            return canPlace(
+              g,
+              pos,
+              board,
+              strictGlobal ? usedGlobal : new Set(),
+              usedVariants,
+            );
+          });
         if (fallback.length > 0) {
           const pick = fallback[Math.floor(Math.random() * fallback.length)];
           board[pos] = pick.g;
           used.add(pick.i);
+          const vg = getVariantGroupId(pick.g);
+          if (vg) usedVariants.add(vg);
           const gg = getGlobalExcl(pick.g);
           for (const ggg of gg) usedGlobal.add(ggg);
         }
@@ -344,14 +379,23 @@ function fillGreedy(
     for (let i = 0; i < 25; i++) {
       if (!board[i]) {
         relaxed.push(i);
-        const fallback = pool.find(
-          (g, j) =>
-            !used.has(j) &&
-            canPlace(g, i, board, strictGlobal ? usedGlobal : new Set()),
-        );
+        const fallback = pool.find((g, j) => {
+          if (used.has(j)) return false;
+          const vg = getVariantGroupId(g);
+          if (vg && usedVariants.has(vg)) return false;
+          return canPlace(
+            g,
+            i,
+            board,
+            strictGlobal ? usedGlobal : new Set(),
+            usedVariants,
+          );
+        });
         if (fallback) {
           board[i] = fallback;
           used.add(pool.indexOf(fallback));
+          const vg = getVariantGroupId(fallback);
+          if (vg) usedVariants.add(vg);
           const gg = getGlobalExcl(fallback);
           for (const ggg of gg) usedGlobal.add(ggg);
         }
@@ -364,20 +408,24 @@ function fillGreedy(
 
   const board: GoalItem[] = [];
   const used = new Set<number>();
+  const usedVariants = new Set<string>();
   for (const g of shuffle(pool)) {
     const i = pool.indexOf(g);
-    if (!used.has(i)) {
-      used.add(i);
-      board.push(g);
-    }
+    if (used.has(i)) continue;
+    const vg = getVariantGroupId(g);
+    if (vg && usedVariants.has(vg)) continue;
+    used.add(i);
+    if (vg) usedVariants.add(vg);
+    board.push(g);
     if (board.length === 25) break;
   }
   return { board, relaxed: [] };
 }
 
-/* ── public API ───────────────────────────────────────────────────── */
+/* ===================== public API ===================== */
 
 export function pattern(pool: GoalItem[], pattern: number[]): PatternResult {
+  const expanded = expandVariants(pool);
   const { grid: resultGrid, attempts: gridAttempts } =
     buildSequenceGrid(pattern);
   let grid: number[][];
@@ -389,7 +437,7 @@ export function pattern(pool: GoalItem[], pattern: number[]): PatternResult {
     usedFormulaFallback = true;
   }
 
-  const btResult = fillByBacktrack(pool, grid);
+  const btResult = fillByBacktrack(expanded, grid);
 
   if ("board" in btResult) {
     return {
@@ -403,7 +451,7 @@ export function pattern(pool: GoalItem[], pattern: number[]): PatternResult {
     };
   }
 
-  const greedy = fillGreedy(pool, grid);
+  const greedy = fillGreedy(expanded, grid);
   return {
     board: greedy.board,
     gridAttempts,
