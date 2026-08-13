@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { ChatMessage, PlayerNote } from "../types";
+import type { ChatMessage, GoalItem, PlayerNote } from "../types";
 import { useT } from "../i18n/useT";
 import { NotesPanel } from "./NotesPanel";
 import "./ChatPanel.css";
@@ -11,10 +11,23 @@ interface Props {
   onAddNote: (text: string, todo: boolean) => void;
   onUpdateNote: (
     id: string,
-    patch: { text?: string; todo?: boolean; done?: boolean },
+    patch: {
+      text?: string;
+      todo?: boolean;
+      done?: boolean;
+      linkedCells?: number[] | null;
+    },
   ) => void;
   onDeleteNote: (id: string) => void;
   onReorderNotes: (ids: string[]) => void;
+  /** Todo currently being linked to board cells (null = not linking). */
+  linkingNoteId: string | null;
+  onStartLinking: (noteId: string) => void;
+  onStopLinking: () => void;
+  /** Whether board cells can be picked right now (board visible & playing). */
+  linkingEnabled: boolean;
+  /** Board goals used to display linked cell text. */
+  goals: GoalItem[];
   tab: "chat" | "notes";
   onTabChange: (tab: "chat" | "notes") => void;
   /** Unread-chat flag shared with same-name devices. */
@@ -29,6 +42,11 @@ export function ChatPanel({
   onUpdateNote,
   onDeleteNote,
   onReorderNotes,
+  linkingNoteId,
+  onStartLinking,
+  onStopLinking,
+  linkingEnabled,
+  goals,
   tab,
   onTabChange,
   unreadChat,
@@ -109,6 +127,11 @@ export function ChatPanel({
           onUpdateNote={onUpdateNote}
           onDeleteNote={onDeleteNote}
           onReorderNotes={onReorderNotes}
+          linkingNoteId={linkingNoteId}
+          onStartLinking={onStartLinking}
+          onStopLinking={onStopLinking}
+          linkingEnabled={linkingEnabled}
+          goals={goals}
         />
       )}
     </div>

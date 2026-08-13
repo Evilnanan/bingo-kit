@@ -17,6 +17,14 @@ import "./BingoBoard.css";
 /** Minimum midline ratio for a player in a multi-mark cell. */
 const MIN_SEGMENT_RATIO = 0.2;
 
+/** Inert long-press alt used while linking cells (no star toggle). */
+const NOOP_ALT = {
+  start: () => {},
+  cancel: () => {},
+  tryAlt: () => {},
+  consumed: () => false,
+} as const;
+
 interface Props {
   goals: GoalItem[];
   marks: Record<number, MarkEntry[]>;
@@ -24,6 +32,11 @@ interface Props {
   players: Record<string, Player>;
   localPlayerName: string | null;
   onMarkSquare: (index: number) => void;
+  /** Todo-linking mode: cell clicks pick linked cells instead of marking. */
+  linking?: boolean;
+  /** Cells currently linked by the todo being edited (highlighted). */
+  linkedCells?: Set<number>;
+  onLinkCell?: (index: number) => void;
   /** Personal star marks (same-name devices share this). */
   stars: Set<number>;
   /** Personal counter progress (same-name devices share this). */
@@ -128,6 +141,9 @@ export function BingoBoard({
   players,
   localPlayerName,
   onMarkSquare,
+  linking = false,
+  linkedCells,
+  onLinkCell,
   stars,
   counters,
   onToggleStar,
@@ -178,7 +194,7 @@ export function BingoBoard({
     : undefined;
 
   return (
-    <div className="board" ref={boardRef}>
+    <div className={`board${linking ? " board--linking" : ""}`} ref={boardRef}>
       {goals.map((goalItem, i) => {
         const markerEntries = marks[i] || [];
         const cellScoresForCell = cellScores[i];
@@ -228,9 +244,13 @@ export function BingoBoard({
             hideCounter={settings.hideCounters}
             hideTooltip={settings.hideTooltips}
             hideStar={settings.hideStars}
+            isLinked={linking ? (linkedCells?.has(i) ?? false) : false}
+            widgetsDisabled={linking}
             userFontScale={settings.fontScale}
             widgetScale={widgetScale}
-            {...makeCellEventHandlers(markAlt, onMarkSquare, i)}
+            {...(linking
+              ? makeCellEventHandlers(NOOP_ALT, onLinkCell ?? (() => {}), i)
+              : makeCellEventHandlers(markAlt, onMarkSquare, i))}
           />
         );
       })}

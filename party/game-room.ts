@@ -33,6 +33,24 @@ export const TEAM_COLORS = { red: "#dc2626", blue: "#2563eb" } as const;
  */
 export const RECONNECT_GRACE_MS = 300_000;
 
+/**
+ * Validate a todo's linkedCells payload: keep non-negative integers only,
+ * de-duplicate, and drop the field entirely when empty.
+ */
+function sanitizeLinkedCells(value: unknown): { linkedCells?: number[] } {
+  if (!Array.isArray(value)) return {};
+  const cells = Array.from(
+    new Set(
+      value.filter(
+        (v): v is number =>
+          typeof v === "number" && Number.isInteger(v) && v >= 0,
+      ),
+    ),
+  );
+  if (cells.length === 0) return {};
+  return { linkedCells: cells };
+}
+
 // ============================================================
 // Data types
 // ============================================================
@@ -59,6 +77,9 @@ export interface PlayerNote {
   todo: boolean;
   /** Completion state for todo notes. */
   done: boolean;
+  /** Board cell indices linked to this todo. Checking/unchecking the todo
+   *  triggers a mark/unmark on these cells (todo acts as a trigger only). */
+  linkedCells?: number[];
 }
 
 /** A stored chat message, timestamped by the server when it arrives. */
@@ -138,6 +159,8 @@ export type ClientMsg =
       text?: string;
       todo?: boolean;
       done?: boolean;
+      /** Board cell indices to link. null or [] clears the link. */
+      linkedCells?: number[] | null;
     }
   | { type: "delete_note"; name: string; id: string }
   | { type: "reorder_notes"; name: string; ids: string[] };
@@ -879,6 +902,7 @@ export class GameRoom {
           text: note.text,
           todo: note.todo === true,
           done: note.done === true,
+          ...sanitizeLinkedCells(note.linkedCells),
         };
         list.push(clean);
         this.sendToSameName(
@@ -903,6 +927,11 @@ export class GameRoom {
           ...(msg.todo !== undefined ? { todo: msg.todo } : {}),
           ...(msg.done !== undefined ? { done: msg.done } : {}),
         };
+        if (msg.linkedCells !== undefined) {
+          const linked = sanitizeLinkedCells(msg.linkedCells);
+          if (linked.linkedCells) updated.linkedCells = linked.linkedCells;
+          else delete updated.linkedCells;
+        }
         list[idx] = updated;
         this.sendToSameName(
           playerName,

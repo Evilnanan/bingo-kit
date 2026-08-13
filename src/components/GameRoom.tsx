@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useGameState } from "../hooks/useGameState";
 import { useScoring } from "../scoring/useScoring";
 import { useT } from "../i18n/useT";
@@ -123,6 +123,44 @@ export function GameRoom({
   const isOwner =
     state.localPlayerName != null && state.localPlayerName === state.owner;
 
+  // Todo -> board linking: while linkingNoteId is set, board clicks select
+  // (or toggle) linked cells instead of marking them.
+  const [linkingNoteIdRaw, setLinkingNoteIdRaw] = useState<string | null>(null);
+  // Linking is only valid while the board is visible and the note still
+  // exists (e.g. after a restart or a note deletion it silently exits).
+  const linkingNoteId =
+    linkingNoteIdRaw != null &&
+    showBoard &&
+    notes.some((n) => n.id === linkingNoteIdRaw)
+      ? linkingNoteIdRaw
+      : null;
+  const linkingNote = linkingNoteId
+    ? (notes.find((n) => n.id === linkingNoteId) ?? null)
+    : null;
+  const linkedCells = new Set(linkingNote?.linkedCells ?? []);
+
+  const handleStartLinking = (noteId: string) => setLinkingNoteIdRaw(noteId);
+  const handleStopLinking = () => setLinkingNoteIdRaw(null);
+
+  const handleLinkCell = (index: number) => {
+    if (!linkingNote) return;
+    const current = linkingNote.linkedCells ?? [];
+    const next = current.includes(index)
+      ? current.filter((i) => i !== index)
+      : [...current, index];
+    updateNote(linkingNote.id, { linkedCells: next });
+  };
+
+  // Esc exits linking mode.
+  useEffect(() => {
+    if (!linkingNoteId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleStopLinking();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [linkingNoteId]);
+
   // Classic board data (server config wins once it arrives).
   const classicGoals =
     (state.config as BoardConfig | null)?.goals ?? boardConfig.goals;
@@ -192,6 +230,9 @@ export function GameRoom({
                   players={state.players}
                   localPlayerName={state.localPlayerName}
                   onMarkCell={markCell}
+                  linking={linkingNoteId != null}
+                  linkedCells={linkedCells}
+                  onLinkCell={handleLinkCell}
                   stars={stars}
                   counters={counters}
                   onToggleStar={toggleStar}
@@ -210,6 +251,9 @@ export function GameRoom({
                 players={state.players}
                 localPlayerName={state.localPlayerName}
                 onMarkSquare={markSquare}
+                linking={linkingNoteId != null}
+                linkedCells={linkedCells}
+                onLinkCell={handleLinkCell}
                 stars={stars}
                 counters={counters}
                 onToggleStar={toggleStar}
@@ -252,6 +296,11 @@ export function GameRoom({
               onUpdateNote={updateNote}
               onDeleteNote={deleteNote}
               onReorderNotes={reorderNotes}
+              linkingNoteId={linkingNoteId}
+              onStartLinking={handleStartLinking}
+              onStopLinking={handleStopLinking}
+              linkingEnabled={showBoard}
+              goals={isHex ? hexGoals : classicGoals}
               tab={chatTab}
               onTabChange={handleTabChange}
               unreadChat={unreadChat}

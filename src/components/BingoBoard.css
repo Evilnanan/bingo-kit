@@ -14,3 +14,16 @@
     gap: clamp(2px, 0.8vw, 4px);
   }
 }
+
+/* ---- Todo-linking mode ---- */
+
+/* Every cell gets a subtle accent ring so the board reads as "pick a cell";
+   linked cells keep the stronger dashed outline below. */
+.board--linking .square {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.square--linked {
+  outline: 3px dashed var(--accent);
+  outline-offset: -3px;
+}

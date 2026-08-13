@@ -17,6 +17,9 @@ export interface PlayerNote {
   todo: boolean;
   /** Completion state for todo notes. */
   done: boolean;
+  /** Board cell indices linked to this todo. Checking/unchecking the todo
+   *  triggers a mark/unmark on these cells (todo acts as a trigger only). */
+  linkedCells?: number[];
 }
 
 export interface ImageAttachment {
@@ -55,10 +58,10 @@ export type GoalItem =
       globalGroup?: string | string[];
       counter?: number;
       images?: ImageAttachment[];
-      /** Task variants - when present, the text uses named `{name}`
+      /** Goal variants - when present, the text uses named `{name}`
        *  placeholders and each variant fills them with its own values. */
       variants?: VariantDef[];
-      /** Internal: shared id for expanded variants of one task, used only to
+      /** Internal: shared id for expanded variants of one goal, used only to
        *  keep variants mutually exclusive during picking. Never persisted. */
       variantGroup?: string;
     };
@@ -201,7 +204,7 @@ export interface BoardConfig {
   goals: GoalItem[];
   lockout?: boolean;
   scoringRule?: import("../scoring/types").ScoringRule;
-  /** Task pool metadata (name / description / images) shown in the room. */
+  /** Goal pool metadata (name / description / images) shown in the room. */
   metadata?: PoolMetadata;
   /** Full goal pool before random pick — preserved for restart (client-side only, not sent to server). */
   originalPool?: GoalItem[];
@@ -453,6 +456,8 @@ export type ClientMessage =
       text?: string;
       todo?: boolean;
       done?: boolean;
+      /** Board cell indices to link. null or [] clears the link. */
+      linkedCells?: number[] | null;
     }
   | { type: "delete_note"; name: string; id: string }
   | { type: "reorder_notes"; name: string; ids: string[] };

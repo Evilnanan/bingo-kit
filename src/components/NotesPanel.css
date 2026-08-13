@@ -63,13 +63,6 @@
   cursor: grab;
 }
 
-.note--expanded .note-drag {
-  /* When a note is expanded (tall row), pin the icon to the first line
-     instead of floating in the middle of the textarea. */
-  align-items: flex-start;
-  padding-top: 8px;
-}
-
 .note-drag-icon {
   display: block;
 }
@@ -233,4 +226,56 @@
 
 .notes-add:hover {
   background: var(--accent-hover);
+}
+
+/* ---- Todo -> board linking ---- */
+
+.notes-linking-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  margin: 8px 10px 0;
+  background: var(--accent-focus);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.notes-linking-done {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.note--linking {
+  border-color: var(--accent);
+}
+
+.note-linked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.note-linked-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.note-linked-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

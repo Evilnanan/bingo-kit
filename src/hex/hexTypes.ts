@@ -7,7 +7,7 @@ export interface HexConfig {
   sizeBlue: number;
   sizeRed: number;
   goals: GoalItem[];
-  /** Task pool metadata (name / description / images) shown in the room. */
+  /** Goal pool metadata (name / description / images) shown in the room. */
   metadata?: import("../types").PoolMetadata;
   /** Full goal pool before random pick — preserved for restart (client-side only, not sent to server). */
   originalPool?: GoalItem[];

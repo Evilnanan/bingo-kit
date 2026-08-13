@@ -47,6 +47,11 @@ export interface Translations {
   "notes.save": string;
   "notes.cancel": string;
   "notes.drag": string;
+  "notes.linkGoals": string;
+  "notes.linkingHint": string;
+  "notes.exitLinking": string;
+  "notes.linkedPrefix": string;
+  "notes.cell": string;
   // JSON import
   "editor.jsonParseError": string;
   "editor.jsonNotArray": string;

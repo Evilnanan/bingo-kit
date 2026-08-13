@@ -41,6 +41,10 @@ interface Props {
   hideCounter?: boolean;
   hideTooltip?: boolean;
   hideStar?: boolean;
+  /** True while the board is in todo-linking mode and this cell is linked. */
+  isLinked?: boolean;
+  /** When true (linking mode), counter/tooltip widgets don't capture clicks. */
+  widgetsDisabled?: boolean;
   /** User-controlled font scale from settings panel (multiplies with CSS variable). */
   userFontScale?: number;
   /** Uniform widget scale derived from board size — drives counter/tooltip/star sizes. */
@@ -67,6 +71,8 @@ export function BingoSquare({
   hideCounter = false,
   hideTooltip = false,
   hideStar = false,
+  isLinked = false,
+  widgetsDisabled = false,
   userFontScale = 1,
   widgetScale = 1,
   onClick,
@@ -83,6 +89,7 @@ export function BingoSquare({
     hasMarks ? "square--marked" : "",
     isSingle ? "square--single-mark" : "",
     isMulti ? "square--multi-mark" : "",
+    isLinked ? "square--linked" : "",
     difficulty && difficulty >= 2 ? `square--diff-${difficulty}` : "",
   ]
     .filter(Boolean)
@@ -189,7 +196,12 @@ export function BingoSquare({
 
       {isStarMarked && !hideStar && <span className="star" />}
 
-      {counter > 0 && !hideCounter && (
+      {counter > 0 && !hideCounter && widgetsDisabled && (
+        <span className="counter">
+          {counterValue}/{counter}
+        </span>
+      )}
+      {counter > 0 && !hideCounter && !widgetsDisabled && (
         <span
           className="counter"
           onClick={(e) => {

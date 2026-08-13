@@ -17,12 +17,25 @@ import "./HexBoard.css";
 import type { HexConfig } from "../hex/hexTypes";
 import { checkWin, indexToAxial } from "../hex/hexUtils";
 
+/** Inert long-press alt used while linking cells (no star toggle). */
+const NOOP_ALT = {
+  start: () => {},
+  cancel: () => {},
+  tryAlt: () => {},
+  consumed: () => false,
+} as const;
+
 interface Props {
   config: HexConfig;
   marks: Record<number, MarkEntry[]>;
   players: Record<string, Player>;
   localPlayerName: string | null;
   onMarkCell: (index: number) => void;
+  /** Todo-linking mode: cell clicks pick linked cells instead of marking. */
+  linking?: boolean;
+  /** Cells currently linked by the todo being edited (highlighted). */
+  linkedCells?: Set<number>;
+  onLinkCell?: (index: number) => void;
   /** Personal star marks (same-name devices share this). */
   stars: Set<number>;
   /** Personal counter progress (same-name devices share this). */
@@ -39,6 +52,9 @@ export function HexBoard({
   players,
   localPlayerName,
   onMarkCell,
+  linking = false,
+  linkedCells,
+  onLinkCell,
   stars,
   counters,
   onToggleStar,
@@ -313,7 +329,7 @@ export function HexBoard({
   return (
     <div className="hex-board-wrapper" ref={wrapperRef}>
       <div
-        className="hex-board"
+        className={`hex-board${linking ? " hex-board--linking" : ""}`}
         style={
           {
             width: boardW,
@@ -351,13 +367,39 @@ export function HexBoard({
                 width: hexW,
                 height: hexH,
               }}
-              {...makeCellEventHandlers(starMarkAlt, onMarkCell, cell.idx)}
-              onTouchMove={starMarkAlt.cancel}
-              onTouchCancel={starMarkAlt.cancel}
+              {...(linking
+                ? makeCellEventHandlers(
+                    NOOP_ALT,
+                    onLinkCell ?? (() => {}),
+                    cell.idx,
+                  )
+                : makeCellEventHandlers(starMarkAlt, onMarkCell, cell.idx))}
+              onTouchMove={linking ? NOOP_ALT.cancel : starMarkAlt.cancel}
+              onTouchCancel={linking ? NOOP_ALT.cancel : starMarkAlt.cancel}
               title={cell.goal}
             >
               <span className="bg" />
               <span className="fill" />
+              {linking && (
+                <span
+                  className={`hex-link-icon${
+                    linkedCells?.has(cell.idx) ? " hex-link-icon--linked" : ""
+                  }`}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                </span>
+              )}
               <span className="content">
                 {stars.has(cell.idx) && !settings.hideStars && (
                   <span className="star" />
@@ -390,7 +432,16 @@ export function HexBoard({
                   )}
               </span>
               {!settings.hideCounters &&
-                getGoalCounter(config.goals[cell.idx]) > 0 && (
+                getGoalCounter(config.goals[cell.idx]) > 0 &&
+                linking && (
+                  <span className="counter">
+                    {counters[cell.idx] ?? 0}/
+                    {getGoalCounter(config.goals[cell.idx])}
+                  </span>
+                )}
+              {!settings.hideCounters &&
+                getGoalCounter(config.goals[cell.idx]) > 0 &&
+                !linking && (
                   <span
                     className="counter"
                     onClick={(e) => {

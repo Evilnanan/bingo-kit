@@ -73,6 +73,64 @@
   background: var(--border);
 }
 
+/* ---- Todo-linking mode ---- */
+
+/* A floating link icon inside every cell while picking a linked cell;
+   linked cells render it in the accent color. */
+.hex-board--linking .hex-link-icon {
+  position: absolute;
+  top: 6%;
+  left: 32%;
+  transform: translateX(-50%);
+  width: 28%;
+  height: 28%;
+  z-index: 3;
+  pointer-events: none;
+  color: color-mix(in srgb, var(--accent) 45%, transparent);
+  transition:
+    color 0.15s,
+    transform 0.15s;
+}
+
+.hex-board--linking .hex-link-icon svg {
+  width: 100%;
+  height: 100%;
+  animation: hex-link-sway 0.5s ease-in-out infinite;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.25));
+}
+
+.hex-board--linking .hex-link-icon--linked {
+  color: var(--accent);
+}
+
+.hex-board--linking .hex:hover .hex-link-icon {
+  color: var(--accent);
+  transform: translateX(-50%) scale(1.18);
+}
+
+.hex-board--linking .hex:hover .hex-link-icon svg {
+  filter: drop-shadow(
+    0 0 5px color-mix(in srgb, var(--accent) 70%, transparent)
+  );
+}
+
+.hex-board--linking .hex-link-icon--linked svg {
+  width: 115%;
+  height: 115%;
+  /* Linked cells are settled: no more swaying. */
+  animation: none;
+}
+
+@keyframes hex-link-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
 /* Outer layer: border color, no gap for tight tiling */
 .hex .bg {
   position: absolute;
@@ -188,7 +246,18 @@
   width: calc(var(--hex-font) * 1.4);
   height: calc(var(--hex-font) * 1.4);
   background: #fbbf24;
-  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  clip-path: polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
   z-index: 2;
   pointer-events: none;
   filter: drop-shadow(0 0 2px #f59e0b88);

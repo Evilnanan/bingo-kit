@@ -922,6 +922,78 @@ export function useGameState(
     }
   }
 
+  /** Number of cells on the current board (used to bound todo-linked indices). */
+  function boardCellCount(): number {
+    const current = stateRef.current;
+    if (current.mode === "hex") {
+      const cfg = current.config as HexConfig | null;
+      const sizeBlue = cfg?.sizeBlue ?? (initialConfig as HexConfig).sizeBlue;
+      const sizeRed = cfg?.sizeRed ?? (initialConfig as HexConfig).sizeRed;
+      return sizeBlue * sizeRed;
+    }
+    const cfg = current.config as BoardConfig | null;
+    return cfg?.goals?.length ?? 25;
+  }
+
+  /**
+   * Todo-linked cell trigger: explicitly mark (lit) or unmark a cell for the
+   * local player, mirroring the guards used by manual board clicks. No-op
+   * unless the game is actually playing, so a lobby check never lights cells.
+   */
+  function applyTodoLight(index: number, lit: boolean) {
+    const ws = wsRef.current;
+    const myName = stateRef.current.localPlayerName;
+    if (!ws || !myName) return;
+    const current = stateRef.current;
+    if (current.phase !== "playing") return;
+    if (!Number.isInteger(index) || index < 0 || index >= boardCellCount())
+      return;
+    const myPlayer = current.players[myName];
+    if (!myPlayer) return;
+
+    if (current.mode === "hex") {
+      const myTeam: Team = myPlayer.color === TEAM_COLORS.red ? "red" : "blue";
+      const existingEntry = current.marks[index]?.[0];
+      if (lit) {
+        // Hex is lockout-style: a cell owned by anyone (including us) is done.
+        if (existingEntry) return;
+        ws.send(JSON.stringify({ type: "mark", index, by: myTeam }));
+        dispatch({
+          type: "ADD_MARK",
+          index,
+          by: myTeam,
+          timestamp: Date.now(),
+        });
+      } else {
+        if (!existingEntry || existingEntry.by !== myTeam) return;
+        ws.send(JSON.stringify({ type: "unmark", index, by: myTeam }));
+        dispatch({ type: "REMOVE_MARK", index, by: myTeam });
+      }
+      return;
+    }
+
+    // Classic mode
+    const myColor = myPlayer.color;
+    if (lit) {
+      if (isLockout(current)) {
+        // Lockout: only unclaimed cells can be lit by the todo.
+        if (current.marks[index]?.[0]) return;
+      } else {
+        const isMarked =
+          current.marks[index]?.some((e) => e.by === myColor) ?? false;
+        if (isMarked) return;
+      }
+      ws.send(JSON.stringify({ type: "mark", index, by: myColor }));
+      dispatch({ type: "ADD_MARK", index, by: myColor, timestamp: Date.now() });
+    } else {
+      const isMarked =
+        current.marks[index]?.some((e) => e.by === myColor) ?? false;
+      if (!isMarked) return;
+      ws.send(JSON.stringify({ type: "unmark", index, by: myColor }));
+      dispatch({ type: "REMOVE_MARK", index, by: myColor });
+    }
+  }
+
   const { changeColor, changeName, sendChat } = usePlayerCallbacks(
     wsRef,
     stateRef,
@@ -992,18 +1064,39 @@ export function useGameState(
 
   function updateNote(
     id: string,
-    patch: { text?: string; todo?: boolean; done?: boolean },
+    patch: {
+      text?: string;
+      todo?: boolean;
+      done?: boolean;
+      linkedCells?: number[] | null;
+    },
   ) {
     const ws = wsRef.current;
     const myName = stateRef.current.localPlayerName;
     if (!myName || !ws) return;
     const current = stateRef.current.notes.find((n) => n.id === id);
     if (!current) return;
-    const note: PlayerNote = { ...current, ...patch };
+    const note: PlayerNote = {
+      ...current,
+      ...(patch.text !== undefined ? { text: patch.text } : {}),
+      ...(patch.todo !== undefined ? { todo: patch.todo } : {}),
+      ...(patch.done !== undefined ? { done: patch.done } : {}),
+      // Normalize null (clear link) to an absent property locally.
+      ...(patch.linkedCells !== undefined
+        ? { linkedCells: patch.linkedCells ?? undefined }
+        : {}),
+    };
     ws.send(
       JSON.stringify({ type: "update_note", name: myName, id, ...patch }),
     );
     dispatch({ type: "UPDATE_NOTE", id, note });
+    // The todo is a pure trigger: only toggling "done" touches the board.
+    if (patch.done !== undefined && patch.done !== current.done) {
+      const cells = current.linkedCells ?? [];
+      for (const index of cells) {
+        applyTodoLight(index, patch.done);
+      }
+    }
   }
 
   function deleteNote(id: string) {

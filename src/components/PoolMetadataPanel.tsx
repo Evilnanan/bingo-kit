@@ -13,7 +13,7 @@ interface Props {
 }
 
 /**
- * Room-side modal showing the task pool metadata (name / description /
+ * Room-side modal showing the goal pool metadata (name / description /
  * images) that the room owner attached when creating the room.
  */
 export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {

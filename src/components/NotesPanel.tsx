@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
-import type { PlayerNote } from "../types";
-import { useT } from "../i18n/useT";
+import type { GoalItem, PlayerNote } from "../types";
+import { getGoalText } from "../types";
+import { useT, format } from "../i18n/useT";
 import "./NotesPanel.css";
 
 interface Props {
@@ -8,10 +9,23 @@ interface Props {
   onAddNote: (text: string, todo: boolean) => void;
   onUpdateNote: (
     id: string,
-    patch: { text?: string; todo?: boolean; done?: boolean },
+    patch: {
+      text?: string;
+      todo?: boolean;
+      done?: boolean;
+      linkedCells?: number[] | null;
+    },
   ) => void;
   onDeleteNote: (id: string) => void;
   onReorderNotes: (ids: string[]) => void;
+  /** Todo currently being linked to board cells (null = not linking). */
+  linkingNoteId: string | null;
+  onStartLinking: (noteId: string) => void;
+  onStopLinking: () => void;
+  /** Whether board cells can be picked right now (board visible & playing). */
+  linkingEnabled: boolean;
+  /** Board goals used to display linked cell text. */
+  goals: GoalItem[];
 }
 
 export function NotesPanel({
@@ -20,8 +34,13 @@ export function NotesPanel({
   onUpdateNote,
   onDeleteNote,
   onReorderNotes,
+  linkingNoteId,
+  onStartLinking,
+  onStopLinking,
+  linkingEnabled,
+  goals,
 }: Props) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [input, setInput] = useState("");
   const [asTodo, setAsTodo] = useState(false);
   /** Locally expanded notes (view preference, not synced). */
@@ -50,7 +69,6 @@ export function NotesPanel({
     if (!trimmed) return;
     onAddNote(trimmed, asTodo);
     setInput("");
-    setAsTodo(false);
   };
 
   const startEdit = (note: PlayerNote) => {
@@ -65,6 +83,16 @@ export function NotesPanel({
   };
 
   const cancelEdit = () => setEditingId(null);
+
+  /** One line per linked cell (prefix is rendered separately once). */
+  const linkedLines = (note: PlayerNote): string[] => {
+    const cells = note.linkedCells ?? [];
+    return cells.map((i) =>
+      i >= 0 && i < goals.length
+        ? getGoalText(goals[i], lang)
+        : format(t["notes.cell"], i),
+    );
+  };
 
   // The whole panel is a valid drop zone: compute the insertion index from
   // the pointer's vertical position against each note's midpoint.
@@ -117,6 +145,18 @@ export function NotesPanel({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {linkingNoteId && (
+        <div className="notes-linking-banner">
+          <span>{t["notes.linkingHint"]}</span>
+          <button
+            type="button"
+            className="notes-linking-done"
+            onClick={onStopLinking}
+          >
+            {t["notes.exitLinking"]}
+          </button>
+        </div>
+      )}
       <div className="notes-list" ref={listRef}>
         {notes.length === 0 && (
           <p className="notes-empty">{t["notes.empty"]}</p>
@@ -124,6 +164,7 @@ export function NotesPanel({
         {notes.map((note, i) => {
           const isExpanded = expanded.has(note.id);
           const isEditing = editingId === note.id;
+          const linkedTexts = note.todo ? linkedLines(note) : [];
           const dropClass =
             dropIndex === i
               ? " note--drop-before"
@@ -135,7 +176,7 @@ export function NotesPanel({
               key={note.id}
               className={`note${isExpanded ? " note--expanded" : ""}${
                 dragId === note.id ? " note--dragging" : ""
-              }${dropClass}`}
+              }${linkingNoteId === note.id ? " note--linking" : ""}${dropClass}`}
               onClick={() => toggleExpanded(note.id)}
             >
               <span
@@ -249,6 +290,24 @@ export function NotesPanel({
                         {t["notes.edit"]}
                       </button>
                     )}
+                    {note.todo && linkingEnabled && (
+                      <button
+                        type="button"
+                        className="note-action"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Clicking again while this note is being linked
+                          // acts like "exit selection".
+                          if (linkingNoteId === note.id) {
+                            onStopLinking();
+                          } else {
+                            onStartLinking(note.id);
+                          }
+                        }}
+                      >
+                        {t["notes.linkGoals"]}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="note-action"
@@ -269,6 +328,21 @@ export function NotesPanel({
                     >
                       {t["notes.delete"]}
                     </button>
+                    {linkedTexts.length > 0 && (
+                      <div
+                        className="note-linked"
+                        title={linkedTexts.join("\n")}
+                      >
+                        <span className="note-linked-label">
+                          {t["notes.linkedPrefix"]}
+                        </span>
+                        {linkedTexts.map((line, i) => (
+                          <div key={i} className="note-linked-line">
+                            {line}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
