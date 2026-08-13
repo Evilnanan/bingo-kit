@@ -223,6 +223,12 @@ export interface Translations {
   "editor.exportJson": string;
   "editor.importJson": string;
   "editor.importJsonFailed": string;
+  "editor.filterPlaceholder": string;
+  "editor.filterAllDifficulties": string;
+  "editor.filterCount": string;
+  "editor.filterNoMatch": string;
+  "editor.clearFilter": string;
+  "editor.filterByGroup": string;
   "landing.uploadingImages": string;
   "landing.imageServer": string;
 }

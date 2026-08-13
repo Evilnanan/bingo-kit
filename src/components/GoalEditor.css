@@ -114,6 +114,79 @@
   cursor: default;
 }
 
+.ge-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ge-filter-text {
+  flex: 1;
+  min-width: 160px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.ge-filter-text:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.ge-filter-text::placeholder {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.ge-filter-difficulty {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ge-filter-difficulty:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.ge-filter-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.ge-filter-clear {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.ge-filter-clear:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ── list ────────────────────────────────────────────────────────── */
 
 .goal-editor-list {
@@ -273,6 +346,23 @@
   font-size: 11px;
   line-height: 1.6;
   white-space: nowrap;
+}
+
+.tag-input-tag-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.tag-input-tag-label:hover {
+  text-decoration: underline;
 }
 
 .tag-input-remove {
@@ -966,6 +1056,15 @@
 
   .goal-editor-toolbar {
     gap: 6px;
+  }
+
+  .ge-filter-bar {
+    gap: 6px;
+  }
+
+  .ge-filter-text {
+    flex: 1 1 100%;
+    min-width: 0;
   }
 
   .ge-item-row {

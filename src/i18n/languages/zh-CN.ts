@@ -213,6 +213,12 @@ export const zh: Translations = {
   "editor.exportJson": "导出",
   "editor.importJson": "导入",
   "editor.importJsonFailed": "导入失败：{msg}",
+  "editor.filterPlaceholder": "搜索文本、详细说明、互斥组…（空格分隔多个关键词）",
+  "editor.filterAllDifficulties": "全部难度",
+  "editor.filterCount": "显示 {0} / {1} 条",
+  "editor.filterNoMatch": "没有匹配的任务",
+  "editor.clearFilter": "清除筛选",
+  "editor.filterByGroup": "点击筛选该组",
   "landing.uploadingImages": "正在准备图片…",
   "landing.imageServer": "图片服务器",
 };

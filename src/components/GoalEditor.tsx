@@ -221,6 +221,59 @@ function hasCsvUnsupported(item: GoalItem): boolean {
   );
 }
 
+/** Split a filter query on whitespace; double-quoted parts stay as one term. */
+function splitFilterTerms(query: string): string[] {
+  const terms: string[] = [];
+  const re = /"([^"]*)"|(\S+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(query)) !== null) {
+    const raw = m[1] ?? m[2];
+    const term = raw.replace(/^"+|"+$/g, "").trim();
+    if (term) terms.push(term);
+  }
+  return terms;
+}
+
+/** Quote a term containing spaces so it stays a single filter keyword. */
+function quoteFilterTerm(term: string): string {
+  return /\s/.test(term) ? `"${term}"` : term;
+}
+
+/** Build the text searched by the text filter: text, tooltip, groups,
+ *  translations and variant values. */
+function getGoalSearchText(goal: GoalItem): string {
+  const parts: string[] = [getGoalText(goal)];
+  const tooltip = getGoalTooltip(goal);
+  if (tooltip) parts.push(tooltip);
+  parts.push(...getGoalGroup(goal), ...getGoalGlobalGroup(goal));
+  if (typeof goal === "object") {
+    if (goal.text_i18n) parts.push(...Object.values(goal.text_i18n));
+    if (goal.tooltip_i18n) parts.push(...Object.values(goal.tooltip_i18n));
+    for (const v of goal.variants ?? []) {
+      parts.push(...Object.values(v.values));
+      if (v.values_i18n) {
+        for (const map of Object.values(v.values_i18n)) {
+          parts.push(...Object.values(map));
+        }
+      }
+    }
+  }
+  return parts.join("\n").toLowerCase();
+}
+
+function goalMatchesFilter(
+  goal: GoalItem,
+  terms: string[],
+  difficulty: number | undefined,
+): boolean {
+  if (difficulty !== undefined && getGoalDifficulty(goal) !== difficulty) {
+    return false;
+  }
+  if (terms.length === 0) return true;
+  const haystack = getGoalSearchText(goal);
+  return terms.every((term) => haystack.includes(term.toLowerCase()));
+}
+
 /* ── TagInput ────────────────────────────────────────────────────── */
 
 function TagInput({
@@ -228,11 +281,15 @@ function TagInput({
   onChange,
   suggestions,
   placeholder,
+  onTagClick,
+  tagClickTitle,
 }: {
   value: string[];
   onChange: (v: string[]) => void;
   suggestions: string[];
   placeholder: string;
+  onTagClick?: (tag: string) => void;
+  tagClickTitle?: string;
 }) {
   const [text, setText] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -283,7 +340,15 @@ function TagInput({
       <div className="tag-input-tags">
         {value.map((g) => (
           <span key={g} className="tag-input-tag">
-            {g}
+            <button
+              type="button"
+              className="tag-input-tag-label"
+              title={tagClickTitle}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onTagClick?.(g)}
+            >
+              {g}
+            </button>
             <button
               type="button"
               className="tag-input-remove"
@@ -596,6 +661,7 @@ interface GoalEditorItemProps {
   t: Translations;
   onUpdate: (index: number, patch: GoalPatch) => void;
   onRemove: (index: number) => void;
+  onFilterGroup: (group: string) => void;
   uploadQueue: ImageUploadQueue | null;
 }
 
@@ -607,6 +673,7 @@ const GoalEditorItem = memo(function GoalEditorItem({
   t,
   onUpdate,
   onRemove,
+  onFilterGroup,
   uploadQueue,
 }: GoalEditorItemProps) {
   const [previewIdx, setPreviewIdx] = useState(-1);
@@ -919,12 +986,16 @@ const GoalEditorItem = memo(function GoalEditorItem({
             onChange={(v) => onUpdate(index, { group: v })}
             suggestions={allGroups}
             placeholder={t["editor.group"]}
+            onTagClick={onFilterGroup}
+            tagClickTitle={t["editor.filterByGroup"]}
           />
           <TagInput
             value={getGoalGlobalGroup(goal)}
             onChange={(v) => onUpdate(index, { globalGroup: v })}
             suggestions={allGlobalGroups}
             placeholder={t["editor.globalGroup"]}
+            onTagClick={onFilterGroup}
+            tagClickTitle={t["editor.filterByGroup"]}
           />
         </div>
         <div className="ge-item-images">
@@ -1094,6 +1165,8 @@ export function GoalEditor({
   );
   const [translateTarget, setTranslateTarget] = useState<Lang>(lang);
   const [jsonFolded, setJsonFolded] = useState(false);
+  const [filterText, setFilterText] = useState("");
+  const [filterDifficulty, setFilterDifficulty] = useState("");
 
   const listRef = useRef<HTMLDivElement>(null);
   const mouseDownOnOverlay = useRef(false);
@@ -1125,6 +1198,21 @@ export function GoalEditor({
     () => (allGlobalGroupsKey ? allGlobalGroupsKey.split("\0") : []),
     [allGlobalGroupsKey],
   );
+
+  const filterTerms = useMemo(() => splitFilterTerms(filterText), [filterText]);
+  const visibleGoals = useMemo(() => {
+    const difficulty = filterDifficulty
+      ? parseInt(filterDifficulty, 10)
+      : undefined;
+    const result: { goal: GoalItem; index: number }[] = [];
+    for (let i = 0; i < goals.length; i++) {
+      if (goalMatchesFilter(goals[i], filterTerms, difficulty)) {
+        result.push({ goal: goals[i], index: i });
+      }
+    }
+    return result;
+  }, [goals, filterTerms, filterDifficulty]);
+  const filterActive = filterText.trim() !== "" || filterDifficulty !== "";
 
   const tryApplyJson = (): {
     goals: GoalItem[];
@@ -1293,12 +1381,32 @@ export function GoalEditor({
   const addGoal = useCallback(() => {
     const label = t["editor.defaultGoalLabel"];
     const currentAdd = goalsRef.current;
+    setFilterText("");
+    setFilterDifficulty("");
     onChange([...currentAdd, `${label} ${currentAdd.length + 1}`]);
     setTimeout(() => {
       if (listRef.current)
         listRef.current.scrollTop = listRef.current.scrollHeight;
     }, 50);
   }, [onChange, t]);
+
+  const handleFilterGroup = useCallback((group: string) => {
+    const quoted = quoteFilterTerm(group);
+    setFilterText((prev) => {
+      const terms = splitFilterTerms(prev);
+      const existing = terms.find(
+        (term) => term.toLowerCase() === group.toLowerCase(),
+      );
+      if (existing !== undefined) {
+        return terms
+          .filter((term) => term !== existing)
+          .map(quoteFilterTerm)
+          .join(" ");
+      }
+      const head = prev.trim();
+      return head ? `${head} ${quoted}` : quoted;
+    });
+  }, []);
 
   const removeGoal = useCallback(
     (index: number) => onChange(goalsRef.current.filter((_, i) => i !== index)),
@@ -1420,20 +1528,69 @@ export function GoalEditor({
         )}
         {editorMode === "visual" && (
           <>
-            <div className="goal-editor-list" ref={listRef}>
-              {goals.length === 0 && (
-                <p className="goal-editor-empty">{t["editor.empty"]}</p>
+            <div className="ge-filter-bar">
+              <input
+                className="ge-filter-text"
+                type="text"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                placeholder={t["editor.filterPlaceholder"]}
+                title={t["editor.filterPlaceholder"]}
+              />
+              <select
+                className="ge-filter-difficulty"
+                value={filterDifficulty}
+                onChange={(e) => setFilterDifficulty(e.target.value)}
+                title={t["editor.difficulty"]}
+              >
+                <option value="">{t["editor.filterAllDifficulties"]}</option>
+                {[1, 2, 3, 4, 5].map((d) => (
+                  <option key={d} value={String(d)}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+              {filterActive && (
+                <>
+                  <span className="ge-filter-count">
+                    {format(
+                      t["editor.filterCount"],
+                      visibleGoals.length,
+                      goals.length,
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className="ge-filter-clear"
+                    onClick={() => {
+                      setFilterText("");
+                      setFilterDifficulty("");
+                    }}
+                  >
+                    {t["editor.clearFilter"]}
+                  </button>
+                </>
               )}
-              {goals.map((g, i) => (
+            </div>
+            <div className="goal-editor-list" ref={listRef}>
+              {visibleGoals.length === 0 && (
+                <p className="goal-editor-empty">
+                  {goals.length === 0
+                    ? t["editor.empty"]
+                    : t["editor.filterNoMatch"]}
+                </p>
+              )}
+              {visibleGoals.map(({ goal, index }) => (
                 <GoalEditorItem
-                  key={i}
-                  index={i}
-                  goal={g}
+                  key={index}
+                  index={index}
+                  goal={goal}
                   allGroups={allGroups}
                   allGlobalGroups={allGlobalGroups}
                   t={t}
                   onUpdate={updateGoal}
                   onRemove={removeGoal}
+                  onFilterGroup={handleFilterGroup}
                   uploadQueue={uploadQueue ?? null}
                 />
               ))}

@@ -220,6 +220,12 @@ export const en: Translations = {
   "editor.exportJson": "Export",
   "editor.importJson": "Import",
   "editor.importJsonFailed": "Failed to import: {msg}",
+  "editor.filterPlaceholder": "Search text, details, groups… (space-separated keywords)",
+  "editor.filterAllDifficulties": "All difficulties",
+  "editor.filterCount": "Showing {0} / {1}",
+  "editor.filterNoMatch": "No matching goals",
+  "editor.clearFilter": "Clear filter",
+  "editor.filterByGroup": "Click to filter this group",
   "landing.uploadingImages": "Preparing images…",
   "landing.imageServer": "Image Server",
 };
