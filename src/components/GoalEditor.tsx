@@ -8,6 +8,10 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import {
+  useVirtualList,
+  type VirtualListResult,
+} from "../hooks/useVirtualList";
 import { useT, format } from "../i18n/useT";
 import { langCodes, langDescriptors } from "../i18n/translations";
 import { Lightbox } from "./Lightbox";
@@ -473,6 +477,8 @@ interface TranslateViewProps {
   onChange: (goals: GoalItem[]) => void;
   onAddGoal: () => void;
   t: Translations;
+  /** Virtualization state owned by GoalEditor so scroll survives tab switches. */
+  virtual: VirtualListResult;
 }
 
 function TranslateView({
@@ -484,6 +490,15 @@ function TranslateView({
   onChange,
   onAddGoal,
   t,
+  virtual: {
+    containerRef,
+    onScroll,
+    registerRowEl,
+    virtualStart,
+    virtualEnd,
+    spacerTop,
+    spacerBottom,
+  },
 }: TranslateViewProps) {
   const updateTranslation = (
     index: number,
@@ -546,91 +561,117 @@ function TranslateView({
 
   return (
     <>
-      <div className="ge-translate-list">
-        <div className="ge-translate-header">
-          <span className="ge-translate-index" />
-          <div className="ge-translate-source">
-            <span className="ge-translate-label">
-              {t["editor.translateSource"]}：
-            </span>
-            <select
-              className="ge-translate-select"
-              value={source}
-              onChange={(e) => onSourceChange(e.target.value as SourceRef)}
-            >
-              <option value="__orig">{t["editor.translateOrigOption"]}</option>
-              {langCodes.map((lc) => (
-                <option key={lc} value={lc}>
-                  {langDescriptors[lc].displayName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="ge-translate-target">
-            <span className="ge-translate-label">
-              {t["editor.translateTarget"]}：
-            </span>
-            <select
-              className="ge-translate-select"
-              value={target}
-              onChange={(e) => onTargetChange(e.target.value as Lang)}
-            >
-              {langCodes.map((lc) => (
-                <option key={lc} value={lc}>
-                  {langDescriptors[lc].displayName}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="ge-translate-header">
+        <span className="ge-translate-index" />
+        <div className="ge-translate-source">
+          <span className="ge-translate-label">
+            {t["editor.translateSource"]}：
+          </span>
+          <select
+            className="ge-translate-select"
+            value={source}
+            onChange={(e) => onSourceChange(e.target.value as SourceRef)}
+          >
+            <option value="__orig">{t["editor.translateOrigOption"]}</option>
+            {langCodes.map((lc) => (
+              <option key={lc} value={lc}>
+                {langDescriptors[lc].displayName}
+              </option>
+            ))}
+          </select>
         </div>
+        <div className="ge-translate-target">
+          <span className="ge-translate-label">
+            {t["editor.translateTarget"]}：
+          </span>
+          <select
+            className="ge-translate-select"
+            value={target}
+            onChange={(e) => onTargetChange(e.target.value as Lang)}
+          >
+            {langCodes.map((lc) => (
+              <option key={lc} value={lc}>
+                {langDescriptors[lc].displayName}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-        {goals.map((item, i) => (
-          <div key={i} className="ge-translate-row">
-            <span className="ge-translate-index">{i + 1}</span>
+      <div className="ge-translate-list" ref={containerRef} onScroll={onScroll}>
+        {goals.length > 0 && (
+          <>
             <div
-              className="ge-translate-source"
-              data-label={t["editor.translateSource"]}
-            >
-              <div className="ge-translate-source-text">
-                {getSourceText(item, source)}
-              </div>
-              {getSourceTooltip(item, source) && (
-                <div className="ge-translate-source-tooltip">
-                  {getSourceTooltip(item, source)}
+              className="ge-list-spacer"
+              style={{ height: spacerTop }}
+              aria-hidden="true"
+            />
+            {goals.slice(virtualStart, virtualEnd).map((item, i) => {
+              const rowIndex = virtualStart + i;
+              return (
+                <div
+                  key={rowIndex}
+                  data-row-index={rowIndex}
+                  className="ge-translate-virtual"
+                  ref={registerRowEl}
+                >
+                  <div className="ge-translate-row">
+                    <span className="ge-translate-index">{rowIndex + 1}</span>
+                    <div
+                      className="ge-translate-source"
+                      data-label={t["editor.translateSource"]}
+                    >
+                      <div className="ge-translate-source-text">
+                        {getSourceText(item, source)}
+                      </div>
+                      {getSourceTooltip(item, source) && (
+                        <div className="ge-translate-source-tooltip">
+                          {getSourceTooltip(item, source)}
+                        </div>
+                      )}
+                    </div>
+                    <div
+                      className="ge-translate-target"
+                      data-label={t["editor.translateTarget"]}
+                    >
+                      <input
+                        className="ge-translate-text-input"
+                        type="text"
+                        value={getTargetText(item, target)}
+                        placeholder={getSourceText(item, source)}
+                        onChange={(e) =>
+                          updateTranslation(rowIndex, "text", e.target.value)
+                        }
+                      />
+                      <textarea
+                        className="ge-translate-tooltip-input"
+                        value={getTargetTooltip(item, target)}
+                        placeholder={getSourceTooltip(item, source) || ""}
+                        onChange={(e) =>
+                          updateTranslation(rowIndex, "tooltip", e.target.value)
+                        }
+                        rows={2}
+                      />
+                      <VariantTranslateValues
+                        goal={item}
+                        target={target}
+                        onChange={(vi, key, value) =>
+                          updateVariantValues(rowIndex, vi, key, value)
+                        }
+                        t={t}
+                      />
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            })}
             <div
-              className="ge-translate-target"
-              data-label={t["editor.translateTarget"]}
-            >
-              <input
-                className="ge-translate-text-input"
-                type="text"
-                value={getTargetText(item, target)}
-                placeholder={getSourceText(item, source)}
-                onChange={(e) => updateTranslation(i, "text", e.target.value)}
-              />
-              <textarea
-                className="ge-translate-tooltip-input"
-                value={getTargetTooltip(item, target)}
-                placeholder={getSourceTooltip(item, source) || ""}
-                onChange={(e) =>
-                  updateTranslation(i, "tooltip", e.target.value)
-                }
-                rows={2}
-              />
-              <VariantTranslateValues
-                goal={item}
-                target={target}
-                onChange={(vi, key, value) =>
-                  updateVariantValues(i, vi, key, value)
-                }
-                t={t}
-              />
-            </div>
-          </div>
-        ))}
+              className="ge-list-spacer"
+              style={{ height: spacerBottom }}
+              aria-hidden="true"
+            />
+          </>
+        )}
       </div>
 
       <button type="button" className="ge-add-btn" onClick={onAddGoal}>
@@ -652,6 +693,12 @@ type GoalPatch = Partial<{
 }>;
 
 const EMPTY_STATUS_MAP = new Map<string, UploadStatusInfo>();
+
+// Virtualized list tuning for the visual editor: only rows near the viewport
+// are mounted, so pools with 200+ goals stay responsive while editing.
+const LIST_ROW_GAP = 8; // must match .ge-item-virtual margin-bottom
+const LIST_ROW_ESTIMATE = 190; // estimated collapsed row height (px)
+const LIST_OVERSCAN = 5; // extra rows rendered above/below the viewport
 
 interface GoalEditorItemProps {
   index: number;
@@ -1168,7 +1215,6 @@ export function GoalEditor({
   const [filterText, setFilterText] = useState("");
   const [filterDifficulty, setFilterDifficulty] = useState("");
 
-  const listRef = useRef<HTMLDivElement>(null);
   const mouseDownOnOverlay = useRef(false);
   const goalsRef = useRef(goals);
   useEffect(() => {
@@ -1212,6 +1258,33 @@ export function GoalEditor({
     }
     return result;
   }, [goals, filterTerms, filterDifficulty]);
+
+  // Virtualize the visual list: only rows near the viewport are mounted.
+  const {
+    containerRef: listRef,
+    onScroll: handleListScroll,
+    registerRowEl,
+    resetScroll: resetListScroll,
+    virtualStart,
+    virtualEnd,
+    spacerTop,
+    spacerBottom,
+  } = useVirtualList(visibleGoals.length, {
+    estimate: LIST_ROW_ESTIMATE,
+    gap: LIST_ROW_GAP,
+    overscan: LIST_OVERSCAN,
+    // The list container remounts when switching editor tabs, so re-measure
+    // and restore the saved scroll position whenever the mode changes.
+    remountKey: editorMode,
+  });
+  // The translate list uses the same hook, owned here so its scroll position
+  // survives tab switches exactly like the visual editor.
+  const translateList = useVirtualList(goals.length, {
+    estimate: 120,
+    gap: 8,
+    overscan: 5,
+    remountKey: editorMode,
+  });
   const filterActive = filterText.trim() !== "" || filterDifficulty !== "";
 
   const tryApplyJson = (): {
@@ -1381,6 +1454,7 @@ export function GoalEditor({
   const addGoal = useCallback(() => {
     const label = t["editor.defaultGoalLabel"];
     const currentAdd = goalsRef.current;
+    resetListScroll();
     setFilterText("");
     setFilterDifficulty("");
     onChange([...currentAdd, `${label} ${currentAdd.length + 1}`]);
@@ -1388,25 +1462,29 @@ export function GoalEditor({
       if (listRef.current)
         listRef.current.scrollTop = listRef.current.scrollHeight;
     }, 50);
-  }, [onChange, t]);
+  }, [onChange, t, resetListScroll, listRef]);
 
-  const handleFilterGroup = useCallback((group: string) => {
-    const quoted = quoteFilterTerm(group);
-    setFilterText((prev) => {
-      const terms = splitFilterTerms(prev);
-      const existing = terms.find(
-        (term) => term.toLowerCase() === group.toLowerCase(),
-      );
-      if (existing !== undefined) {
-        return terms
-          .filter((term) => term !== existing)
-          .map(quoteFilterTerm)
-          .join(" ");
-      }
-      const head = prev.trim();
-      return head ? `${head} ${quoted}` : quoted;
-    });
-  }, []);
+  const handleFilterGroup = useCallback(
+    (group: string) => {
+      const quoted = quoteFilterTerm(group);
+      resetListScroll();
+      setFilterText((prev) => {
+        const terms = splitFilterTerms(prev);
+        const existing = terms.find(
+          (term) => term.toLowerCase() === group.toLowerCase(),
+        );
+        if (existing !== undefined) {
+          return terms
+            .filter((term) => term !== existing)
+            .map(quoteFilterTerm)
+            .join(" ");
+        }
+        const head = prev.trim();
+        return head ? `${head} ${quoted}` : quoted;
+      });
+    },
+    [resetListScroll],
+  );
 
   const removeGoal = useCallback(
     (index: number) => onChange(goalsRef.current.filter((_, i) => i !== index)),
@@ -1524,6 +1602,7 @@ export function GoalEditor({
             onChange={onChange}
             onAddGoal={addGoal}
             t={t}
+            virtual={translateList}
           />
         )}
         {editorMode === "visual" && (
@@ -1533,14 +1612,20 @@ export function GoalEditor({
                 className="ge-filter-text"
                 type="text"
                 value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
+                onChange={(e) => {
+                  setFilterText(e.target.value);
+                  resetListScroll();
+                }}
                 placeholder={t["editor.filterPlaceholder"]}
                 title={t["editor.filterPlaceholder"]}
               />
               <select
                 className="ge-filter-difficulty"
                 value={filterDifficulty}
-                onChange={(e) => setFilterDifficulty(e.target.value)}
+                onChange={(e) => {
+                  setFilterDifficulty(e.target.value);
+                  resetListScroll();
+                }}
                 title={t["editor.difficulty"]}
               >
                 <option value="">{t["editor.filterAllDifficulties"]}</option>
@@ -1565,6 +1650,7 @@ export function GoalEditor({
                     onClick={() => {
                       setFilterText("");
                       setFilterDifficulty("");
+                      resetListScroll();
                     }}
                   >
                     {t["editor.clearFilter"]}
@@ -1572,7 +1658,11 @@ export function GoalEditor({
                 </>
               )}
             </div>
-            <div className="goal-editor-list" ref={listRef}>
+            <div
+              className="goal-editor-list"
+              ref={listRef}
+              onScroll={handleListScroll}
+            >
               {visibleGoals.length === 0 && (
                 <p className="goal-editor-empty">
                   {goals.length === 0
@@ -1580,20 +1670,42 @@ export function GoalEditor({
                     : t["editor.filterNoMatch"]}
                 </p>
               )}
-              {visibleGoals.map(({ goal, index }) => (
-                <GoalEditorItem
-                  key={index}
-                  index={index}
-                  goal={goal}
-                  allGroups={allGroups}
-                  allGlobalGroups={allGlobalGroups}
-                  t={t}
-                  onUpdate={updateGoal}
-                  onRemove={removeGoal}
-                  onFilterGroup={handleFilterGroup}
-                  uploadQueue={uploadQueue ?? null}
-                />
-              ))}
+              {visibleGoals.length > 0 && (
+                <>
+                  <div
+                    className="ge-list-spacer"
+                    style={{ height: spacerTop }}
+                    aria-hidden="true"
+                  />
+                  {visibleGoals
+                    .slice(virtualStart, virtualEnd)
+                    .map(({ goal, index }, i) => (
+                      <div
+                        key={index}
+                        data-row-index={virtualStart + i}
+                        className="ge-item-virtual"
+                        ref={registerRowEl}
+                      >
+                        <GoalEditorItem
+                          index={index}
+                          goal={goal}
+                          allGroups={allGroups}
+                          allGlobalGroups={allGlobalGroups}
+                          t={t}
+                          onUpdate={updateGoal}
+                          onRemove={removeGoal}
+                          onFilterGroup={handleFilterGroup}
+                          uploadQueue={uploadQueue ?? null}
+                        />
+                      </div>
+                    ))}
+                  <div
+                    className="ge-list-spacer"
+                    style={{ height: spacerBottom }}
+                    aria-hidden="true"
+                  />
+                </>
+              )}
             </div>
 
             <button type="button" className="ge-add-btn" onClick={addGoal}>

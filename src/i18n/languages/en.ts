@@ -220,7 +220,8 @@ export const en: Translations = {
   "editor.exportJson": "Export",
   "editor.importJson": "Import",
   "editor.importJsonFailed": "Failed to import: {msg}",
-  "editor.filterPlaceholder": "Search text, details, groups… (space-separated keywords)",
+  "editor.filterPlaceholder":
+    "Search text, tooltip, groups… (space-separated keywords)",
   "editor.filterAllDifficulties": "All difficulties",
   "editor.filterCount": "Showing {0} / {1}",
   "editor.filterNoMatch": "No matching goals",

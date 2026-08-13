@@ -193,9 +193,6 @@
   flex: 1;
   overflow-y: auto;
   padding: 12px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .goal-editor-empty {
@@ -203,6 +200,10 @@
   color: var(--text-secondary);
   font-size: 14px;
   padding: 40px 0;
+}
+
+.ge-item-virtual {
+  margin-bottom: 8px;
 }
 
 /* ── item ────────────────────────────────────────────────────────── */
@@ -676,9 +677,6 @@
   flex: 1;
   overflow-y: auto;
   padding: 0 20px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .ge-translate-header {
@@ -686,12 +684,8 @@
   align-items: center;
   gap: 8px;
   border-bottom: 2px solid var(--border);
-  margin-bottom: 4px;
+  padding: 8px 20px 12px;
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  background: var(--surface);
-  z-index: 1;
 }
 
 .ge-translate-header .ge-translate-index {
@@ -733,6 +727,10 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
+}
+
+.ge-translate-virtual {
+  margin-bottom: 8px;
 }
 
 .ge-translate-index {

@@ -203,12 +203,25 @@ export function LandingPage({ onJoinRoom }: Props) {
   const goalsRef = useRef(goals);
   const poolsRef = useRef(pools);
   const currentPoolIdRef = useRef(currentPoolId);
+  const poolSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     poolsRef.current = pools;
-  });
+  }, [pools]);
   useEffect(() => {
     currentPoolIdRef.current = currentPoolId;
-  });
+  }, [currentPoolId]);
+
+  // Flush any pending pool sync when the page is about to unload, so edits
+  // made shortly before closing/refreshing are not lost.
+  useEffect(() => {
+    return () => {
+      if (poolSyncTimerRef.current) {
+        clearTimeout(poolSyncTimerRef.current);
+        poolSyncTimerRef.current = null;
+        savePools(poolsRef.current);
+      }
+    };
+  }, []);
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -321,6 +334,38 @@ export function LandingPage({ onJoinRoom }: Props) {
       p.id === currentPoolIdRef.current
         ? { ...p, goals: g, updatedAt: now }
         : p,
+    );
+    setPools(updated);
+    savePools(updated);
+  }, []);
+
+  // Debounced version of syncPoolGoals for high-frequency edits (typing in the
+  // goal editor). The goals are applied to poolsRef immediately so a later
+  // flush sees the freshest data, but React state updates and localStorage
+  // writes are batched until the user pauses (or the editor closes).
+  const schedulePoolSync = useCallback((g: GoalItem[]) => {
+    const now = Date.now();
+    const updated = poolsRef.current.map((p) =>
+      p.id === currentPoolIdRef.current
+        ? { ...p, goals: g, updatedAt: now }
+        : p,
+    );
+    poolsRef.current = updated;
+    if (poolSyncTimerRef.current) clearTimeout(poolSyncTimerRef.current);
+    poolSyncTimerRef.current = setTimeout(() => {
+      poolSyncTimerRef.current = null;
+      setPools(poolsRef.current);
+      savePools(poolsRef.current);
+    }, 500);
+  }, []);
+
+  const flushPoolSync = useCallback(() => {
+    if (poolSyncTimerRef.current) {
+      clearTimeout(poolSyncTimerRef.current);
+      poolSyncTimerRef.current = null;
+    }
+    const updated = poolsRef.current.map((p) =>
+      p.id === currentPoolIdRef.current ? { ...p, updatedAt: Date.now() } : p,
     );
     setPools(updated);
     savePools(updated);
@@ -480,9 +525,9 @@ export function LandingPage({ onJoinRoom }: Props) {
       goalsRef.current = g;
       setGoals(g);
       // Auto-save to current pool
-      syncPoolGoals(g);
+      schedulePoolSync(g);
     },
-    [syncPoolGoals],
+    [schedulePoolSync],
   );
 
   const handlePoolMetaChange = (meta: PoolMetadata) => {
@@ -507,7 +552,7 @@ export function LandingPage({ onJoinRoom }: Props) {
 
   const handleCloseEditor = () => {
     setEditorOpen(false);
-    syncPoolGoals(goalsRef.current);
+    flushPoolSync();
   };
 
   const bingoTitle = t["landing.title"];
