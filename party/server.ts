@@ -16,15 +16,30 @@
  */
 
 import { Server, routePartykitRequest, type Connection } from "partyserver";
-import { GameRoom, type GameTransport } from "./game-room";
+import {
+  GameRoom,
+  type GameTransport,
+  type GameRoomSnapshot,
+} from "./game-room";
 
 export interface Env {
   /** Durable Object binding, declared in wrangler.jsonc. */
   BingoServer: DurableObjectNamespace;
 }
 
+/** Storage key for the serialized room snapshot. */
+const ROOM_STATE_KEY = "room-state";
+
 export class BingoServer extends Server<Env> {
   private game: GameRoom | null = null;
+  /**
+   * Restores the persisted room once per instance. All handlers await this
+   * before touching the game: a Durable Object can be restarted at any time
+   * (deployment, maintenance, eviction after every socket dropped), and
+   * without a restore the room would silently come back as a fresh lobby —
+   * the in-memory reconnect grace timers would be gone too.
+   */
+  private gameReady: Promise<GameRoom> | null = null;
 
   private getGame(): GameRoom {
     if (!this.game) {
@@ -41,25 +56,62 @@ export class BingoServer extends Server<Env> {
             // Silently ignore - storage cleanup is best-effort
           });
         },
+        persist: (snapshot) => {
+          this.saveSnapshot(snapshot);
+        },
       };
       this.game = new GameRoom(transport);
     }
     return this.game;
   }
 
-  override onConnect(conn: Connection) {
-    this.getGame().handleConnect(conn.id);
+  /** Persist the room so a restarted runtime can rebuild it. Best-effort. */
+  private saveSnapshot(snapshot: GameRoomSnapshot): void {
+    // An emptied room must stay empty: onRoomEmpty's deleteAll is
+    // authoritative, so never write an empty snapshot back.
+    if (Object.keys(snapshot.players).length === 0) return;
+    this.ctx.storage.put(ROOM_STATE_KEY, JSON.stringify(snapshot)).catch(() => {
+      // Silently ignore - persistence is best-effort
+    });
   }
 
-  override onMessage(
+  /** The game, with the persisted room snapshot restored on a cold start. */
+  private getGameReady(): Promise<GameRoom> {
+    if (!this.gameReady) {
+      this.gameReady = (async () => {
+        const game = this.getGame();
+        try {
+          const saved = await this.ctx.storage.get<string>(ROOM_STATE_KEY);
+          if (saved) {
+            game.restore(JSON.parse(saved) as GameRoomSnapshot);
+          }
+        } catch {
+          // Corrupt/unreadable snapshot: start fresh.
+        }
+        return game;
+      })();
+    }
+    return this.gameReady;
+  }
+
+  override async onConnect(conn: Connection) {
+    const game = await this.getGameReady();
+    game.handleConnect(conn.id);
+  }
+
+  override async onMessage(
     conn: Connection,
     message: string | ArrayBuffer | ArrayBufferView,
   ) {
-    this.getGame().handleMessage(conn.id, String(message));
+    const game = await this.getGameReady();
+    game.handleMessage(conn.id, String(message));
+    this.saveSnapshot(game.serialize());
   }
 
-  override onClose(conn: Connection) {
-    this.getGame().handleClose(conn.id);
+  override async onClose(conn: Connection) {
+    const game = await this.getGameReady();
+    game.handleClose(conn.id);
+    this.saveSnapshot(game.serialize());
   }
 }
 

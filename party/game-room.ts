@@ -234,6 +234,32 @@ export type ServerMsg =
 // ============================================================
 
 /**
+ * A JSON-serializable snapshot of everything needed to rebuild the room in a
+ * fresh runtime instance (Durable Object restart, deployment, eviction after
+ * every socket dropped). Connection mappings and in-flight timers are
+ * deliberately excluded — they are re-derived on restore.
+ */
+export interface GameRoomSnapshot {
+  config: unknown;
+  metadata: unknown;
+  mode: GameMode;
+  lockout: boolean;
+  marks: Record<string, MarkEntry[]>;
+  players: Record<string, PlayerInfo>;
+  phase: GamePhase;
+  countdownEnd: number | null;
+  bonusScores: Record<string, number>;
+  owner: string | null;
+  configHash: string | null;
+  starMarks: Record<string, number[]>;
+  counters: Record<string, Record<string, number>>;
+  notes: Record<string, PlayerNote[]>;
+  unreadChat: Record<string, boolean>;
+  chats: ChatRecord[];
+  playerCodes: Record<string, string>;
+}
+
+/**
  * Minimal transport abstraction so GameRoom doesn't depend on any
  * specific WebSocket runtime (PartyServer, ws, Deno, Bun, ...).
  */
@@ -244,6 +270,14 @@ export interface GameTransport {
   broadcast(msg: ServerMsg, excludeConnIds?: string[]): void;
   /** Called when the last player leaves — transport-level cleanup (e.g. durable storage). */
   onRoomEmpty(): void;
+  /**
+   * Persist the current room snapshot so the room can be rebuilt after the
+   * runtime restarts. Optional: the standalone dev-server keeps rooms in
+   * memory only. The adapter calls it after every message-driven mutation;
+   * GameRoom itself calls it after timer-driven transitions (countdown end,
+   * grace-period removal).
+   */
+  persist?(snapshot: GameRoomSnapshot): void;
 }
 
 // ============================================================
@@ -419,14 +453,22 @@ export class GameRoom {
     this.transport.broadcast(this.stateMsg);
 
     this.countdownTimer = setTimeout(() => {
-      this.phase = "playing";
-      this.countdownEnd = null;
-      for (const p of Object.values(this.players)) {
-        delete p.ready;
-      }
-      this.transport.broadcast({ type: "start" });
+      this.finishCountdown();
       this.countdownTimer = null;
     }, 3000);
+  }
+
+  /** Complete a running countdown: enter playing and announce the start. */
+  private finishCountdown(): void {
+    this.phase = "playing";
+    this.countdownEnd = null;
+    for (const p of Object.values(this.players)) {
+      delete p.ready;
+    }
+    this.transport.broadcast({ type: "start" });
+    // Timer-driven transition: persist so a runtime recycle right after
+    // "start" restores the room as playing, not countdown.
+    this.transport.persist?.(this.serialize());
   }
 
   // ---------- mark / unmark ----------
@@ -494,6 +536,94 @@ export class GameRoom {
       clearTimeout(this.countdownTimer);
       this.countdownTimer = null;
     }
+    this.countdownEnd = null;
+  }
+
+  // ---------- persistence ----------
+
+  /** Capture everything needed to rebuild this room in a fresh runtime. */
+  serialize(): GameRoomSnapshot {
+    const starMarks: Record<string, number[]> = {};
+    for (const [name, stars] of Object.entries(this.starMarks)) {
+      starMarks[name] = [...stars];
+    }
+    return {
+      config: this.config,
+      metadata: this.metadata,
+      mode: this.mode,
+      lockout: this.lockout,
+      marks: this.marks,
+      players: this.players,
+      phase: this.phase,
+      countdownEnd: this.countdownEnd,
+      bonusScores: this.bonusScores,
+      owner: this.owner,
+      configHash: this.configHash,
+      starMarks,
+      counters: this.counters,
+      notes: this.notes,
+      unreadChat: this.unreadChat,
+      chats: this.chats,
+      playerCodes: this.playerCodes,
+    };
+  }
+
+  /**
+   * Rebuild the room from a persisted snapshot. Called once right after the
+   * runtime starts, before any connection is processed. Safe no-op when
+   * players have already joined in the meantime.
+   */
+  restore(snapshot: GameRoomSnapshot): void {
+    if (!snapshot || typeof snapshot !== "object") return;
+    if (Object.keys(this.players).length > 0) return;
+
+    this.config = snapshot.config ?? null;
+    this.metadata = snapshot.metadata ?? null;
+    this.mode = snapshot.mode === "hex" ? "hex" : "classic";
+    this.lockout = snapshot.lockout === true;
+    this.marks = snapshot.marks ?? {};
+    this.players = snapshot.players ?? {};
+    this.bonusScores = snapshot.bonusScores ?? {};
+    this.owner = snapshot.owner ?? null;
+    this.configHash = snapshot.configHash ?? null;
+    this.playerCodes = snapshot.playerCodes ?? {};
+    this.counters = snapshot.counters ?? {};
+    this.notes = snapshot.notes ?? {};
+    this.unreadChat = snapshot.unreadChat ?? {};
+    this.chats = snapshot.chats ?? [];
+    this.starMarks = {};
+    for (const [name, stars] of Object.entries(snapshot.starMarks ?? {})) {
+      this.starMarks[name] = new Set(stars);
+    }
+
+    // The fresh runtime has no live connections yet, so every restored player
+    // gets a fresh reconnect grace window. Each successful re-join cancels
+    // its own timer; players who never come back are cleaned up as usual.
+    for (const name of Object.keys(this.players)) {
+      this.scheduleRemoval(name);
+    }
+
+    // Restore an in-flight countdown: re-arm the "start" timer when the
+    // deadline is still ahead; otherwise the game should already be playing.
+    if (snapshot.phase === "countdown") {
+      if (snapshot.countdownEnd != null && snapshot.countdownEnd > Date.now()) {
+        this.phase = "countdown";
+        this.countdownEnd = snapshot.countdownEnd;
+        this.countdownTimer = setTimeout(() => {
+          this.finishCountdown();
+          this.countdownTimer = null;
+        }, snapshot.countdownEnd - Date.now());
+        return;
+      }
+      this.phase = "playing";
+      this.countdownEnd = null;
+      for (const p of Object.values(this.players)) {
+        delete p.ready;
+      }
+      return;
+    }
+
+    this.phase = snapshot.phase === "playing" ? "playing" : "lobby";
     this.countdownEnd = null;
   }
 
@@ -1022,6 +1152,9 @@ export class GameRoom {
         if (pname === name) return;
       }
       this.removePlayer(name);
+      // Timer-driven removal: persist so a runtime recycle doesn't revive
+      // the removed player from an older snapshot.
+      this.transport.persist?.(this.serialize());
     }, RECONNECT_GRACE_MS);
     this.disconnectTimers.set(name, timer);
   }
