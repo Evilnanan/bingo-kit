@@ -35,7 +35,12 @@ export function JoinRejectedModal({
   const submitName = (e: React.SyntheticEvent) => {
     e.preventDefault();
     const trimmed = nameInput.trim();
-    if (trimmed) onJoinWithName(trimmed);
+    if (trimmed) {
+      // A rename attempt supersedes the previous code attempt: don't let the
+      // "wrong code" error resurface after the server answers this request.
+      setCodeSubmitted(false);
+      onJoinWithName(trimmed);
+    }
   };
 
   const submitCode = (e: React.SyntheticEvent) => {
@@ -98,7 +103,7 @@ export function JoinRejectedModal({
               )}
             </button>
           </div>
-          {codeSubmitted && codeInput.trim() !== "" && (
+          {codeSubmitted && codeInput.trim() !== "" && pending === null && (
             <p className="join-rejected-error" role="alert">
               {t["joinRejected.badCode"]}
             </p>
