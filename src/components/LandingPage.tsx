@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/useT";
+import type { Translations } from "../i18n/types";
 import type {
   BoardConfig,
   GameMode,
@@ -8,8 +9,14 @@ import type {
   PoolMetadata,
   RoomConfig,
 } from "../types";
-import { getGoalText, getGoalImages, getPoolName, stripGoalMeta } from "../types";
+import {
+  getGoalText,
+  getGoalImages,
+  getPoolName,
+  stripGoalMeta,
+} from "../types";
 import { pickGoals, type PickRule } from "../randomPicks";
+import { PoolPickError } from "../randomPicks/errors";
 import { computeConfigHash } from "../utils/configHash";
 import { HEX_MIN_SIZE, HEX_MAX_SIZE } from "../hex/hexTypes";
 import { pickHexGoals } from "../hex/hexPick";
@@ -143,16 +150,19 @@ function randomRoomName(): string {
   return `${adj} ${noun}`;
 }
 
-function initPools(): { pools: GoalPool[]; currentPoolId: string } {
+function initPools(t: Translations): {
+  pools: GoalPool[];
+  currentPoolId: string;
+} {
   const pools = loadPools();
   if (pools.length > 0) {
     return { pools, currentPoolId: pools[0].id };
   }
-  // No pools exist — create the default "示例" pool
+  // No pools exist — create the default "Example" pool
   const now = Date.now();
   const defaultPool: GoalPool = {
     id: "default",
-    name: "示例",
+    name: t["goalPool.defaultName"],
     goals: [...DEFAULT_GOALS],
     createdAt: now,
     updatedAt: now,
@@ -162,8 +172,8 @@ function initPools(): { pools: GoalPool[]; currentPoolId: string } {
 }
 
 let _poolsInitCache: { pools: GoalPool[]; currentPoolId: string } | null = null;
-function getInitPools() {
-  if (!_poolsInitCache) _poolsInitCache = initPools();
+function getInitPools(t: Translations) {
+  if (!_poolsInitCache) _poolsInitCache = initPools(t);
   return _poolsInitCache;
 }
 
@@ -190,9 +200,9 @@ export function LandingPage({ onJoinRoom }: Props) {
   const isSharedLink = getShareFromUrl();
 
   // Goal pool state
-  const [pools, setPools] = useState<GoalPool[]>(() => getInitPools().pools);
+  const [pools, setPools] = useState<GoalPool[]>(() => getInitPools(t).pools);
   const [currentPoolId, setCurrentPoolId] = useState(
-    () => getInitPools().currentPoolId,
+    () => getInitPools(t).currentPoolId,
   );
   const [poolManagerOpen, setPoolManagerOpen] = useState(false);
 
@@ -236,9 +246,11 @@ export function LandingPage({ onJoinRoom }: Props) {
       ),
   );
 
-  // 从 localStorage 恢复的任务池图片没有上传记录，静默入队重新上传；
-  // 服务器已有该图片（哈希即存储键）时队列会通过 HEAD 复用跳过，不重复传数据。
-  // 失败过的图片不自动重试（由编辑器手动重试）。
+  // Pool images restored from localStorage have no upload record — silently
+  // re-enqueue them. When the server already has the image (hash is the
+  // storage key), the queue skips it via a HEAD request without re-uploading
+  // the data. Failed images are not retried automatically (manual retry in
+  // the editor).
   useEffect(() => {
     for (const pool of pools) {
       for (const att of pool.images ?? []) {
@@ -256,8 +268,9 @@ export function LandingPage({ onJoinRoom }: Props) {
     }
   }, [pools, uploadQueue]);
 
-  // 从 IndexedDB 恢复图片 base64 data（localStorage 只存元数据）。
-  // 只用函数式 setState 填补缺失的 data，不覆盖并发编辑的其他字段。
+  // Rehydrate image base64 data from IndexedDB (localStorage only stores
+  // metadata). Only use functional setState to fill in missing data, never
+  // overwriting other fields edited concurrently.
   useEffect(() => {
     if (!isIDBAvailable()) return;
     let cancelled = false;
@@ -290,9 +303,10 @@ export function LandingPage({ onJoinRoom }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 定期清理 IndexedDB 中不再被任何池子引用的孤儿图片记录
-  // （如删除池子后残留）。每次打开页面延迟执行一次；活跃 hash 跨池收集，
-  // 被多个池子共用的图片不会被误删。
+  // Periodically purge orphaned image records from IndexedDB that are no
+  // longer referenced by any pool (e.g. leftovers after deleting a pool). Runs
+  // once with a delay on each page open; active hashes are collected across
+  // pools, so images shared by multiple pools are never removed.
   useEffect(() => {
     if (!isIDBAvailable()) return;
     const timer = setTimeout(() => {
@@ -425,7 +439,8 @@ export function LandingPage({ onJoinRoom }: Props) {
           ...(currentPool.description
             ? { description: currentPool.description }
             : {}),
-          ...(currentPool.name_i18n && Object.keys(currentPool.name_i18n).length > 0
+          ...(currentPool.name_i18n &&
+          Object.keys(currentPool.name_i18n).length > 0
             ? { name_i18n: currentPool.name_i18n }
             : {}),
           ...(currentPool.description_i18n &&
@@ -490,7 +505,17 @@ export function LandingPage({ onJoinRoom }: Props) {
     }
 
     // Classic mode: apply pick rule to goal pool
-    const picked = pickGoals(validGoals, pickRule);
+    let picked: GoalItem[];
+    try {
+      picked = pickGoals(validGoals, pickRule);
+    } catch (err) {
+      // Pool too small (any pick algorithm) — show the generic message.
+      if (err instanceof PoolPickError) {
+        setError(t["landing.notEnoughGoals"]);
+        return;
+      }
+      throw err;
+    }
 
     if (picked.length < 25) {
       setError(t["landing.notEnoughGoals"]);
@@ -552,7 +577,10 @@ export function LandingPage({ onJoinRoom }: Props) {
       if (meta.name_i18n && Object.keys(meta.name_i18n).length > 0)
         next.name_i18n = meta.name_i18n;
       else delete next.name_i18n;
-      if (meta.description_i18n && Object.keys(meta.description_i18n).length > 0)
+      if (
+        meta.description_i18n &&
+        Object.keys(meta.description_i18n).length > 0
+      )
         next.description_i18n = meta.description_i18n;
       else delete next.description_i18n;
       if (meta.images && meta.images.length > 0) next.images = meta.images;

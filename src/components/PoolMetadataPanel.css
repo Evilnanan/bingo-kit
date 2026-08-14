@@ -112,7 +112,7 @@
   opacity: 1;
 }
 
-/* 图片加载中的 spinner */
+/* Spinner shown while the image is loading */
 .pool-meta-img-spinner {
   position: absolute;
   inset: 0;

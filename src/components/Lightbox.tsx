@@ -5,7 +5,7 @@ import "./Lightbox.css";
 
 interface Props {
   images: ImageAttachment[];
-  /** 当前显示的图片索引 */
+  /** Index of the image currently shown. */
   index: number;
   onIndexChange: (index: number) => void;
   onClose: () => void;
@@ -13,10 +13,12 @@ interface Props {
 }
 
 /**
- * 全屏图片预览（lightbox）。
- * 点遮罩 / ✕ / Escape 关闭；左右方向键切换图片；多于一张时显示计数器。
- * 注意：弹窗是 portal，React 合成事件仍会沿组件树冒泡（如格子按钮的
- * 右键/长按会触发星标），因此在遮罩上统一拦截 touchstart 和 contextmenu。
+ * Fullscreen image preview (lightbox).
+ * Click the overlay / ✕ / Escape to close; arrow keys switch images; a counter
+ * is shown when there is more than one image.
+ * Note: the popup is a portal, so React synthetic events still bubble up the
+ * component tree (e.g. a cell button's right-click/long-press would star it),
+ * so touchstart and contextmenu are intercepted on the overlay.
  */
 export function Lightbox({
   images,
@@ -40,15 +42,17 @@ export function Lightbox({
         e.stopPropagation();
       }}
       onClick={(e) => {
-        // 弹窗是 portal，React 合成事件仍会沿组件树冒泡到格子按钮，
-        // 点遮罩关闭时必须 stopPropagation，否则会顺带触发格子标记。
+        // The popup is a portal, so React synthetic events still bubble to cell
+        // buttons; stopPropagation is required when closing via the overlay,
+        // otherwise the click would also toggle a cell mark.
         e.stopPropagation();
         if (e.target === e.currentTarget) onClose();
       }}
       onTouchEnd={(e) => {
         e.stopPropagation();
         if (e.target === e.currentTarget) {
-          // preventDefault 取消随后的合成 click，避免遮罩点击触发格子标记
+          // preventDefault cancels the synthetic click that follows, so an
+          // overlay tap doesn't toggle a cell mark.
           e.preventDefault();
           onClose();
         }

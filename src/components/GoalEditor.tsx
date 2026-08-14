@@ -216,7 +216,8 @@ function hasTranslation(item: GoalItem): boolean {
   );
 }
 
-// CSV 无法表示图片、翻译和变体，任务池包含这些字段时 CSV 模式只读
+// CSV can't represent images, translations or variants — CSV mode is read-only
+// when the pool contains these fields.
 function hasCsvUnsupported(item: GoalItem): boolean {
   return (
     getGoalImages(item).length > 0 ||
@@ -743,8 +744,9 @@ const GoalEditorItem = memo(function GoalEditorItem({
   const imageStatuses = new Map<string, UploadStatusInfo>(
     images.map((im) => [
       im.hash,
-      // 队列中无记录的图片兜底视为已就绪（如入队前的瞬间、分享链接导入的
-      // 无 data 图片）；恢复的图片会在 LandingPage 挂载时静默入队，由队列状态驱动
+      // Images without a queue record are treated as ready (e.g. the instant
+      // before enqueueing, or data-less images imported via a share link);
+      // restored images are silently re-enqueued when LandingPage mounts.
       allStatuses.get(im.hash) ?? { status: "done" },
     ]),
   );
@@ -1129,7 +1131,7 @@ const GoalEditorItem = memo(function GoalEditorItem({
                   <span
                     className="ge-item-image-name"
                     onClick={(e) => handleStartRename(att, e)}
-                    title={`${att.filename} — 点击重命名`}
+                    title={`${att.filename} — ${t["editor.imageRenameHint"]}`}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -1331,8 +1333,8 @@ export function GoalEditor({
     } else if (mode === "translate") {
       setEditorMode("translate");
     } else if (mode === "json") {
-      // JSON 模式只编辑任务（与 CSV 模式对齐）；完整的 { metadata, goals }
-      // 文档仍可在粘贴/导入时被接受并应用。
+      // JSON mode only edits goals (aligned with CSV mode); full
+      // { metadata, goals } documents are still accepted on paste/import.
       setJsonText(JSON.stringify(currentGoals.map(goalToJson), null, 2));
       setJsonError("");
       // Auto-fold if goals contain images (base64 strings make JSON unreadable)

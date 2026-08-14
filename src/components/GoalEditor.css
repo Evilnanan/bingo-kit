@@ -1281,7 +1281,8 @@
   cursor: pointer;
 }
 
-/* 实心圆旋转不可见，用双色 border 环（同 tooltip spinner）让动画可见 */
+/* A solid circle is invisible while rotating — use a two-tone border ring
+   (like the tooltip spinner) so the animation is visible. */
 .ge-item-image-status--spinner {
   background: transparent;
   border: 2px solid rgba(37, 99, 235, 0.3);

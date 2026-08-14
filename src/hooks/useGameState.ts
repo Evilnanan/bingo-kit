@@ -33,6 +33,8 @@ import { decompressJson, compressJson } from "../utils/compressMessage";
 import type { HexConfig } from "../hex/hexTypes";
 import { pickHexGoals } from "../hex/hexPick";
 import { pickGoals } from "../randomPicks";
+import { PoolPickError } from "../randomPicks/errors";
+import { useT } from "../i18n/useT";
 import type PartySocket from "partysocket";
 import { savePlayerCode, renamePlayerCode } from "../utils/playerCodeStorage";
 
@@ -354,6 +356,7 @@ export function useGameState(
     { config: initialConfig, mode },
     (arg) => createInitialState(arg.config, arg.mode),
   );
+  const { t } = useT();
   const wsRef = useRef<PartySocket | null>(null);
   const stateRef = useRef(state);
   /** Imperative re-join (used after a join rejection). */
@@ -733,7 +736,17 @@ export function useGameState(
 
     // For classic mode with originalPool + pickRule, re-randomize goals
     if (current.mode === "classic" && pool && rule) {
-      const newGoals = pickGoals(pool, rule).slice(0, 25);
+      let newGoals: GoalItem[];
+      try {
+        newGoals = pickGoals(pool, rule).slice(0, 25);
+      } catch (err) {
+        // Pool too small — show the generic message.
+        if (err instanceof PoolPickError) {
+          alert(t["landing.notEnoughGoals"]);
+          return;
+        }
+        throw err;
+      }
       const cfg = current.config as BoardConfig | undefined;
       const newBoardConfig: BoardConfig = {
         ...(cfg ?? { goals: [] }),

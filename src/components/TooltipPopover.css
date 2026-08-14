@@ -129,7 +129,7 @@
   opacity: 1;
 }
 
-/* 图片加载中的 spinner */
+/* Spinner shown while the image is loading */
 .tooltip-popup-img-spinner {
   position: absolute;
   inset: 0;

@@ -15,7 +15,8 @@ interface Props {
 export function TooltipPopover({ text, images, imageBaseUrl }: Props) {
   const [open, setOpen] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState(-1);
-  // 已加载完成的图片 hash 集合（含加载失败，失败后图片隐藏、spinner 停止）
+  // Set of image hashes that finished loading (including failures — failed
+  // images are hidden and their spinner stops).
   const [loadedImages, setLoadedImages] = useState<ReadonlySet<string>>(
     new Set(),
   );
@@ -40,8 +41,9 @@ export function TooltipPopover({ text, images, imageBaseUrl }: Props) {
     setLightboxIdx(-1);
   };
 
-  // 弹窗是 portal，React 合成事件仍会沿组件树冒泡到格子按钮
-  // （格子的 onContextMenu / 长按会触发星标），必须在此拦截。
+  // The popup is a portal, so React synthetic events still bubble to cell
+  // buttons (a cell's onContextMenu / long-press would star it) — intercept
+  // them here.
   const stopContext = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -89,7 +91,8 @@ export function TooltipPopover({ text, images, imageBaseUrl }: Props) {
               onContextMenu={stopContext}
               onClick={(e) => e.stopPropagation()}
               onTouchEnd={(e) => {
-                // 不能 preventDefault：会取消子元素（图片按钮）的合成 click
+                // Can't preventDefault here: it would cancel the child image
+                // button's synthetic click.
                 e.stopPropagation();
               }}
             >
@@ -109,7 +112,7 @@ export function TooltipPopover({ text, images, imageBaseUrl }: Props) {
                       }}
                       title={att.filename}
                     >
-                      {/* 图片未加载完成时显示 spinner */}
+                      {/* Show a spinner until the image has loaded */}
                       {!loadedImages.has(att.hash) && (
                         <span
                           className="tooltip-popup-img-spinner"
@@ -128,7 +131,8 @@ export function TooltipPopover({ text, images, imageBaseUrl }: Props) {
                         }}
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = "none";
-                          // 失败也标记为已结束，停止 spinner（图片本身已隐藏）
+                          // Mark failures as finished too, so the spinner
+                          // stops (the image itself is already hidden).
                           setLoadedImages((prev) =>
                             new Set(prev).add(att.hash),
                           );

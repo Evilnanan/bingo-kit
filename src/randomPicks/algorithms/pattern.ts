@@ -11,6 +11,7 @@ import {
   POSITION_LINES,
 } from "../utils";
 import { expandVariants, getVariantGroupId } from "../variants";
+import { PoolPickError } from "../errors";
 
 /* ===================== grid layout ===================== */
 
@@ -240,7 +241,7 @@ function fillByBacktrack(
       const target = grid[Math.floor(pos / 5)][pos % 5];
 
       const info = getCandidates(pos, target, 0);
-      if (info === null) throw new Error("任务池数量不足，无法完成模式填充");
+      if (info === null) throw new PoolPickError("pattern_unfillable");
 
       let { candidates } = info;
       const { range } = info;
@@ -250,15 +251,14 @@ function fillByBacktrack(
         let diagIgnore: number;
         for (diagIgnore = 1; diagIgnore <= stack.length; diagIgnore++) {
           const diagCand = getCandidates(pos, target, diagIgnore);
-          if (diagCand === null)
-            throw new Error("任务池数量不足，无法完成序列填充");
+          if (diagCand === null) throw new PoolPickError("pattern_sequence");
           if (diagCand.candidates.length > 0) {
             candidates = diagCand.candidates;
             break;
           }
         }
         if (candidates.length === 0) {
-          throw new Error("任务池数量不足，无法完成序列填充");
+          throw new PoolPickError("pattern_sequence");
         }
         diag.conflictJumps++;
         return stack.length - diagIgnore;

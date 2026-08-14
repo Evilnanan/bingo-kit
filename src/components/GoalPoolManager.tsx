@@ -51,7 +51,9 @@ interface Props {
 const EMPTY_STATUS_MAP = new Map<string, UploadStatusInfo>();
 
 /** Trim translation values, drop empty entries; undefined when nothing left. */
-function cleanI18nMap(raw: Record<string, string>): Record<string, string> | undefined {
+function cleanI18nMap(
+  raw: Record<string, string>,
+): Record<string, string> | undefined {
   const cleaned: Record<string, string> = {};
   for (const [lang, value] of Object.entries(raw)) {
     const trimmed = value.trim();
@@ -90,7 +92,8 @@ function PoolMetaEditor({
   const [previewIdx, setPreviewIdx] = useState(-1);
   const [renamingHash, setRenamingHash] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
-  // 翻译区块默认收起；展开后通过下拉选择要编辑的语言。
+  // Translations start collapsed; expanding reveals a dropdown to pick the
+  // language to edit.
   const [translateOpen, setTranslateOpen] = useState(false);
   const [translateLang, setTranslateLang] = useState<Lang | "">(() => {
     const existing = new Set([
@@ -101,7 +104,8 @@ function PoolMetaEditor({
   });
   const mouseDownOnOverlay = useRef(false);
 
-  // 已有翻译的语言数（用于折叠标题上的计数显示）
+  // Number of languages that already have translations (shown on the
+  // collapsed header).
   const translatedCount = new Set([
     ...Object.entries(nameI18n)
       .filter(([, v]) => v.trim() !== "")
@@ -175,7 +179,7 @@ function PoolMetaEditor({
     }
   };
 
-  // 关闭窗口默认保存；只有点击取消才不保存。
+  // Closing the window saves by default; only Cancel discards.
   const handleCloseAndSave = () => {
     onSave(name, description, images, nameI18n, descriptionI18n);
     onClose();
@@ -465,7 +469,7 @@ export function GoalPoolManager({
   }, [confirmingDeleteId]);
 
   const handleCreate = () => {
-    // Generate a default numbered name like "任务池 1", "任务池 2"...
+    // Generate a default numbered name like "Pool 1", "Pool 2"...
     let n = pools.length + 1;
     const base = t["goalPool.newDefaultName"];
     let name = `${base} ${n}`;
@@ -491,7 +495,7 @@ export function GoalPoolManager({
   const handleDelete = (pool: GoalPool) => {
     setConfirmingDeleteId(null);
     let updated = pools.filter((p) => p.id !== pool.id);
-    // If deleting the last pool, create the "示例" pool with default goals
+    // If deleting the last pool, create the "Example" pool with default goals
     if (updated.length === 0) {
       const now = Date.now();
       const defaultPool: GoalPool = {
@@ -512,8 +516,9 @@ export function GoalPoolManager({
   };
 
   const handleExportPool = async (pool: GoalPool) => {
-    // 导出前从 IndexedDB 补全图片 base64 data（localStorage 只存元数据），
-    // 保证导出的 JSON 携带完整图片数据（R2 图片只有 30 天生命周期）。
+    // Rehydrate image base64 data from IndexedDB before exporting (localStorage
+    // only stores metadata), so the exported JSON carries full image data
+    // (R2 images have a 30-day lifecycle).
     const exportGoals = await mergeDataIntoGoals(pool.goals);
     const exportImages = await mergeDataIntoAttachments(pool.images);
     const meta: PoolMetadata = {
@@ -554,7 +559,7 @@ export function GoalPoolManager({
         const now = Date.now();
         const meta = result.metadata;
         const baseName = meta?.name?.trim() || t["goalPool.importedName"];
-        // 保证池名不与其他池重复
+        // Keep the pool name unique across pools
         let name = baseName;
         let n = 2;
         while (pools.some((p) => p.name === name)) {
@@ -673,7 +678,9 @@ export function GoalPoolManager({
                 }}
               >
                 <div className="gp-item-info">
-                  <span className="gp-item-name">{getPoolName(pool, lang)}</span>
+                  <span className="gp-item-name">
+                    {getPoolName(pool, lang)}
+                  </span>
                   <span className="gp-item-count">
                     {format(t["goalPool.goalCount"], pool.goals.length)}
                   </span>

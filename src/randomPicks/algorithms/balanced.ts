@@ -11,6 +11,7 @@ import {
   lineSum,
 } from "../utils";
 import { expandVariants, getVariantGroupId } from "../variants";
+import { PoolPickError } from "../errors";
 
 /* ===================== global scoring ===================== */
 
@@ -218,7 +219,7 @@ export function balancedDifficulty(
   });
   if (candidates.length < 25) candidates = [...expanded];
   if (candidates.length < 25) {
-    throw new Error(`任务池不足（${candidates.length} < 25），无法生成棋盘`);
+    throw new PoolPickError("balanced_not_enough");
   }
 
   const swapIterations = Math.max(800, candidates.length * 30);

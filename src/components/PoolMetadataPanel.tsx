@@ -20,7 +20,8 @@ interface Props {
 export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {
   const { t, lang } = useT();
   const [lightboxIdx, setLightboxIdx] = useState(-1);
-  // 已加载完成的图片 hash 集合（含加载失败，失败后图片隐藏、spinner 停止）
+  // Set of image hashes that finished loading (including failures — failed
+  // images are hidden and their spinner stops).
   const [loadedImages, setLoadedImages] = useState<ReadonlySet<string>>(
     new Set(),
   );
@@ -64,7 +65,7 @@ export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {
                     onClick={() => setLightboxIdx(i)}
                     title={att.filename}
                   >
-                    {/* 图片未加载完成时显示 spinner */}
+                    {/* Show a spinner until the image has loaded */}
                     {!loadedImages.has(att.hash) && (
                       <span
                         className="pool-meta-img-spinner"
@@ -81,7 +82,8 @@ export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {
                       }}
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
-                        // 失败也标记为已结束，停止 spinner（图片本身已隐藏）
+                        // Mark failures as finished too, so the spinner stops
+                        // (the image itself is already hidden).
                         setLoadedImages((prev) => new Set(prev).add(att.hash));
                       }}
                     />

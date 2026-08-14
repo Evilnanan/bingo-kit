@@ -24,16 +24,18 @@ interface Props {
   serverUrl: string;
   imageHost?: string;
   /**
-   * 主页/URL 选择的初始模式，仅在创建房间（第一个提供 config 的玩家）时生效。
-   * 进入已有房间后一律以服务端 state.mode（房主设定）为准。
+   * Initial mode chosen on the homepage/URL — only applies when creating a room
+   * (the first player to provide a config). After joining an existing room, the
+   * server's state.mode (set by the host) always wins.
    */
   gameMode: GameMode;
   onLeave: () => void;
 }
 
 /**
- * 统一房间组件：根据服务端权威的 state.mode 渲染经典棋盘或 Hex 棋盘，
- * 避免加入者用自己主页的模式渲染出与房主不一致的棋盘。
+ * Unified room component: renders the classic or Hex board according to the
+ * server-authoritative state.mode, so joiners never render a board that
+ * differs from the host's.
  */
 export function GameRoom({
   roomName,

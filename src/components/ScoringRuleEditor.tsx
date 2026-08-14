@@ -77,7 +77,7 @@ function uid(): string {
   return `si_${nextId++}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/** Generate a unique default rule name like "规则 1", "规则 2"… */
+/** Generate a unique default rule name like "Rule 1", "Rule 2"… */
 function defaultRuleName(base: string, existingNames: string[]): string {
   let n = existingNames.length + 1;
   let name = `${base} ${n}`;

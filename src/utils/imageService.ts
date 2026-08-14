@@ -157,8 +157,9 @@ export async function checkImageExists(
   baseUrl: string,
 ): Promise<boolean> {
   try {
-    // 绕过浏览器缓存：服务端对 HEAD 也返回 30 天 Cache-Control，
-    // 否则清空存储后仍会命中缓存的 200 而跳过实际上传。
+    // Bypass the browser cache: the server returns a 30-day Cache-Control even
+    // for HEAD, otherwise a cached 200 would skip the actual upload after the
+    // storage was cleared.
     const resp = await fetch(`${baseUrl}/images/${hash}`, {
       method: "HEAD",
       cache: "no-store",
@@ -256,7 +257,8 @@ export class ImageUploadQueue {
       return;
     }
 
-    // 服务器已有该图片（哈希即存储键）则复用，跳过上传
+    // Reuse the image when the server already has it (hash is the storage
+    // key), skipping the upload.
     const exists = await checkImageExists(att.hash, this.baseUrl);
     if (exists) {
       this.finish(att.hash, { status: "done" });
