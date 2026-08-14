@@ -257,12 +257,21 @@ export function usePartyConnection(params: {
     const sendJoin = (joinName: string, joinCode?: string) => {
       const socket = wsRef.current;
       if (!socket) return;
-      joinParamsRef.current = { name: joinName, code: joinCode };
+      // The server is authoritative for identity codes, but this client
+      // caches them locally: the code assigned on the first join (and any
+      // later change_code) is saved via `state`/`code_changed` handling.
+      // Re-resolve at send time so an automatic reconnect — which fires long
+      // after the original join, when `joinParamsRef` may still hold the
+      // pre-assignment `undefined` — presents the right code instead of a
+      // missing one and a spurious `join_rejected`.
+      const resolvedCode =
+        joinCode ?? getPlayerCode(roomName, joinName) ?? undefined;
+      joinParamsRef.current = { name: joinName, code: resolvedCode };
       socket.send(
         JSON.stringify({
           type: "join",
           name: joinName,
-          code: joinCode,
+          code: resolvedCode,
           config: config != null ? compressJson(config) : null,
           metadata,
           mode,
@@ -281,13 +290,19 @@ export function usePartyConnection(params: {
       // Generate a synthetic client ID (server doesn't expose connection IDs to us)
       const clientId = "c-" + Math.random().toString(36).slice(2, 10);
       dispatch({ type: "SET_CLIENT_ID", clientId });
+      // Prefer the latest authoritative name (kept in game state, e.g. after
+      // a rename) over the one captured at connection setup: a reconnect must
+      // rejoin under the current name, not re-create a duplicate player under
+      // the old one.
+      const rejoinName =
+        localPlayerNameRef?.current ?? joinParamsRef.current.name;
       dispatch({
         type: "SET_LOCAL_PLAYER_NAME",
-        name: joinParamsRef.current.name,
+        name: rejoinName,
       });
 
       // Announce ourselves to the server — compress config to save bandwidth
-      sendJoin(joinParamsRef.current.name, joinParamsRef.current.code);
+      sendJoin(rejoinName, joinParamsRef.current.code);
     });
 
     ws.addEventListener("message", (event: Event) => {
