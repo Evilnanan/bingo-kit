@@ -17,6 +17,13 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
+  /*
+   * The floating app toolbar (fixed top-right) covers first-row controls
+   * that reach the top-right corner. RoomHeader reserves the toolbar's
+   * width dynamically (inline padding-right) only while that would happen;
+   * once the header wraps, later rows sit below the toolbar and use the
+   * full width.
+   */
 }
 
 .room-header-left {
@@ -264,16 +271,6 @@
   color: var(--text-secondary);
   font-size: 16px;
   padding: 40px;
-}
-
-@media (max-width: 650px) {
-  .room-header {
-    padding-right: 0;
-  }
-
-  .room-header-right {
-    flex-basis: 100%;
-  }
 }
 
 @media (max-width: 800px) {

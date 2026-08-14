@@ -7,19 +7,36 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  padding: 10px 16px;
   min-width: 240px;
-  max-width: 300px;
+  /* Never wider than the viewport: the JS positioner clamps the bubble into
+     the screen, but this caps its size on very narrow displays. */
+  max-width: min(300px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  /* Keep overflow visible here so the speech-bubble arrow (which sticks out
+     above the border) is never clipped — scrolling happens in the inner
+     .settings-bubble-scroll instead. */
   transform-origin: top right;
   animation: settings-enter 0.15s ease-out;
 }
 
-/* Arrow pointing up to the gear button */
+/* Inner scroll area: the JS positioner caps the bubble's max-height, and the
+   content scrolls inside here when a short screen forces a smaller height. */
+.settings-bubble-scroll {
+  padding: 10px 16px;
+  overflow-y: auto;
+  min-height: 0;
+  border-radius: inherit;
+}
+
+/* Arrow pointing up to the gear button. Its horizontal offset is adjusted
+   by the JS positioner via --arrow-x so it keeps aiming at the gear even
+   when the bubble is shifted to stay on-screen. */
 .settings-bubble::before {
   content: "";
   position: absolute;
   top: -6px;
-  right: 12px;
+  right: var(--arrow-x, 12px);
   width: 10px;
   height: 10px;
   background: var(--surface);

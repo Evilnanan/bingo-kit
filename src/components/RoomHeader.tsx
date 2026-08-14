@@ -1,10 +1,17 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n/useT";
 import type { GamePhase, PoolMetadata } from "../types";
 import type { RoomSettings } from "../hooks/useRoomSettings";
 import { RoomSettingsPanel } from "./RoomSettingsPanel";
 import { PoolMetadataPanel } from "./PoolMetadataPanel";
 import { DEFAULT_SERVER_URL, IMAGE_URL } from "../config";
+
+/**
+ * Horizontal space reserved for the floating app toolbar (fixed top-right,
+ * ~164px wide incl. margin). Only applied while a first-row control would
+ * sit under it — see the layout effect below.
+ */
+const TOOLBAR_CLEARANCE_PX = 176;
 
 interface Props {
   roomName: string;
@@ -49,6 +56,65 @@ export function RoomHeader({
   const [panelMounted, setPanelMounted] = useState(false);
   const [poolInfoOpen, setPoolInfoOpen] = useState(false);
   const settingsWrapRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // The fixed app toolbar covers the top-right corner of the viewport, so a
+  // first-row control that reaches that corner becomes unclickable. Reserve
+  // the toolbar's width only while that would happen; once the header wraps,
+  // the later rows sit below the toolbar and must use the full width. The
+  // check always measures the unpadded layout, so the decision depends only
+  // on content + viewport and can't oscillate with the padding itself.
+  useLayoutEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const toolbar = document.querySelector<HTMLElement>(".app-toolbar");
+      const left = header.querySelector<HTMLElement>(".room-header-left");
+      const right = header.querySelector<HTMLElement>(".room-header-right");
+      if (!toolbar || !left || !right) return;
+      const prevPad = header.style.paddingRight;
+      header.style.paddingRight = "0px";
+      const t = toolbar.getBoundingClientRect();
+      // "Wrapped" = the right group starts below the left group's row. A
+      // second row starts at least the flex gap (12px) lower, while
+      // align-items:center offsets same-row tops by only a few px — the
+      // bottom + 4px threshold separates the two reliably.
+      const leftRect = left.getBoundingClientRect();
+      const rightRect = right.getBoundingClientRect();
+      const wrapped = rightRect.top >= leftRect.bottom + 4;
+      const controls = [
+        ...left.querySelectorAll("button, a, select"),
+        ...right.querySelectorAll("button, a, select"),
+      ] as HTMLElement[];
+      const covered =
+        !wrapped &&
+        controls.some((el) => {
+          const r = el.getBoundingClientRect();
+          return (
+            r.right > t.left &&
+            r.left < t.right &&
+            r.bottom > t.top &&
+            r.top < t.bottom
+          );
+        });
+      header.style.paddingRight = prevPad;
+      header.style.paddingRight = covered ? `${TOOLBAR_CLEARANCE_PX}px` : "0px";
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(header);
+    window.addEventListener("resize", schedule);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   const openPanel = () => {
     setPanelMounted(true);
@@ -101,7 +167,7 @@ export function RoomHeader({
   const showRestart = phase === "playing" && isOwner;
 
   return (
-    <header className="room-header">
+    <header className="room-header" ref={headerRef}>
       <div className="room-header-left">
         <button
           type="button"
