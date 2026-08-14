@@ -8,7 +8,7 @@ import type {
   PoolMetadata,
   RoomConfig,
 } from "../types";
-import { getGoalText, getGoalImages, stripGoalMeta } from "../types";
+import { getGoalText, getGoalImages, getPoolName, stripGoalMeta } from "../types";
 import { pickGoals, type PickRule } from "../randomPicks";
 import { computeConfigHash } from "../utils/configHash";
 import { HEX_MIN_SIZE, HEX_MAX_SIZE } from "../hex/hexTypes";
@@ -175,7 +175,7 @@ interface Props {
 }
 
 export function LandingPage({ onJoinRoom }: Props) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [gameMode, setGameMode] = useState<GameMode>(() => getModeFromUrl());
   const [roomName, setRoomName] = useState(
     () => getRoomFromUrl() || randomRoomName(),
@@ -425,6 +425,13 @@ export function LandingPage({ onJoinRoom }: Props) {
           ...(currentPool.description
             ? { description: currentPool.description }
             : {}),
+          ...(currentPool.name_i18n && Object.keys(currentPool.name_i18n).length > 0
+            ? { name_i18n: currentPool.name_i18n }
+            : {}),
+          ...(currentPool.description_i18n &&
+          Object.keys(currentPool.description_i18n).length > 0
+            ? { description_i18n: currentPool.description_i18n }
+            : {}),
           ...(currentPool.images && currentPool.images.length > 0
             ? { images: currentPool.images }
             : {}),
@@ -542,6 +549,12 @@ export function LandingPage({ onJoinRoom }: Props) {
       if (meta.description && meta.description.trim())
         next.description = meta.description.trim();
       else delete next.description;
+      if (meta.name_i18n && Object.keys(meta.name_i18n).length > 0)
+        next.name_i18n = meta.name_i18n;
+      else delete next.name_i18n;
+      if (meta.description_i18n && Object.keys(meta.description_i18n).length > 0)
+        next.description_i18n = meta.description_i18n;
+      else delete next.description_i18n;
       if (meta.images && meta.images.length > 0) next.images = meta.images;
       else delete next.images;
       return next;
@@ -685,7 +698,7 @@ export function LandingPage({ onJoinRoom }: Props) {
             >
               {pools.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name}
+                  {getPoolName(p, lang)}
                 </option>
               ))}
             </select>

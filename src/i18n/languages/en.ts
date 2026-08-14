@@ -183,6 +183,10 @@ export const en: Translations = {
   "goalPool.descriptionPlaceholder": "Describe this goal pool…",
   "goalPool.images": "Images",
   "goalPool.cancel": "Cancel",
+  "goalPool.translations": "Translations",
+  "goalPool.selectLang": "Select language",
+  "goalPool.translatedName": "Translated name",
+  "goalPool.translatedDescription": "Translated description",
   // Room display settings
   "settings.title": "Display Settings",
   "settings.hideCounters": "Hide Counters",

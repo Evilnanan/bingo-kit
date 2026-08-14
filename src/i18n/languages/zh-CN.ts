@@ -179,6 +179,10 @@ export const zh: Translations = {
   "goalPool.descriptionPlaceholder": "描述这个任务池…",
   "goalPool.images": "图片",
   "goalPool.cancel": "取消",
+  "goalPool.translations": "翻译",
+  "goalPool.selectLang": "选择语言",
+  "goalPool.translatedName": "翻译名称",
+  "goalPool.translatedDescription": "翻译描述",
   // Room display settings
   "settings.title": "显示设置",
   "settings.hideCounters": "隐藏计数器",

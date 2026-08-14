@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "../i18n/useT";
 import type { PoolMetadata } from "../types";
+import { getPoolDescription, getPoolName } from "../types";
 import { getImageSrc } from "../utils/imageService";
 import { Lightbox } from "./Lightbox";
 import "./PoolMetadataPanel.css";
@@ -17,7 +18,7 @@ interface Props {
  * images) that the room owner attached when creating the room.
  */
 export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [lightboxIdx, setLightboxIdx] = useState(-1);
   // 已加载完成的图片 hash 集合（含加载失败，失败后图片隐藏、spinner 停止）
   const [loadedImages, setLoadedImages] = useState<ReadonlySet<string>>(
@@ -37,7 +38,7 @@ export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {
         >
           <div className="pool-meta-header">
             <h2 className="pool-meta-title" id="pool-meta-title">
-              {metadata.name}
+              {getPoolName(metadata, lang)}
             </h2>
             <button
               type="button"
@@ -50,7 +51,8 @@ export function PoolMetadataPanel({ metadata, imageBaseUrl, onClose }: Props) {
           </div>
           <div className="pool-meta-scroll">
             <p className="pool-meta-desc">
-              {metadata.description || t["poolMeta.noDescription"]}
+              {getPoolDescription(metadata, lang) ||
+                t["poolMeta.noDescription"]}
             </p>
             {images.length > 0 && (
               <div className="pool-meta-images">

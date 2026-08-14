@@ -59,6 +59,10 @@ export function goalToJson(item: GoalItem): unknown {
 export function poolToJson(meta: PoolMetadata): Record<string, unknown> {
   const obj: Record<string, unknown> = { name: meta.name };
   if (meta.description) obj.description = meta.description;
+  if (meta.name_i18n && Object.keys(meta.name_i18n).length > 0)
+    obj.name_i18n = meta.name_i18n;
+  if (meta.description_i18n && Object.keys(meta.description_i18n).length > 0)
+    obj.description_i18n = meta.description_i18n;
   if (meta.images && meta.images.length > 0)
     obj.images = meta.images.map(attachmentToJson);
   return obj;
@@ -124,6 +128,19 @@ export function isValidImageAttachments(
   return Array.isArray(value) && value.every(isValidImageAttachment);
 }
 
+/** True when `value` is a plain string map (i18n overrides like text_i18n). */
+function isStringMap(value: unknown): boolean {
+  return (
+    value !== undefined &&
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.values(value as Record<string, unknown>).every(
+      (v) => typeof v === "string",
+    )
+  );
+}
+
 export function isValidPoolMetadata(value: unknown): value is PoolMetadata {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const meta = value as Record<string, unknown>;
@@ -134,6 +151,12 @@ export function isValidPoolMetadata(value: unknown): value is PoolMetadata {
     typeof meta.description !== "string"
   )
     return false;
+  if (meta.name_i18n !== undefined && meta.name_i18n !== null) {
+    if (!isStringMap(meta.name_i18n)) return false;
+  }
+  if (meta.description_i18n !== undefined && meta.description_i18n !== null) {
+    if (!isStringMap(meta.description_i18n)) return false;
+  }
   if (
     meta.images !== undefined &&
     meta.images !== null &&

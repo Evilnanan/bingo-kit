@@ -185,6 +185,10 @@ export function stripConfigImageData(cfg: unknown): unknown {
 export interface PoolMetadata {
   name: string;
   description?: string;
+  /** Per-language overrides for `name`, keyed by language code. */
+  name_i18n?: Record<string, string>;
+  /** Per-language overrides for `description`, keyed by language code. */
+  description_i18n?: Record<string, string>;
   images?: ImageAttachment[];
 }
 
@@ -193,11 +197,38 @@ export interface GoalPool {
   name: string;
   /** Optional human-readable description of the pool. */
   description?: string;
+  /** Per-language overrides for `name`, keyed by language code. */
+  name_i18n?: Record<string, string>;
+  /** Per-language overrides for `description`, keyed by language code. */
+  description_i18n?: Record<string, string>;
   /** Optional pool-level images (shown in the room via the info panel). */
   images?: ImageAttachment[];
   goals: GoalItem[];
   createdAt: number;
   updatedAt: number;
+}
+
+/** Translated pool name — falls back to the base name when `lang` has no
+ *  translation. Accepts both `GoalPool` and `PoolMetadata`. */
+export function getPoolName(
+  meta: { name: string; name_i18n?: Record<string, string> },
+  lang?: string,
+): string {
+  if (lang && meta.name_i18n?.[lang]) return meta.name_i18n[lang];
+  return meta.name;
+}
+
+/** Translated pool description — falls back to the base description when
+ *  `lang` has no translation. Accepts both `GoalPool` and `PoolMetadata`. */
+export function getPoolDescription(
+  meta: {
+    description?: string;
+    description_i18n?: Record<string, string>;
+  },
+  lang?: string,
+): string | undefined {
+  if (lang && meta.description_i18n?.[lang]) return meta.description_i18n[lang];
+  return meta.description;
 }
 
 export interface BoardConfig {

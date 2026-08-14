@@ -1,11 +1,14 @@
 import { useRef, useState, useEffect, useSyncExternalStore } from "react";
 import { useT, format } from "../i18n/useT";
+import { langCodes, langDescriptors } from "../i18n/translations";
+import type { Lang } from "../i18n/translations";
 import type {
   GoalItem,
   GoalPool,
   ImageAttachment,
   PoolMetadata,
 } from "../types";
+import { getPoolName } from "../types";
 import { savePools } from "../utils/goalPoolStorage";
 import {
   mergeDataIntoAttachments,
@@ -47,6 +50,16 @@ interface Props {
 
 const EMPTY_STATUS_MAP = new Map<string, UploadStatusInfo>();
 
+/** Trim translation values, drop empty entries; undefined when nothing left. */
+function cleanI18nMap(raw: Record<string, string>): Record<string, string> | undefined {
+  const cleaned: Record<string, string> = {};
+  for (const [lang, value] of Object.entries(raw)) {
+    const trimmed = value.trim();
+    if (trimmed) cleaned[lang] = trimmed;
+  }
+  return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+}
+
 function PoolMetaEditor({
   pool,
   uploadQueue,
@@ -59,17 +72,44 @@ function PoolMetaEditor({
     name: string,
     description: string,
     images: ImageAttachment[],
+    nameI18n: Record<string, string>,
+    descriptionI18n: Record<string, string>,
   ) => void;
   onClose: () => void;
 }) {
   const { t } = useT();
   const [name, setName] = useState(pool.name);
   const [description, setDescription] = useState(pool.description ?? "");
+  const [nameI18n, setNameI18n] = useState<Record<string, string>>(
+    pool.name_i18n ?? {},
+  );
+  const [descriptionI18n, setDescriptionI18n] = useState<
+    Record<string, string>
+  >(pool.description_i18n ?? {});
   const [images, setImages] = useState<ImageAttachment[]>(pool.images ?? []);
   const [previewIdx, setPreviewIdx] = useState(-1);
   const [renamingHash, setRenamingHash] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
+  // 翻译区块默认收起；展开后通过下拉选择要编辑的语言。
+  const [translateOpen, setTranslateOpen] = useState(false);
+  const [translateLang, setTranslateLang] = useState<Lang | "">(() => {
+    const existing = new Set([
+      ...Object.keys(pool.name_i18n ?? {}),
+      ...Object.keys(pool.description_i18n ?? {}),
+    ]);
+    return langCodes.find((lc) => existing.has(lc)) ?? "";
+  });
   const mouseDownOnOverlay = useRef(false);
+
+  // 已有翻译的语言数（用于折叠标题上的计数显示）
+  const translatedCount = new Set([
+    ...Object.entries(nameI18n)
+      .filter(([, v]) => v.trim() !== "")
+      .map(([k]) => k),
+    ...Object.entries(descriptionI18n)
+      .filter(([, v]) => v.trim() !== "")
+      .map(([k]) => k),
+  ]).size;
 
   // Upload statuses — subscribe to the queue as an external store.
   const allStatuses = useSyncExternalStore(
@@ -137,7 +177,7 @@ function PoolMetaEditor({
 
   // 关闭窗口默认保存；只有点击取消才不保存。
   const handleCloseAndSave = () => {
-    onSave(name, description, images);
+    onSave(name, description, images, nameI18n, descriptionI18n);
     onClose();
   };
 
@@ -189,6 +229,80 @@ function PoolMetaEditor({
               rows={4}
             />
           </label>
+
+          <div className="gp-meta-field">
+            <button
+              type="button"
+              className="gp-meta-translate-toggle"
+              onClick={() => setTranslateOpen((v) => !v)}
+              aria-expanded={translateOpen}
+              title={t["goalPool.translations"]}
+            >
+              <span
+                className={`gp-meta-translate-chevron${translateOpen ? " gp-meta-translate-chevron--open" : ""}`}
+                aria-hidden="true"
+              >
+                ▸
+              </span>
+              <span className="gp-meta-label">
+                {t["goalPool.translations"]}
+              </span>
+              {translatedCount > 0 && (
+                <span className="gp-meta-count">({translatedCount})</span>
+              )}
+            </button>
+            {translateOpen && (
+              <div className="gp-meta-translate-panel">
+                <select
+                  className="gp-meta-input"
+                  value={translateLang}
+                  onChange={(e) =>
+                    setTranslateLang(e.target.value as Lang | "")
+                  }
+                >
+                  <option value="">{t["goalPool.selectLang"]}</option>
+                  {langCodes.map((lc) => (
+                    <option key={lc} value={lc}>
+                      {langDescriptors[lc].displayName}
+                    </option>
+                  ))}
+                </select>
+                {translateLang && (
+                  <>
+                    <input
+                      className="gp-meta-input"
+                      type="text"
+                      value={nameI18n[translateLang] ?? ""}
+                      placeholder={name.trim() || t["goalPool.translatedName"]}
+                      title={`${langDescriptors[translateLang].displayName} — ${t["goalPool.translatedName"]}`}
+                      onChange={(e) =>
+                        setNameI18n((cur) => ({
+                          ...cur,
+                          [translateLang]: e.target.value,
+                        }))
+                      }
+                    />
+                    <textarea
+                      className="gp-meta-input gp-meta-textarea"
+                      value={descriptionI18n[translateLang] ?? ""}
+                      placeholder={
+                        description.trim() ||
+                        t["goalPool.translatedDescription"]
+                      }
+                      title={`${langDescriptors[translateLang].displayName} — ${t["goalPool.translatedDescription"]}`}
+                      onChange={(e) =>
+                        setDescriptionI18n((cur) => ({
+                          ...cur,
+                          [translateLang]: e.target.value,
+                        }))
+                      }
+                      rows={4}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="gp-meta-field">
             <span className="gp-meta-label">
@@ -335,7 +449,7 @@ export function GoalPoolManager({
   onUpdate,
   onClose,
 }: Props) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const mouseDownOnOverlay = useRef(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null,
@@ -405,6 +519,12 @@ export function GoalPoolManager({
     const meta: PoolMetadata = {
       name: pool.name,
       ...(pool.description ? { description: pool.description } : {}),
+      ...(pool.name_i18n && Object.keys(pool.name_i18n).length > 0
+        ? { name_i18n: pool.name_i18n }
+        : {}),
+      ...(pool.description_i18n && Object.keys(pool.description_i18n).length > 0
+        ? { description_i18n: pool.description_i18n }
+        : {}),
       ...(exportImages && exportImages.length > 0
         ? { images: exportImages }
         : {}),
@@ -448,6 +568,13 @@ export function GoalPoolManager({
           ...(meta?.description?.trim()
             ? { description: meta.description.trim() }
             : {}),
+          ...(meta?.name_i18n && Object.keys(meta.name_i18n).length > 0
+            ? { name_i18n: meta.name_i18n }
+            : {}),
+          ...(meta?.description_i18n &&
+          Object.keys(meta.description_i18n).length > 0
+            ? { description_i18n: meta.description_i18n }
+            : {}),
           ...(meta?.images && meta.images.length > 0
             ? { images: meta.images }
             : {}),
@@ -475,12 +602,16 @@ export function GoalPoolManager({
     name: string,
     description: string,
     images: ImageAttachment[],
+    nameI18n: Record<string, string>,
+    descriptionI18n: Record<string, string>,
   ) => {
     if (!editingMetaId) return;
     const pool = pools.find((p) => p.id === editingMetaId);
     if (!pool) return;
     const trimmedName = name.trim() || pool.name;
     const trimmedDesc = description.trim();
+    const cleanedNameI18n = cleanI18nMap(nameI18n);
+    const cleanedDescI18n = cleanI18nMap(descriptionI18n);
     const updated = pools.map((p) => {
       if (p.id !== editingMetaId) return p;
       const next: GoalPool = {
@@ -490,6 +621,10 @@ export function GoalPoolManager({
       };
       if (trimmedDesc) next.description = trimmedDesc;
       else delete next.description;
+      if (cleanedNameI18n) next.name_i18n = cleanedNameI18n;
+      else delete next.name_i18n;
+      if (cleanedDescI18n) next.description_i18n = cleanedDescI18n;
+      else delete next.description_i18n;
       if (images.length > 0) next.images = images;
       else delete next.images;
       return next;
@@ -538,7 +673,7 @@ export function GoalPoolManager({
                 }}
               >
                 <div className="gp-item-info">
-                  <span className="gp-item-name">{pool.name}</span>
+                  <span className="gp-item-name">{getPoolName(pool, lang)}</span>
                   <span className="gp-item-count">
                     {format(t["goalPool.goalCount"], pool.goals.length)}
                   </span>

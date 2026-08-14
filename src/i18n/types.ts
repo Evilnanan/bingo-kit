@@ -190,6 +190,10 @@ export interface Translations {
   "goalPool.descriptionPlaceholder": string;
   "goalPool.images": string;
   "goalPool.cancel": string;
+  "goalPool.translations": string;
+  "goalPool.selectLang": string;
+  "goalPool.translatedName": string;
+  "goalPool.translatedDescription": string;
   // Room display settings
   "settings.title": string;
   "settings.hideCounters": string;

@@ -274,6 +274,41 @@ label.gp-btn {
   min-height: 72px;
 }
 
+/* ── metadata editor: translations ───────────────────────────────── */
+
+.gp-meta-translate-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.gp-meta-translate-toggle .gp-meta-label {
+  cursor: pointer;
+}
+
+.gp-meta-translate-chevron {
+  display: inline-block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition: transform 0.15s;
+}
+
+.gp-meta-translate-chevron--open {
+  transform: rotate(90deg);
+}
+
+.gp-meta-translate-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .gp-meta-images {
   display: flex;
   flex-wrap: wrap;
