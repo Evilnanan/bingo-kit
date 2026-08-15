@@ -663,6 +663,15 @@ export class GameRoom {
           if (cfgLockout !== undefined) this.lockout = cfgLockout;
           this.owner = cleanName;
           if (msg.configHash) this.configHash = msg.configHash;
+        } else if (
+          !this.owner &&
+          typeof msg.configHash === "string" &&
+          msg.configHash === this.configHash
+        ) {
+          // The previous owner is gone (left / kicked / removed as a zombie
+          // after the reconnect grace expired). A joiner with the matching
+          // config hash may take over so the room keeps restart/kick rights.
+          this.owner = cleanName;
         }
 
         // Handle reconnect: player name already exists
@@ -1181,6 +1190,10 @@ export class GameRoom {
     delete this.notes[name];
     delete this.unreadChat[name];
     delete this.playerCodes[name];
+    // The owner must stay a real player: a removed owner (explicit leave,
+    // kick, grace expiry) leaves the room ownerless; a later joiner with the
+    // matching config hash takes over (see the join handler).
+    if (this.owner === name) this.owner = null;
     this.transport.broadcast({ type: "player_left", name });
 
     // Destroy room when empty: reset all state so a late-joiner starts fresh.

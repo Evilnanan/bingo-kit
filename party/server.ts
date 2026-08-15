@@ -30,6 +30,22 @@ export interface Env {
 /** Storage key for the serialized room snapshot. */
 const ROOM_STATE_KEY = "room-state";
 
+/**
+ * How long a connection may go silent before the server closes it. Clients
+ * send an app-level "ping" heartbeat every 30s (see HEARTBEAT_INTERVAL_MS in
+ * usePartyConnection.ts); background-tab timer throttling can stretch that to
+ * ~60s, so 180s tolerates several missed beats. This is the server-side
+ * backstop for sockets the transport never reports as dead — e.g. a phone
+ * whose browser was force-closed: the TCP connection can stay half-open at
+ * the edge for hours, which keeps this Durable Object alive (without
+ * hibernation, open WebSockets block eviction) and the player in the room
+ * forever, because `onClose`/the reconnect-grace timer never fire.
+ */
+const STALE_CONNECTION_MS = 180_000;
+
+/** How often the server sweeps for stale connections. */
+const SWEEP_INTERVAL_MS = 30_000;
+
 export class BingoServer extends Server<Env> {
   private game: GameRoom | null = null;
   /**
@@ -40,6 +56,11 @@ export class BingoServer extends Server<Env> {
    * the in-memory reconnect grace timers would be gone too.
    */
   private gameReady: Promise<GameRoom> | null = null;
+  /** connId → last time the connection sent any message (any message counts,
+   *  including the app-level "ping" heartbeat). */
+  private lastSeen = new Map<string, number>();
+  /** Periodic sweep that closes connections silent for too long. */
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
 
   private getGame(): GameRoom {
     if (!this.game) {
@@ -94,8 +115,47 @@ export class BingoServer extends Server<Env> {
     return this.gameReady;
   }
 
+  /** Start the stale-connection sweep while any connection is registered. */
+  private ensureSweep(): void {
+    if (this.sweepTimer) return;
+    this.sweepTimer = setInterval(() => {
+      this.sweepStaleConnections();
+    }, SWEEP_INTERVAL_MS);
+  }
+
+  /** Stop the sweep once no connections remain so the DO can go idle. */
+  private stopSweepIfIdle(): void {
+    if (this.sweepTimer && this.lastSeen.size === 0) {
+      clearInterval(this.sweepTimer);
+      this.sweepTimer = null;
+    }
+  }
+
+  /**
+   * Close connections that stopped sending messages (including heartbeats).
+   * Closing the socket triggers the normal onClose → handleClose → reconnect
+   * grace → removal path: a live client that reconnects within the grace
+   * window (PartySocket backoff, tab resuming) is preserved, while a truly
+   * dead one is removed a few minutes later instead of lingering forever.
+   */
+  private sweepStaleConnections(): void {
+    const now = Date.now();
+    for (const conn of this.getConnections()) {
+      const seen = this.lastSeen.get(conn.id) ?? now;
+      if (now - seen <= STALE_CONNECTION_MS) continue;
+      try {
+        conn.close(4001, "heartbeat timeout");
+      } catch {
+        // Already closing/closed — onClose will clean up.
+      }
+    }
+    this.stopSweepIfIdle();
+  }
+
   override async onConnect(conn: Connection) {
     const game = await this.getGameReady();
+    this.lastSeen.set(conn.id, Date.now());
+    this.ensureSweep();
     game.handleConnect(conn.id);
   }
 
@@ -103,12 +163,15 @@ export class BingoServer extends Server<Env> {
     conn: Connection,
     message: string | ArrayBuffer | ArrayBufferView,
   ) {
+    this.lastSeen.set(conn.id, Date.now());
     const game = await this.getGameReady();
     game.handleMessage(conn.id, String(message));
     this.saveSnapshot(game.serialize());
   }
 
   override async onClose(conn: Connection) {
+    this.lastSeen.delete(conn.id);
+    this.stopSweepIfIdle();
     const game = await this.getGameReady();
     game.handleClose(conn.id);
     this.saveSnapshot(game.serialize());
