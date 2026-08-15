@@ -6,13 +6,6 @@ import { RoomSettingsPanel } from "./RoomSettingsPanel";
 import { PoolMetadataPanel } from "./PoolMetadataPanel";
 import { DEFAULT_SERVER_URL, IMAGE_URL } from "../config";
 
-/**
- * Horizontal space reserved for the floating app toolbar (fixed top-right,
- * ~164px wide incl. margin). Only applied while a first-row control would
- * sit under it — see the layout effect below.
- */
-const TOOLBAR_CLEARANCE_PX = 176;
-
 interface Props {
   roomName: string;
   serverUrl: string;
@@ -59,38 +52,54 @@ export function RoomHeader({
   const headerRef = useRef<HTMLElement>(null);
 
   // The fixed app toolbar covers the top-right corner of the viewport, so a
-  // first-row control that reaches that corner becomes unclickable. Reserve
-  // the toolbar's width only while that would happen; once the header wraps,
-  // the later rows sit below the toolbar and must use the full width. The
-  // check always measures the unpadded layout, so the decision depends only
-  // on content + viewport and can't oscillate with the padding itself.
+  // first-row control that reaches that corner becomes unclickable. The
+  // header's content is left-packed, so padding/margins cannot shift it out
+  // from under the toolbar — the only reliable escape is to move the right
+  // group onto its own second row, which sits below the toolbar and uses
+  // the full width. The decision is made from the *natural* layout (no
+  // forced wrap) so it depends only on content + viewport and can't
+  // oscillate:
+  //
+  //  - Right group already wrapped, or nothing under the toolbar: leave it.
+  //  - Not wrapped + a control under the toolbar: force the right group to
+  //    its own full-width row (flex-basis: 100%).
+  //
+  // Timing matters: header content can change without the header's box
+  // size changing (e.g. the pool-info button appearing when the server
+  // state arrives after joining — on mobile that round-trip takes long
+  // enough to outlive the mount-time measurement). ResizeObserver on the
+  // header can't see such changes, so the measurement re-runs on every
+  // React commit instead, plus resize/scroll/visualViewport/fonts events
+  // for layout changes that don't go through React (URL-bar collapse on
+  // mobile, etc.). No ResizeObserver is used, so our own flex-basis writes
+  // can't feed back into a re-measure loop.
   useLayoutEffect(() => {
     const header = headerRef.current;
     if (!header) return;
     let raf = 0;
+    let disposed = false;
     const update = () => {
       raf = 0;
       const toolbar = document.querySelector<HTMLElement>(".app-toolbar");
       const left = header.querySelector<HTMLElement>(".room-header-left");
       const right = header.querySelector<HTMLElement>(".room-header-right");
       if (!toolbar || !left || !right) return;
-      const prevPad = header.style.paddingRight;
-      header.style.paddingRight = "0px";
+      // Measure the natural layout: no forced wrap.
+      right.style.flexBasis = "";
       const t = toolbar.getBoundingClientRect();
+      const leftRect = left.getBoundingClientRect();
+      const rightRect = right.getBoundingClientRect();
       // "Wrapped" = the right group starts below the left group's row. A
       // second row starts at least the flex gap (12px) lower, while
       // align-items:center offsets same-row tops by only a few px — the
       // bottom + 4px threshold separates the two reliably.
-      const leftRect = left.getBoundingClientRect();
-      const rightRect = right.getBoundingClientRect();
       const wrapped = rightRect.top >= leftRect.bottom + 4;
-      const controls = [
-        ...left.querySelectorAll("button, a, select"),
-        ...right.querySelectorAll("button, a, select"),
-      ] as HTMLElement[];
-      const covered =
-        !wrapped &&
-        controls.some((el) => {
+      if (!wrapped) {
+        const controls = [
+          ...left.querySelectorAll("button, a, select"),
+          ...right.querySelectorAll("button, a, select"),
+        ] as HTMLElement[];
+        const covered = controls.some((el) => {
           const r = el.getBoundingClientRect();
           return (
             r.right > t.left &&
@@ -99,22 +108,30 @@ export function RoomHeader({
             r.top < t.bottom
           );
         });
-      header.style.paddingRight = prevPad;
-      header.style.paddingRight = covered ? `${TOOLBAR_CLEARANCE_PX}px` : "0px";
+        if (covered) right.style.flexBasis = "100%";
+      }
     };
     const schedule = () => {
-      if (!raf) raf = requestAnimationFrame(update);
+      if (!raf && !disposed) raf = requestAnimationFrame(update);
     };
     update();
-    const ro = new ResizeObserver(schedule);
-    ro.observe(header);
+    // Re-measure on every commit: catches header content that arrives
+    // asynchronously (server state after joining, phase changes, ...).
+    // Also listen for layout changes that don't re-render React: mobile
+    // URL-bar collapse fires resize/scroll/visualViewport, and font swaps
+    // change text widths.
     window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.visualViewport?.addEventListener("resize", schedule);
+    document.fonts?.ready.then(() => schedule()).catch(() => {});
     return () => {
-      ro.disconnect();
+      disposed = true;
       window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule);
+      window.visualViewport?.removeEventListener("resize", schedule);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, []);
+  });
 
   const openPanel = () => {
     setPanelMounted(true);
