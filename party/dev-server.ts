@@ -93,6 +93,76 @@ function cleanupConnection(roomName: string, connId: string): void {
 }
 
 // ============================================================
+// Stale-connection sweep (mirrors party/server.ts)
+// ============================================================
+
+/**
+ * How long a connection may go silent before the server closes it. Clients
+ * send an app-level "ping" heartbeat every 30s; 180s tolerates several missed
+ * beats. Backstop for sockets the transport never reports as dead (killed
+ * browser process, network blackhole): the TCP connection can stay half-open
+ * for hours, so `close` never fires and the player would linger forever.
+ */
+const STALE_CONNECTION_MS = 180_000;
+
+/** How often the server sweeps for stale connections. */
+const SWEEP_INTERVAL_MS = 30_000;
+
+/** connId → last time the connection sent any message (any message counts,
+ *  including the app-level "ping" heartbeat). */
+const lastSeen = new Map<string, number>();
+
+let sweepTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Start the stale-connection sweep while any connection is registered. */
+function ensureSweep(): void {
+  if (sweepTimer) return;
+  sweepTimer = setInterval(() => {
+    sweepStaleConnections();
+  }, SWEEP_INTERVAL_MS);
+}
+
+/** Stop the sweep once no connections remain so the process can idle. */
+function stopSweepIfIdle(): void {
+  if (!sweepTimer) return;
+  let count = 0;
+  for (const entry of rooms.values()) count += entry.sockets.size;
+  if (count === 0) {
+    clearInterval(sweepTimer);
+    sweepTimer = null;
+  }
+}
+
+/**
+ * Handle connections that stopped sending messages (including heartbeats).
+ * Like party/server.ts, this runs the game-level close path (`handleClose`)
+ * itself and does NOT rely on `ws.close()` firing the socket's "close" event:
+ * with a dead peer the close handshake never completes, so the event never
+ * fires and the player would stay in the room forever. `handleClose` keeps the
+ * normal reconnect grace: a client that reconnects within the window cancels
+ * the pending removal, a truly dead one is removed a few minutes later. The
+ * socket close afterwards is best-effort transport teardown only.
+ */
+function sweepStaleConnections(): void {
+  const now = Date.now();
+  for (const entry of rooms.values()) {
+    for (const [connId, ws] of [...entry.sockets.entries()]) {
+      const seen = lastSeen.get(connId) ?? now;
+      if (now - seen <= STALE_CONNECTION_MS) continue;
+      lastSeen.delete(connId);
+      entry.game.handleClose(connId);
+      entry.sockets.delete(connId);
+      try {
+        ws.close(4001, "heartbeat timeout");
+      } catch {
+        // Already closing/closed — the game state above is already handled.
+      }
+    }
+  }
+  stopSweepIfIdle();
+}
+
+// ============================================================
 // Image HTTP API (mirrors R2 endpoints in party/server.ts)
 // ============================================================
 
@@ -292,21 +362,27 @@ wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {
   const entry = getRoom(roomName);
   entry.sockets.set(connId, ws);
   entry.game.handleConnect(connId);
+  lastSeen.set(connId, Date.now());
+  ensureSweep();
 
   console.log(`[connect] room="${roomName}"`);
 
   ws.on("message", (data) => {
+    lastSeen.set(connId, Date.now());
     entry.game.handleMessage(connId, data.toString());
   });
 
   ws.on("close", () => {
+    lastSeen.delete(connId);
     cleanupConnection(roomName, connId);
+    stopSweepIfIdle();
     console.log(`[disconnect] room="${roomName}"`);
   });
 
   ws.on("error", (err) => {
     console.error(`[error] room="${roomName}":`, err.message);
     cleanupConnection(roomName, connId);
+    stopSweepIfIdle();
   });
 });
 

@@ -15,6 +15,9 @@ dist-ssr
 # Partykit
 .partykit/*
 
+# wrangler dev local state
+.wrangler/
+
 # Dev image storage
 .dev-images/
 

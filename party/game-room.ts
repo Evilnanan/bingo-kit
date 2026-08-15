@@ -257,6 +257,14 @@ export interface GameRoomSnapshot {
   unreadChat: Record<string, boolean>;
   chats: ChatRecord[];
   playerCodes: Record<string, string>;
+  /**
+   * Player name → absolute timestamp when the reconnect grace period ends.
+   * Persisted so a restarted runtime (eviction, deployment) still knows which
+   * disconnected players must be removed — the in-memory grace timers are
+   * gone, and without the deadline the removal clock would restart on every
+   * restore, letting a zombie player live forever.
+   */
+  disconnectDeadlines?: Record<string, number>;
 }
 
 /**
@@ -302,6 +310,10 @@ export class GameRoom {
   connPlayers = new Map<string, string>();
   /** Player names waiting out the reconnect grace period after a passive disconnect. */
   disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Player name → absolute timestamp when the reconnect grace period ends
+   *  (mirrors disconnectTimers; persisted so evicted runtimes can still
+   *  expire it). */
+  disconnectDeadlines: Record<string, number> = {};
   bonusScores: Record<string, number> = {};
   /** Room owner — the player who first provided config. */
   owner: string | null = null;
@@ -518,6 +530,7 @@ export class GameRoom {
       clearTimeout(timer);
     }
     this.disconnectTimers.clear();
+    this.disconnectDeadlines = {};
     this.config = null;
     this.metadata = null;
     this.phase = "lobby";
@@ -565,6 +578,7 @@ export class GameRoom {
       unreadChat: this.unreadChat,
       chats: this.chats,
       playerCodes: this.playerCodes,
+      disconnectDeadlines: this.disconnectDeadlines,
     };
   }
 
@@ -596,12 +610,25 @@ export class GameRoom {
       this.starMarks[name] = new Set(stars);
     }
 
-    // The fresh runtime has no live connections yet, so every restored player
-    // gets a fresh reconnect grace window. Each successful re-join cancels
-    // its own timer; players who never come back are cleaned up as usual.
+    // The fresh runtime has no live connections, so every restored player
+    // starts (or continues) a reconnect grace window. Keep a persisted
+    // deadline when one exists — an eviction must not reset the removal
+    // clock, or a zombie player could live forever across repeated
+    // evictions. Players without a deadline get a fresh window.
+    this.disconnectDeadlines = { ...(snapshot.disconnectDeadlines ?? {}) };
+    const now = Date.now();
     for (const name of Object.keys(this.players)) {
-      this.scheduleRemoval(name);
+      const existing = this.disconnectDeadlines[name];
+      const deadline =
+        typeof existing === "number" && existing > now
+          ? existing
+          : now + RECONNECT_GRACE_MS;
+      this.disconnectDeadlines[name] = deadline;
+      this.armDisconnectTimer(name, deadline);
     }
+    // Persist the restored deadlines right away: if the runtime is evicted
+    // again before the next message/alarm, the deadlines must survive.
+    this.transport.persist?.(this.serialize());
 
     // Restore an in-flight countdown: re-arm the "start" timer when the
     // deadline is still ahead; otherwise the game should already be playing.
@@ -1146,26 +1173,70 @@ export class GameRoom {
       clearTimeout(timer);
       this.disconnectTimers.delete(name);
     }
+    delete this.disconnectDeadlines[name];
   }
 
   /**
    * Start (or restart) the reconnect grace period for a player whose socket
-   * closed without an explicit "leave".
+   * closed without an explicit "leave". The deadline is persisted so an
+   * evicted runtime can still expire it (see sweepExpiredDisconnects).
    */
   private scheduleRemoval(name: string): void {
     this.cancelRemoval(name);
-    const timer = setTimeout(() => {
-      this.disconnectTimers.delete(name);
+    const deadline = Date.now() + RECONNECT_GRACE_MS;
+    this.disconnectDeadlines[name] = deadline;
+    this.armDisconnectTimer(name, deadline);
+  }
+
+  /** Arm the in-memory grace-expiry timer for a known deadline. */
+  private armDisconnectTimer(name: string, deadline: number): void {
+    this.disconnectTimers.set(
+      name,
+      setTimeout(() => {
+        this.disconnectTimers.delete(name);
+        this.removeIfExpired(name, deadline);
+      }, Math.max(0, deadline - Date.now())),
+    );
+  }
+
+  /**
+   * Remove the player once their grace deadline has passed without a
+   * reconnection. Persists so a runtime recycle doesn't revive the removed
+   * player from an older snapshot.
+   */
+  private removeIfExpired(name: string, deadline: number): void {
+    if (Date.now() < deadline) return;
+    for (const [, pname] of this.connPlayers) {
+      if (pname === name) return;
+    }
+    this.removePlayer(name);
+    this.transport.persist?.(this.serialize());
+  }
+
+  /**
+   * Remove players whose reconnect grace deadline has passed and who still
+   * have no live connection. Called from the server's persistent alarm sweep:
+   * a restarted runtime has no in-memory grace timers, so this is the only
+   * path that can expire disconnects that happened before an eviction.
+   * Returns true if any player was removed (the caller should persist).
+   */
+  sweepExpiredDisconnects(now: number): boolean {
+    let changed = false;
+    for (const [name, deadline] of Object.entries(this.disconnectDeadlines)) {
+      if (now < deadline) continue;
       // Reconnected during the grace window? Keep the player.
+      let online = false;
       for (const [, pname] of this.connPlayers) {
-        if (pname === name) return;
+        if (pname === name) {
+          online = true;
+          break;
+        }
       }
+      if (online) continue;
       this.removePlayer(name);
-      // Timer-driven removal: persist so a runtime recycle doesn't revive
-      // the removed player from an older snapshot.
-      this.transport.persist?.(this.serialize());
-    }, RECONNECT_GRACE_MS);
-    this.disconnectTimers.set(name, timer);
+      changed = true;
+    }
+    return changed;
   }
 
   /**
@@ -1178,6 +1249,7 @@ export class GameRoom {
       clearTimeout(timer);
       this.disconnectTimers.delete(name);
     }
+    delete this.disconnectDeadlines[name];
     if (!this.players[name]) return;
 
     for (const [connId, pname] of this.connPlayers) {
