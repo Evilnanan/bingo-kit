@@ -279,6 +279,62 @@ function goalMatchesFilter(
   return terms.every((term) => haystack.includes(term.toLowerCase()));
 }
 
+/* ── Sorting ─────────────────────────────────────────────────────── */
+
+type GoalSortKey = "text" | "difficulty" | "group" | "globalGroup";
+
+/** Case/diacritic-insensitive text comparison, with natural number order
+ *  ("Goal 2" < "Goal 10"). Falls back to a plain codepoint comparison so two
+ *  distinct strings never compare equal. */
+function compareSortText(a: string, b: string): number {
+  const r = a.localeCompare(b, undefined, {
+    sensitivity: "base",
+    numeric: true,
+  });
+  if (r !== 0) return r;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Sort key comparator for one-click sorting. Goals without a difficulty
+ *  always sort last (both directions) so rated goals stay together at the
+ *  top. Goals without a group still participate in the group sort with an
+ *  empty key, so they land first in ascending order and last in descending
+ *  order, keeping their original relative order among themselves. */
+function compareGoalsBy(
+  key: GoalSortKey,
+  dir: 1 | -1,
+  a: GoalItem,
+  b: GoalItem,
+): number {
+  if (key === "difficulty") {
+    const da = getGoalDifficulty(a);
+    const db = getGoalDifficulty(b);
+    if (da === undefined && db === undefined) return 0;
+    if (da === undefined) return 1;
+    if (db === undefined) return -1;
+    return (da - db) * dir;
+  }
+  const keyOf = (g: GoalItem): string =>
+    key === "text"
+      ? getGoalText(g)
+      : key === "group"
+        ? getGoalGroup(g).join("|")
+        : getGoalGlobalGroup(g).join("|");
+  return compareSortText(keyOf(a), keyOf(b)) * dir;
+}
+
+/** Stable sort: goals with equal sort keys keep their original relative
+ *  order (explicit index tie-break, independent of engine guarantees). */
+function stableSortGoals(
+  goals: GoalItem[],
+  cmp: (a: GoalItem, b: GoalItem) => number,
+): GoalItem[] {
+  return goals
+    .map((goal, i) => ({ goal, i }))
+    .sort((x, y) => cmp(x.goal, y.goal) || x.i - y.i)
+    .map((x) => x.goal);
+}
+
 /* ── TagInput ────────────────────────────────────────────────────── */
 
 function TagInput({
@@ -711,6 +767,17 @@ interface GoalEditorItemProps {
   onRemove: (index: number) => void;
   onFilterGroup: (group: string) => void;
   uploadQueue: ImageUploadQueue | null;
+  /** Drag-and-drop reordering is disabled while a filter is active. */
+  dragEnabled: boolean;
+  /** True while ANOTHER handle is being dragged (never the row's own
+   *  handle) — neutralized so the pointer crossing it causes no
+   *  hover/tooltip/cursor flicker. The source handle must stay untouched
+   *  during its own drag, or Chromium may cancel the drag session. */
+  dragActive: boolean;
+  onDragStart: (index: number) => void;
+  onDragEnd: () => void;
+  /** Move this goal to a 1-based position typed by the user. */
+  onMoveTo: (index: number, position: number) => void;
 }
 
 const GoalEditorItem = memo(function GoalEditorItem({
@@ -723,11 +790,28 @@ const GoalEditorItem = memo(function GoalEditorItem({
   onRemove,
   onFilterGroup,
   uploadQueue,
+  dragEnabled,
+  dragActive,
+  onDragStart,
+  onDragEnd,
+  onMoveTo,
 }: GoalEditorItemProps) {
   const [previewIdx, setPreviewIdx] = useState(-1);
   const [renamingHash, setRenamingHash] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
   const [variantsOpen, setVariantsOpen] = useState(false);
+  /** Move-to-position input text; null = input closed. */
+  const [moveText, setMoveText] = useState<string | null>(null);
+  const moveInputRef = useRef<HTMLInputElement>(null);
+  const moveOpen = moveText !== null;
+  // Focus + select only when the input first opens; re-running on every
+  // keystroke would re-select the text and overwrite what was just typed.
+  useEffect(() => {
+    if (moveOpen) {
+      moveInputRef.current?.focus();
+      moveInputRef.current?.select();
+    }
+  }, [moveOpen]);
 
   const images = getGoalImages(goal);
   const variants = getGoalVariants(goal);
@@ -873,7 +957,51 @@ const GoalEditorItem = memo(function GoalEditorItem({
 
   return (
     <div className="ge-item">
-      <span className="ge-item-index">{index + 1}</span>
+      <span
+        className={`ge-item-index${dragEnabled && !dragActive && moveText === null ? " ge-item-index--drag" : ""}${dragActive ? " ge-item-index--drag-inactive" : ""}${!dragEnabled ? " ge-item-index--drag-disabled" : ""}`}
+        title={t["editor.moveToHint"]}
+        draggable={dragEnabled && !dragActive && moveText === null}
+        onClick={() => {
+          if (moveText === null) setMoveText(String(index + 1));
+        }}
+        onDragStart={(e) => {
+          if (!dragEnabled || dragActive || moveText !== null) {
+            e.preventDefault();
+            return;
+          }
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", String(index));
+          onDragStart(index);
+        }}
+        onDragEnd={onDragEnd}
+      >
+        {index + 1}
+        {moveText !== null && (
+          <input
+            ref={moveInputRef}
+            className="ge-move-input"
+            type="text"
+            inputMode="numeric"
+            value={moveText}
+            title={t["editor.moveToHint"]}
+            onChange={(e) =>
+              setMoveText(e.target.value.replace(/[^\d]/g, "").slice(0, 4))
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const n = parseInt(moveText, 10);
+                setMoveText(null);
+                if (!Number.isNaN(n) && n >= 1) onMoveTo(index, n);
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setMoveText(null);
+              }
+            }}
+            onBlur={() => setMoveText(null)}
+          />
+        )}
+      </span>
       <div className="ge-item-fields">
         <div className="ge-item-row">
           <span className="ge-item-text-wrap">
@@ -1216,6 +1344,15 @@ export function GoalEditor({
   const [jsonFolded, setJsonFolded] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [filterDifficulty, setFilterDifficulty] = useState("");
+  /** Active one-click sort; clicking the same key again toggles direction. */
+  const [sortMode, setSortMode] = useState<{
+    key: GoalSortKey;
+    dir: 1 | -1;
+  } | null>(null);
+  /** Real goal index currently dragged (HTML5 DnD), null when idle. */
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  /** Real insertion index for the drop indicator (0..goals.length). */
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   const mouseDownOnOverlay = useRef(false);
   const goalsRef = useRef(goals);
@@ -1288,6 +1425,8 @@ export function GoalEditor({
     remountKey: editorMode,
   });
   const filterActive = filterText.trim() !== "" || filterDifficulty !== "";
+  /** Rows currently mounted by the virtual list (same slice as the JSX). */
+  const renderedRows = visibleGoals.slice(virtualStart, virtualEnd);
 
   const tryApplyJson = (): {
     goals: GoalItem[];
@@ -1493,6 +1632,142 @@ export function GoalEditor({
     [onChange],
   );
 
+  /** Move a goal so it ends up at 1-based position `position` (clamped to
+   *  the pool size). Same final-position semantics as drag sorting. */
+  const moveGoalTo = useCallback(
+    (index: number, position: number) => {
+      const current = goalsRef.current;
+      const clamped = Math.max(1, Math.min(current.length, position));
+      if (current.length < 2 || clamped === index + 1) return;
+      const next = [...current];
+      const [moved] = next.splice(index, 1);
+      next.splice(clamped - 1, 0, moved);
+      // A manual reorder supersedes any previous one-click sort.
+      setSortMode(null);
+      onChange(next);
+    },
+    [onChange],
+  );
+
+  /** One-click stable sort of the whole pool. Re-clicking the active key
+   *  toggles between ascending and descending. Reordering the goals array is
+   *  what makes the JSON export follow the sorted order. */
+  const handleSort = useCallback(
+    (key: GoalSortKey) => {
+      const next =
+        sortMode && sortMode.key === key
+          ? { key, dir: sortMode.dir === 1 ? (-1 as const) : (1 as const) }
+          : { key, dir: 1 as const };
+      setSortMode(next);
+      onChange(
+        stableSortGoals(goalsRef.current, (a, b) =>
+          compareGoalsBy(key, next.dir, a, b),
+        ),
+      );
+      resetListScroll();
+    },
+    [onChange, sortMode, resetListScroll],
+  );
+
+  const handleDragStart = useCallback((index: number) => {
+    setDragIndex(index);
+    setDropIndex(null);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDragIndex(null);
+    setDropIndex(null);
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (dragIndex === null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const list = listRef.current;
+      if (!list) return;
+      // Auto-scroll while hovering near the top/bottom edge.
+      const rect = list.getBoundingClientRect();
+      const edge = 48;
+      if (e.clientY < rect.top + edge) list.scrollTop -= 14;
+      else if (e.clientY > rect.bottom - edge) list.scrollTop += 14;
+      // Map the pointer to an insertion index using each mounted row's
+      // midpoint. The list is virtualized, so only visible rows exist —
+      // dropping at the top/bottom edges lands before/after the nearest
+      // mounted row.
+      const rowEls = Array.from(
+        list.querySelectorAll<HTMLElement>(".ge-item-virtual"),
+      );
+      let visualIdx = rowEls.length;
+      for (let i = 0; i < rowEls.length; i++) {
+        const r = rowEls[i].getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) {
+          visualIdx = i;
+          break;
+        }
+      }
+      let realIdx: number;
+      if (rowEls.length === 0) {
+        realIdx = 0;
+      } else if (visualIdx >= rowEls.length) {
+        const last = rowEls[rowEls.length - 1];
+        realIdx = visibleGoals[Number(last.dataset.rowIndex)].index + 1;
+      } else {
+        realIdx = visibleGoals[Number(rowEls[visualIdx].dataset.rowIndex)]
+          .index;
+      }
+      setDropIndex((prev) => (prev === realIdx ? prev : realIdx));
+    },
+    [dragIndex, visibleGoals, listRef],
+  );
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setDropIndex(null);
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      if (dragIndex === null || dropIndex === null) {
+        handleDragEnd();
+        return;
+      }
+      const from = dragIndex;
+      const next = [...goalsRef.current];
+      const [moved] = next.splice(from, 1);
+      // Removing the dragged item shifts later targets left by one.
+      const adjusted = from < dropIndex ? dropIndex - 1 : dropIndex;
+      if (adjusted !== from) {
+        next.splice(adjusted, 0, moved);
+        onChange(next);
+      }
+      // A manual reorder supersedes any previous one-click sort.
+      setSortMode(null);
+      handleDragEnd();
+    },
+    [dragIndex, dropIndex, onChange, handleDragEnd],
+  );
+
+  // While a goal drag is active, keep the whole window a valid drop zone.
+  // Otherwise the browser flashes the "no-drop" cursor whenever the pointer
+  // crosses elements that don't accept drops (inputs, toolbars, other rows).
+  useEffect(() => {
+    if (dragIndex === null) return;
+    const keepValid = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    };
+    const swallowDrop = (e: DragEvent) => e.preventDefault();
+    window.addEventListener("dragover", keepValid);
+    window.addEventListener("drop", swallowDrop);
+    return () => {
+      window.removeEventListener("dragover", keepValid);
+      window.removeEventListener("drop", swallowDrop);
+    };
+  }, [dragIndex]);
+
   return (
     <div
       className="goal-editor-overlay"
@@ -1660,10 +1935,49 @@ export function GoalEditor({
                 </>
               )}
             </div>
+            <div className="ge-sort-bar">
+              <span className="ge-sort-label">{t["editor.sortBy"]}</span>
+              {(
+                [
+                  ["text", t["editor.sortText"]],
+                  ["difficulty", t["editor.sortDifficulty"]],
+                  ["group", t["editor.sortGroup"]],
+                  ["globalGroup", t["editor.sortGlobalGroup"]],
+                ] as const
+              ).map(([key, label]) => {
+                const active = sortMode !== null && sortMode.key === key;
+                const dir = active ? sortMode.dir : 1;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`ge-sort-btn${active ? " ge-sort-btn--active" : ""}`}
+                    onClick={() => handleSort(key)}
+                    title={
+                      active
+                        ? dir === 1
+                          ? t["editor.sortAsc"]
+                          : t["editor.sortDesc"]
+                        : t["editor.sortAsc"]
+                    }
+                  >
+                    {label}
+                    {active && (
+                      <span className="ge-sort-arrow">
+                        {dir === 1 ? "↑" : "↓"}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
             <div
               className="goal-editor-list"
               ref={listRef}
               onScroll={handleListScroll}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
               {visibleGoals.length === 0 && (
                 <p className="goal-editor-empty">
@@ -1679,13 +1993,16 @@ export function GoalEditor({
                     style={{ height: spacerTop }}
                     aria-hidden="true"
                   />
-                  {visibleGoals
-                    .slice(virtualStart, virtualEnd)
-                    .map(({ goal, index }, i) => (
+                  {renderedRows.map(({ goal, index }, i) => {
+                    // One indicator per insertion point: drop-before on the
+                    // row being inserted before, or drop-after on the last
+                    // mounted row when inserting past the visible range.
+                    const isLastRendered = i === renderedRows.length - 1;
+                    return (
                       <div
                         key={index}
                         data-row-index={virtualStart + i}
-                        className="ge-item-virtual"
+                        className={`ge-item-virtual${dragIndex === index ? " ge-item-virtual--dragging" : ""}${dropIndex === index ? " ge-item-virtual--drop-before" : isLastRendered && dropIndex === index + 1 ? " ge-item-virtual--drop-after" : ""}`}
                         ref={registerRowEl}
                       >
                         <GoalEditorItem
@@ -1698,9 +2015,15 @@ export function GoalEditor({
                           onRemove={removeGoal}
                           onFilterGroup={handleFilterGroup}
                           uploadQueue={uploadQueue ?? null}
+                          dragEnabled={!filterActive}
+                          dragActive={dragIndex !== null && dragIndex !== index}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                          onMoveTo={moveGoalTo}
                         />
                       </div>
-                    ))}
+                    );
+                  })}
                   <div
                     className="ge-list-spacer"
                     style={{ height: spacerBottom }}

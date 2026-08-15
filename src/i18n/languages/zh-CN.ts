@@ -229,6 +229,16 @@ export const zh: Translations = {
   "editor.filterNoMatch": "没有匹配的任务",
   "editor.clearFilter": "清除筛选",
   "editor.filterByGroup": "点击筛选该组",
+  // Goal sorting
+  "editor.sortBy": "排序：",
+  "editor.sortText": "文本",
+  "editor.sortDifficulty": "难度",
+  "editor.sortGroup": "互斥组",
+  "editor.sortGlobalGroup": "全局互斥组",
+  "editor.sortAsc": "升序",
+  "editor.sortDesc": "降序",
+  "editor.dragToSort": "拖动排序",
+  "editor.moveToHint": "拖动排序；点击序号可输入目标位置",
   "landing.uploadingImages": "正在准备图片…",
   "landing.imageServer": "图片服务器",
 };

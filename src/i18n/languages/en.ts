@@ -236,6 +236,16 @@ export const en: Translations = {
   "editor.filterNoMatch": "No matching goals",
   "editor.clearFilter": "Clear filter",
   "editor.filterByGroup": "Click to filter this group",
+  // Goal sorting
+  "editor.sortBy": "Sort:",
+  "editor.sortText": "Text",
+  "editor.sortDifficulty": "Difficulty",
+  "editor.sortGroup": "Excl. group",
+  "editor.sortGlobalGroup": "Global group",
+  "editor.sortAsc": "Ascending",
+  "editor.sortDesc": "Descending",
+  "editor.dragToSort": "Drag to reorder",
+  "editor.moveToHint": "Drag to reorder; click the number to type a position",
   "landing.uploadingImages": "Preparing images…",
   "landing.imageServer": "Image Server",
 };

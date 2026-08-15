@@ -238,6 +238,16 @@ export interface Translations {
   "editor.filterNoMatch": string;
   "editor.clearFilter": string;
   "editor.filterByGroup": string;
+  // Goal sorting
+  "editor.sortBy": string;
+  "editor.sortText": string;
+  "editor.sortDifficulty": string;
+  "editor.sortGroup": string;
+  "editor.sortGlobalGroup": string;
+  "editor.sortAsc": string;
+  "editor.sortDesc": string;
+  "editor.dragToSort": string;
+  "editor.moveToHint": string;
   "landing.uploadingImages": string;
   "landing.imageServer": string;
 }

@@ -8,4 +8,11 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] })
   ],
+  server: {
+    watch: {
+      // Ignore atomic-write temp dirs (`.name.pid.uuid.tmpdir/`): a transient
+      // lock on them crashes the watcher with EBUSY on Windows.
+      ignored: ["**/*.tmpdir/**", "**/.*.tmpdir/**"],
+    },
+  },
 })

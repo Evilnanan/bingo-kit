@@ -118,8 +118,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 20px 6px;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -187,6 +186,54 @@
   border-color: var(--accent);
 }
 
+/* ── sort bar ────────────────────────────────────────────────────── */
+
+.ge-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ge-sort-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.ge-sort-btn {
+  padding: 3px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.ge-sort-btn:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.ge-sort-btn--active,
+.ge-sort-btn--active:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.ge-sort-arrow {
+  margin-left: 2px;
+}
+
 /* ── list ────────────────────────────────────────────────────────── */
 
 .goal-editor-list {
@@ -206,6 +253,20 @@
   margin-bottom: 8px;
 }
 
+/* Drop indicator for drag sorting — box-shadow avoids layout changes, so
+   virtualization measurements stay stable while dragging. */
+.ge-item-virtual--drop-before {
+  box-shadow: 0 -3px 0 -1px var(--accent);
+}
+
+.ge-item-virtual--drop-after {
+  box-shadow: 0 3px 0 -1px var(--accent);
+}
+
+.ge-item-virtual--dragging {
+  opacity: 0.4;
+}
+
 /* ── item ────────────────────────────────────────────────────────── */
 
 .ge-item {
@@ -219,12 +280,65 @@
 }
 
 .ge-item-index {
+  position: relative;
   font-size: 13px;
   color: var(--text-secondary);
   min-width: 24px;
-  text-align: right;
-  padding-top: 9px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
   font-weight: 600;
+  cursor: grab;
+  border-radius: var(--radius);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Click-to-move input: overlays the index square (no layout shift). */
+.ge-move-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 56px;
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  background: var(--surface);
+  color: var(--text);
+  z-index: 5;
+  outline: none;
+  font-family: inherit;
+}
+
+.ge-move-input:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.ge-item-index:hover {
+  color: var(--text);
+  background: var(--border);
+}
+
+.ge-item-index--drag-disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ge-item-index--drag-disabled:hover {
+  background: none;
+  color: var(--text-secondary);
+}
+
+/* While a drag is in progress, handles are no longer interactive: no hover
+   background, no title tooltip, no cursor change — just the drag cursor. */
+.ge-item-index--drag-inactive {
+  pointer-events: none;
 }
 
 .ge-item-fields {
@@ -1061,7 +1175,7 @@
   }
 
   .ge-filter-text {
-    flex: 1 1 100%;
+    flex: 1;
     min-width: 0;
   }
 
