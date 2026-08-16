@@ -229,13 +229,14 @@ export const en: Translations = {
   "editor.exportJson": "Export",
   "editor.importJson": "Import",
   "editor.importJsonFailed": "Failed to import: {msg}",
-  "editor.filterPlaceholder":
-    "Search text, tooltip, groups… (space-separated keywords)",
+  "editor.filterPlaceholder": "Search…",
   "editor.filterAllDifficulties": "All difficulties",
   "editor.filterCount": "Showing {0} / {1}",
   "editor.filterNoMatch": "No matching goals",
   "editor.clearFilter": "Clear filter",
   "editor.filterByGroup": "Click to filter this group",
+  "editor.expandBars": "Expand search & sort",
+  "editor.collapseBars": "Collapse search & sort",
   // Goal sorting
   "editor.sortBy": "Sort:",
   "editor.sortText": "Text",

@@ -76,6 +76,59 @@
   gap: 6px;
 }
 
+/* ── bars collapse toggle ─────────────────────────────────────────── */
+
+.ge-bars-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.ge-bars-toggle:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.ge-bars-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.ge-bars-chip:hover {
+  border-color: var(--accent-hover);
+}
+
+.ge-bars-chip-x {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
 .ge-btn {
   padding: 6px 14px;
   font-size: 13px;
@@ -1526,4 +1579,3 @@
 }
 
 /* ── image lightbox ──────────────────────────────────────────────── */
-

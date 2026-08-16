@@ -1344,6 +1344,8 @@ export function GoalEditor({
   const [jsonFolded, setJsonFolded] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [filterDifficulty, setFilterDifficulty] = useState("");
+  /** Collapse the filter + sort bars to save vertical space. */
+  const [barsCollapsed, setBarsCollapsed] = useState(true);
   /** Active one-click sort; clicking the same key again toggles direction. */
   const [sortMode, setSortMode] = useState<{
     key: GoalSortKey;
@@ -1425,6 +1427,12 @@ export function GoalEditor({
     remountKey: editorMode,
   });
   const filterActive = filterText.trim() !== "" || filterDifficulty !== "";
+  /** Reset both filters (used by the filter bar and the collapsed chip). */
+  const clearFilter = () => {
+    setFilterText("");
+    setFilterDifficulty("");
+    resetListScroll();
+  };
   /** Rows currently mounted by the virtual list (same slice as the JSX). */
   const renderedRows = visibleGoals.slice(virtualStart, virtualEnd);
 
@@ -1713,8 +1721,8 @@ export function GoalEditor({
         const last = rowEls[rowEls.length - 1];
         realIdx = visibleGoals[Number(last.dataset.rowIndex)].index + 1;
       } else {
-        realIdx = visibleGoals[Number(rowEls[visualIdx].dataset.rowIndex)]
-          .index;
+        realIdx =
+          visibleGoals[Number(rowEls[visualIdx].dataset.rowIndex)].index;
       }
       setDropIndex((prev) => (prev === realIdx ? prev : realIdx));
     },
@@ -1821,6 +1829,44 @@ export function GoalEditor({
               {t["editor.editCsv"]}
             </button>
           </div>
+          {editorMode === "visual" && (
+            <div className="goal-editor-toolbar-actions">
+              {barsCollapsed && filterActive && (
+                <button
+                  type="button"
+                  className="ge-bars-chip"
+                  onClick={clearFilter}
+                  title={t["editor.clearFilter"]}
+                >
+                  {format(
+                    t["editor.filterCount"],
+                    visibleGoals.length,
+                    goals.length,
+                  )}
+                  <span className="ge-bars-chip-x">✕</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="ge-bars-toggle"
+                onClick={() => setBarsCollapsed((v) => !v)}
+                title={
+                  barsCollapsed
+                    ? t["editor.expandBars"]
+                    : t["editor.collapseBars"]
+                }
+                aria-label={
+                  barsCollapsed
+                    ? t["editor.expandBars"]
+                    : t["editor.collapseBars"]
+                }
+                aria-expanded={!barsCollapsed}
+                aria-controls="ge-filter-sort-bars"
+              >
+                <span aria-hidden="true">{barsCollapsed ? "▾" : "▴"}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {editorMode === "json" && (
@@ -1884,93 +1930,95 @@ export function GoalEditor({
         )}
         {editorMode === "visual" && (
           <>
-            <div className="ge-filter-bar">
-              <input
-                className="ge-filter-text"
-                type="text"
-                value={filterText}
-                onChange={(e) => {
-                  setFilterText(e.target.value);
-                  resetListScroll();
-                }}
-                placeholder={t["editor.filterPlaceholder"]}
-                title={t["editor.filterPlaceholder"]}
-              />
-              <select
-                className="ge-filter-difficulty"
-                value={filterDifficulty}
-                onChange={(e) => {
-                  setFilterDifficulty(e.target.value);
-                  resetListScroll();
-                }}
-                title={t["editor.difficulty"]}
-              >
-                <option value="">{t["editor.filterAllDifficulties"]}</option>
-                {[1, 2, 3, 4, 5].map((d) => (
-                  <option key={d} value={String(d)}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-              {filterActive && (
-                <>
-                  <span className="ge-filter-count">
-                    {format(
-                      t["editor.filterCount"],
-                      visibleGoals.length,
-                      goals.length,
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    className="ge-filter-clear"
-                    onClick={() => {
-                      setFilterText("");
-                      setFilterDifficulty("");
+            {!barsCollapsed && (
+              <div id="ge-filter-sort-bars">
+                <div className="ge-filter-bar">
+                  <input
+                    className="ge-filter-text"
+                    type="text"
+                    value={filterText}
+                    onChange={(e) => {
+                      setFilterText(e.target.value);
                       resetListScroll();
                     }}
+                    placeholder={t["editor.filterPlaceholder"]}
+                    title={t["editor.filterPlaceholder"]}
+                  />
+                  <select
+                    className="ge-filter-difficulty"
+                    value={filterDifficulty}
+                    onChange={(e) => {
+                      setFilterDifficulty(e.target.value);
+                      resetListScroll();
+                    }}
+                    title={t["editor.difficulty"]}
                   >
-                    {t["editor.clearFilter"]}
-                  </button>
-                </>
-              )}
-            </div>
-            <div className="ge-sort-bar">
-              <span className="ge-sort-label">{t["editor.sortBy"]}</span>
-              {(
-                [
-                  ["text", t["editor.sortText"]],
-                  ["difficulty", t["editor.sortDifficulty"]],
-                  ["group", t["editor.sortGroup"]],
-                  ["globalGroup", t["editor.sortGlobalGroup"]],
-                ] as const
-              ).map(([key, label]) => {
-                const active = sortMode !== null && sortMode.key === key;
-                const dir = active ? sortMode.dir : 1;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`ge-sort-btn${active ? " ge-sort-btn--active" : ""}`}
-                    onClick={() => handleSort(key)}
-                    title={
-                      active
-                        ? dir === 1
-                          ? t["editor.sortAsc"]
-                          : t["editor.sortDesc"]
-                        : t["editor.sortAsc"]
-                    }
-                  >
-                    {label}
-                    {active && (
-                      <span className="ge-sort-arrow">
-                        {dir === 1 ? "↑" : "↓"}
+                    <option value="">
+                      {t["editor.filterAllDifficulties"]}
+                    </option>
+                    {[1, 2, 3, 4, 5].map((d) => (
+                      <option key={d} value={String(d)}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  {filterActive && (
+                    <>
+                      <span className="ge-filter-count">
+                        {format(
+                          t["editor.filterCount"],
+                          visibleGoals.length,
+                          goals.length,
+                        )}
                       </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                      <button
+                        type="button"
+                        className="ge-filter-clear"
+                        onClick={clearFilter}
+                      >
+                        {t["editor.clearFilter"]}
+                      </button>
+                    </>
+                  )}
+                </div>
+                <div className="ge-sort-bar">
+                  <span className="ge-sort-label">{t["editor.sortBy"]}</span>
+                  {(
+                    [
+                      ["text", t["editor.sortText"]],
+                      ["difficulty", t["editor.sortDifficulty"]],
+                      ["group", t["editor.sortGroup"]],
+                      ["globalGroup", t["editor.sortGlobalGroup"]],
+                    ] as const
+                  ).map(([key, label]) => {
+                    const active = sortMode !== null && sortMode.key === key;
+                    const dir = active ? sortMode.dir : 1;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`ge-sort-btn${active ? " ge-sort-btn--active" : ""}`}
+                        onClick={() => handleSort(key)}
+                        title={
+                          active
+                            ? dir === 1
+                              ? t["editor.sortAsc"]
+                              : t["editor.sortDesc"]
+                            : t["editor.sortAsc"]
+                        }
+                      >
+                        {label}
+                        {active && (
+                          <span className="ge-sort-arrow">
+                            {dir === 1 ? "↑" : "↓"}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div
               className="goal-editor-list"
               ref={listRef}

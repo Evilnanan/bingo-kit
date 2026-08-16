@@ -238,6 +238,8 @@ export interface Translations {
   "editor.filterNoMatch": string;
   "editor.clearFilter": string;
   "editor.filterByGroup": string;
+  "editor.expandBars": string;
+  "editor.collapseBars": string;
   // Goal sorting
   "editor.sortBy": string;
   "editor.sortText": string;
