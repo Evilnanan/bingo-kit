@@ -96,6 +96,18 @@ export function RoomHeader({
       const left = header.querySelector<HTMLElement>(".room-header-left");
       const right = header.querySelector<HTMLElement>(".room-header-right");
       if (!toolbar || !left || !right) return;
+      // Width of the real chip, measured from the live DOM before the
+      // placement-mode hide/show below. The twin's measurement footprint is
+      // pinned to this exact width (see the twin block below), so the
+      // natural-layout wrap/coverage checks see precisely the mode-invariant
+      // "chip in the right group" layout in both placement modes and the
+      // decision can't depend on which group currently holds the visible
+      // chip. The real chip is always a <button>; the twin is a <span>, so
+      // "button.timer-header-chip" can never match the twin.
+      const realChip = header.querySelector<HTMLElement>(
+        "button.timer-header-chip",
+      );
+      const chipWidth = realChip ? realChip.getBoundingClientRect().width : 76;
       // Measure the natural layout: no forced wrap.
       right.style.flexBasis = "";
       // The decision must not depend on which group currently holds the
@@ -106,19 +118,33 @@ export function RoomHeader({
       // placement. (The hidden twin in the right group keeps that group's
       // width identical to the real chip's in both modes.) The hide is
       // reverted synchronously before paint, so no flash or gap appears.
-      const chipInLeft =
-        left.querySelector<HTMLElement>("button.timer-header-chip");
+      const chipInLeft = left.querySelector<HTMLElement>(
+        "button.timer-header-chip",
+      );
       const prevDisplay = chipInLeft ? chipInLeft.style.display : null;
       if (chipInLeft) chipInLeft.style.display = "none";
       // The measurement twin normally takes no space (display: none) so the
       // painted second row isn't squeezed by invisible width. While measuring,
-      // give it its real chip footprint — the wrap/coverage checks below must
-      // match the "chip in the right group" layout. It stays visible through
-      // the chipToLeft width read below and is restored synchronously before
-      // paint (same as the left-group hide above), so no flash appears.
+      // give it the real chip's footprint — the wrap/coverage checks below
+      // must match the "chip in the right group" layout. The twin's width is
+      // pinned to the real chip's measured width: left unpinned, the
+      // "88:88:88" text would size it at 76-84px even when the real chip is
+      // the idle 32px square, and that phantom width would flip the measured
+      // layout into "wrapped" at intermediate viewport widths — skipping the
+      // toolbar avoidance entirely while the painted first row (twin hidden,
+      // chip in the left group) still fits and reaches under the toolbar.
+      // (min-width: 76px from .timer-header-chip must be cleared too.) The
+      // hide and the twin's footprint are reverted synchronously before
+      // paint, so no flash appears.
       const twin = right.querySelector<HTMLElement>(".timer-header-measure");
       const prevTwinDisplay = twin ? twin.style.display : null;
-      if (twin) twin.style.display = "inline-flex";
+      const prevTwinWidth = twin ? twin.style.width : null;
+      const prevTwinMinWidth = twin ? twin.style.minWidth : null;
+      if (twin) {
+        twin.style.width = `${chipWidth}px`;
+        twin.style.minWidth = "0";
+        twin.style.display = "inline-flex";
+      }
       const t = toolbar.getBoundingClientRect();
       const leftRect = left.getBoundingClientRect();
       const rightRect = right.getBoundingClientRect();
@@ -162,19 +188,21 @@ export function RoomHeader({
       let chipToLeft = false;
       if (headerTimer !== undefined && (wrapped || avoid)) {
         const gap = parseFloat(getComputedStyle(header).gap) || 12;
-        const rightChip =
-          right.querySelector<HTMLElement>(".timer-header-chip");
-        const chipWidth = rightChip
-          ? rightChip.getBoundingClientRect().width
-          : 76;
+        // Position the hypothetical chip right after the left group; chipWidth
+        // is the real chip's width captured above (mode-invariant), not the
+        // twin's, so both placement modes reach the same decision.
         const chipLeft = leftRect.right + gap;
         const chipRight = chipLeft + chipWidth;
         const chipCovered = chipLeft < t.right && chipRight > t.left;
         chipToLeft = !chipCovered;
       }
       // Drop the twin's temporary measurement footprint (back to display:
-      // none via CSS) before the browser paints this frame.
-      if (twin) twin.style.display = prevTwinDisplay ?? "";
+      // none via CSS, unpinned width) before the browser paints this frame.
+      if (twin) {
+        twin.style.display = prevTwinDisplay ?? "";
+        twin.style.width = prevTwinWidth ?? "";
+        twin.style.minWidth = prevTwinMinWidth ?? "";
+      }
       setTimerInLeft(chipToLeft);
     };
     const schedule = () => {

@@ -9,8 +9,9 @@ import "./TimerPanel.css";
 interface Props {
   /** Server-authoritative room timer state. */
   timer: RoomTimerState;
-  /** Restore the floating timer window (and expand it). */
-  onClick: () => void;
+  /** Restore the floating timer window (and expand it). Receives the chip's
+   *  bounding rect so the window can open right next to the clicked chip. */
+  onClick: (anchor: DOMRect) => void;
 }
 
 /**
@@ -54,7 +55,7 @@ export function TimerHeaderChip({ timer, onClick }: Props) {
       <button
         type="button"
         className="timer-header-chip timer-header-chip--idle"
-        onClick={onClick}
+        onClick={(e) => onClick(e.currentTarget.getBoundingClientRect())}
         title={t["timer.restore"]}
         aria-label={t["timer.title"]}
       >
@@ -67,7 +68,7 @@ export function TimerHeaderChip({ timer, onClick }: Props) {
     <button
       type="button"
       className="timer-header-chip"
-      onClick={onClick}
+      onClick={(e) => onClick(e.currentTarget.getBoundingClientRect())}
       title={t["timer.restore"]}
     >
       <span

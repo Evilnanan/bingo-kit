@@ -114,13 +114,16 @@ export function GameRoom({
   // Room-timer UI state: floating window vs minimized-to-top-bar, and whether
   // the floating window is expanded. Not persisted — every room entry starts
   // with the timer minimized to the top bar; the floating window only appears
-  // when explicitly restored (and opens expanded).
+  // when explicitly restored (and opens expanded, next to the clicked chip —
+  // timerAnchor is the chip's bounding rect at click time).
   const [timerPlacement, setTimerPlacement] = useState<"floating" | "header">(
     "header",
   );
   const [timerExpanded, setTimerExpanded] = useState(true);
+  const [timerAnchor, setTimerAnchor] = useState<DOMRect | null>(null);
 
-  const restoreTimerWindow = () => {
+  const restoreTimerWindow = (anchor: DOMRect) => {
+    setTimerAnchor(anchor);
     setTimerPlacement("floating");
     setTimerExpanded(true);
   };
@@ -242,6 +245,7 @@ export function GameRoom({
         timer={state.timer}
         isOwner={isOwner}
         placement={timerPlacement}
+        anchor={timerAnchor}
         expanded={timerExpanded}
         onExpandedChange={setTimerExpanded}
         onPlacementChange={setTimerPlacement}

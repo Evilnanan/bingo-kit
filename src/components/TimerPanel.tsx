@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n/useT";
 import { computeTimerSeconds, formatTimer } from "../utils/roomTimer";
 import { estimatedServerNow } from "../utils/serverClock";
@@ -6,9 +6,6 @@ import { TimerSetupDialog } from "./TimerSetupDialog";
 import { StopwatchIcon } from "./icons";
 import type { RoomTimer, RoomTimerState } from "../types";
 import "./TimerPanel.css";
-
-/** localStorage key for the floating window's last position. */
-const POS_KEY = "bingo-kit:timer-position";
 
 interface Props {
   /** Server-authoritative room timer state. */
@@ -18,6 +15,9 @@ interface Props {
   /** "floating" renders the draggable window; "header" renders nothing here
    *  (the minimized chip lives in the top bar instead). */
   placement: "floating" | "header";
+  /** Bounding rect of the header chip that restored the window — the window
+   *  opens right next to it. */
+  anchor: DOMRect | null;
   /** Floating window expanded (queue + controls) vs collapsed (time only). */
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
@@ -35,26 +35,14 @@ interface Pos {
   y: number;
 }
 
-function loadPos(): Pos {
-  const fallback = (): Pos => ({
-    x: Math.max(8, window.innerWidth - 360),
-    y: 72,
-  });
-  try {
-    const v = JSON.parse(localStorage.getItem(POS_KEY) ?? "null") as
-      | Pos
-      | null;
-    if (v && typeof v.x === "number" && typeof v.y === "number") {
-      // Clamp into the viewport in case the window was resized since.
-      return {
-        x: Math.max(8, Math.min(v.x, window.innerWidth - 140)),
-        y: Math.max(8, Math.min(v.y, window.innerHeight - 56)),
-      };
-    }
-  } catch {
-    // Ignore corrupt storage — fall back to the default spot.
-  }
-  return fallback();
+/** Clamp a top-left position so a w×h window stays fully inside the viewport
+ *  (8px margin). If the window is larger than the viewport itself, it pins to
+ *  the top-left corner. */
+function clampPos(p: Pos, w: number, h: number): Pos {
+  return {
+    x: Math.max(8, Math.min(p.x, window.innerWidth - w - 8)),
+    y: Math.max(8, Math.min(p.y, window.innerHeight - h - 8)),
+  };
 }
 
 interface DragState {
@@ -78,6 +66,7 @@ export function TimerPanel({
   timer,
   isOwner,
   placement,
+  anchor,
   expanded,
   onExpandedChange,
   onPlacementChange,
@@ -88,9 +77,10 @@ export function TimerPanel({
   onSubmit,
 }: Props) {
   const { t } = useT();
-  const [pos, setPos] = useState<Pos>(loadPos);
+  const [pos, setPos] = useState<Pos>({ x: 8, y: 8 });
   const [setupOpen, setSetupOpen] = useState(false);
   const dragRef = useRef<DragState | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const running = timer.status === "running";
   // Re-sample the estimated server clock ~4×/s while running and keep the
@@ -115,6 +105,44 @@ export function TimerPanel({
       window.clearInterval(id);
     };
   }, [running, placement]);
+
+  // ---------- positioning ----------
+
+  // When restored from the header chip, open right below the chip with the
+  // right edges aligned, clamped into the viewport. Layout effect so the
+  // window never paints at the stale spot first.
+  useLayoutEffect(() => {
+    if (placement !== "floating" || !anchor) return;
+    const el = rootRef.current;
+    const w = el?.offsetWidth ?? 320;
+    const h = el?.offsetHeight ?? 240;
+    setPos(clampPos({ x: anchor.right - w, y: anchor.bottom + 8 }, w, h));
+  }, [placement, anchor]);
+
+  // Keep the whole window on-screen. Two things can push it out without any
+  // re-render of our own: the browser window resizing, and the floating
+  // window itself changing size (expand/collapse, the queue growing — e.g.
+  // expanding near the bottom edge would otherwise overflow downward). Watch
+  // both and clamp back into the viewport. Bails out (same object) when
+  // already inside, so no render loop.
+  useEffect(() => {
+    if (placement !== "floating") return;
+    const el = rootRef.current;
+    if (!el) return;
+    const clamp = () => {
+      setPos((p) => {
+        const c = clampPos(p, el.offsetWidth, el.offsetHeight);
+        return c.x === p.x && c.y === p.y ? p : c;
+      });
+    };
+    const observer = new ResizeObserver(clamp);
+    observer.observe(el);
+    window.addEventListener("resize", clamp);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", clamp);
+    };
+  }, [placement]);
 
   if (placement !== "floating") return null;
 
@@ -162,23 +190,21 @@ export function TimerPanel({
     const dy = e.clientY - d.startY;
     if (!d.moved && Math.hypot(dx, dy) > 4) d.moved = true;
     if (!d.moved) return;
-    setPos({
-      x: Math.max(8, Math.min(d.origX + dx, window.innerWidth - 120)),
-      y: Math.max(8, Math.min(d.origY + dy, window.innerHeight - 40)),
-    });
+    const el = rootRef.current;
+    setPos(
+      clampPos(
+        { x: d.origX + dx, y: d.origY + dy },
+        el?.offsetWidth ?? 320,
+        el?.offsetHeight ?? 240,
+      ),
+    );
   };
 
   const endDrag = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d || d.pointerId !== e.pointerId) return;
     dragRef.current = null;
-    if (d.moved) {
-      try {
-        localStorage.setItem(POS_KEY, JSON.stringify(pos));
-      } catch {
-        // Storage unavailable (private mode) — position just won't persist.
-      }
-    } else {
+    if (!d.moved) {
       // Plain click on the header: toggle expand/collapse.
       onExpandedChange(!expanded);
     }
@@ -188,6 +214,7 @@ export function TimerPanel({
 
   return (
     <div
+      ref={rootRef}
       className={`timer-float${expanded ? "" : " timer-float--collapsed"}`}
       style={{ left: pos.x, top: pos.y }}
     >
