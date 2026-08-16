@@ -41,7 +41,7 @@ npm run deploy:image    # 部署图片 Worker（wrangler deploy --config image-w
 - **状态管理**：`useReducer` + Props drilling（无外部状态库）。消息流：`PartySocket message` → `usePartyConnection.onMessage` → `useGameState.handleServerMessage` → `dispatch` → `gameReducer`。
 - **前端路由**（条件渲染，非 SPA）：无 `roomConfig` → `LandingPage`；有 → 按 `gameMode` 显示 `BingoRoom`/`HexRoom`；`?test=randompick` / `?test=expression` 为调试页。`LandingPage` 保持挂载（`display: none`）以保留编辑状态。
 
-核心文件速查：`src/types/index.ts`（消息/状态类型）、`src/hooks/useGameState.ts` + `usePartyConnection.ts`（状态与连接）、`party/game-room.ts`（全部游戏逻辑）、`src/scoring/expressionParser.ts`（规则表达式解析器）。
+核心文件速查：`src/types/index.ts`（消息/状态类型）、`src/hooks/useGameState.ts` + `usePartyConnection.ts`（状态与连接）、`src/utils/playerCodeStorage.ts`（身份码本地缓存）、`party/game-room.ts`（全部游戏逻辑）、`src/scoring/expressionParser.ts`（规则表达式解析器）。
 
 ### 核心流程
 
@@ -50,6 +50,8 @@ npm run deploy:image    # 部署图片 Worker（wrangler deploy --config image-w
 **分享链接**：URL query 参数 `?room=<房间名>&server=<服务器>&share=1`（`RoomHeader` 复制链接时拼接），同时携带 `images=<图片服务器地址>` 让访客从同一图片服务加载哈希图片，**不携带 config**——服务端持有权威 config，访客加入后推回。带 `share=1` 的访问者只读进入（`LandingPage` 的 `isSharedLink` 置灰全部配置项），join 只发最小 config（`{ goals: [] }`），跳过 goal 校验。
 
 **configHash**：创建房间时客户端计算并随 config 发送，服务端存储。用途是**授权 restart**：仅 owner 且 hash 匹配的连接能执行 `restart`（`game-room.ts`），客户端 `canRestart`（本地 hash === 服务端 hash）据此显示"重开"按钮。
+
+**同玩家多设备（身份码）**：同一玩家的多个连接共享一个玩家身份。服务端按玩家名持有 4 位数字身份码（`playerCodes`），首次 join 时生成、经个人 state 的 `myCode` 回传；客户端缓存于 `src/utils/playerCodeStorage.ts`（localStorage 单槽位 `bingo-kit:player-code`，只存最近一个房间、每名一码，服务端权威）。名字已存在时 join 必须携带匹配身份码——覆盖同设备自动重连与同玩家第二台设备；缺失/错误 → `join_rejected`(`bad_code`) → 客户端 `JoinRejectedModal` 提供改名或输入正确码重试。个人数据（star/counters/notes/unreadChat）经 `stateMsgFor`（`myStars`/`myCounters`/`myNotes`/`myUnreadChat`）同步给同名全部连接，`sendToSameName` 只发给同名连接；`leave`/被动断线仅在最后一个同名连接断开时才移除玩家，被动断线有 5 分钟重连宽限（`RECONNECT_GRACE_MS`，deadline 持久化，runtime 回收后由 `sweepExpiredDisconnects` 清扫）。改名时身份码跟随玩家（服务端 `playerCodes` 迁移 + 本地 `renamePlayerCode`，owner 同步）；`change_code` 可手动改码（任意 ≤32 字符字符串），服务端向其他同名连接广播 `code_changed`。
 
 **Goal 图片**：Goal 可携带图片（tooltip 显示，Lightbox 全屏查看）。上传：`GoalEditor` → `fileToImageAttachment()`（SHA-256 + base64）→ `ImageUploadQueue`（并发上限 2）→ `PUT /images/:hash`，哈希即存储键。**WebSocket 传输前必须 `stripImageData()` 剥掉 `data`**（`compressJson` 也会调用），否则 config 内嵌 base64 过大；渲染用 `getImageSrc()`（有 `data` 用 data URL，否则指向图片 API）。生产用 `image-worker/`（R2 bucket `bingo-kit-image`）；SHA-256 需要 secure context（localhost 或 HTTPS），否则 `sha256Hex` 抛错。
 
