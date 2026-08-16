@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GoalItem, PlayerNote } from "../types";
 import { getGoalText } from "../types";
 import { useT, format } from "../i18n/useT";
@@ -48,11 +48,34 @@ export function NotesPanel({
   /** Note currently being text-edited (expanded state). */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  /** Note currently being dragged (HTML5 DnD). */
+  /** Note currently being dragged (pointer-based drag), null when idle. */
   const [dragId, setDragId] = useState<string | null>(null);
   /** Insertion index for the drop indicator (0..notes.length). */
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  /** Active drag session; null when idle. `moved` flips once the pointer
+   *  leaves the click slop, distinguishing real drags from plain clicks. */
+  const dragSessionRef = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    lastY: number;
+    moved: boolean;
+  } | null>(null);
+  const dragRafRef = useRef<number | null>(null);
+  /** Mirrors the dropIndex state so pointerup can commit synchronously. */
+  const dropIndexRef = useRef<number | null>(null);
+  /** Suppresses the click that follows a completed drag (else the note
+   *  row would toggle its expansion). */
+  const suppressClickRef = useRef(false);
+  const notesRef = useRef(notes);
+  useEffect(() => {
+    notesRef.current = notes;
+  });
+  const onReorderRef = useRef(onReorderNotes);
+  useEffect(() => {
+    onReorderRef.current = onReorderNotes;
+  });
 
   const toggleExpanded = (id: string) => {
     setExpanded((prev) => {
@@ -94,57 +117,156 @@ export function NotesPanel({
     );
   };
 
-  // The whole panel is a valid drop zone: compute the insertion index from
-  // the pointer's vertical position against each note's midpoint.
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
+  // ── pointer-based drag sorting ────────────────────────────────────
+  // Pointer Events instead of HTML5 DnD: a native drag session swallows
+  // all input (including the wheel), while a pointer-based session leaves
+  // wheel scrolling alone so the list keeps scrolling mid-drag.
+
+  /** Map the pointer Y to an insertion index using each note's midpoint,
+   *  or null while the pointer is outside the list. */
+  function computeDropIndex(clientY: number): number | null {
     const list = listRef.current;
-    if (!list) return;
+    if (!list) return null;
+    const rect = list.getBoundingClientRect();
+    if (clientY < rect.top || clientY > rect.bottom) return null;
     const noteEls = Array.from(list.querySelectorAll<HTMLElement>(".note"));
-    const y = e.clientY;
     let idx = noteEls.length;
     for (let i = 0; i < noteEls.length; i++) {
-      const rect = noteEls[i].getBoundingClientRect();
-      if (y < rect.top + rect.height / 2) {
+      const r = noteEls[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) {
         idx = i;
         break;
       }
     }
-    setDropIndex((prev) => (prev === idx ? prev : idx));
-  };
+    return idx;
+  }
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-      setDropIndex(null);
+  /** Per-frame drag work: edge auto-scroll + drop-indicator refresh. The
+   *  indicator is recomputed every frame (not just on pointermove), so it
+   *  stays accurate when the wheel scrolls the list mid-drag. */
+  function dragTick() {
+    dragRafRef.current = null;
+    const session = dragSessionRef.current;
+    if (!session) return;
+    const list = listRef.current;
+    if (list) {
+      const rect = list.getBoundingClientRect();
+      const edge = 48;
+      if (session.lastY < rect.top + edge) list.scrollTop -= 16;
+      else if (session.lastY > rect.bottom - edge) list.scrollTop += 16;
+      const idx = computeDropIndex(session.lastY);
+      if (dropIndexRef.current !== idx) {
+        dropIndexRef.current = idx;
+        setDropIndex(idx);
+      }
     }
-  };
+    dragRafRef.current = requestAnimationFrame(dragTick);
+  }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (!dragId || dropIndex === null) return;
-    const ids = notes.map((n) => n.id);
-    const from = ids.indexOf(dragId);
-    if (from < 0) return;
-    const next = [...ids];
-    next.splice(from, 1);
-    // Removing the dragged item shifts later targets left by one.
-    const adjusted = from < dropIndex ? dropIndex - 1 : dropIndex;
-    if (adjusted !== from) {
-      next.splice(adjusted, 0, dragId);
-      onReorderNotes(next);
+  function endDragSession(commit: boolean) {
+    const session = dragSessionRef.current;
+    if (!session) return;
+    dragSessionRef.current = null;
+    if (dragRafRef.current !== null) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = null;
     }
+    window.removeEventListener("pointermove", onWindowPointerMove);
+    window.removeEventListener("pointerup", onWindowPointerUp);
+    window.removeEventListener("pointercancel", onWindowPointerCancel);
+    window.removeEventListener("keydown", onWindowKeyDown);
+    window.removeEventListener("blur", onWindowBlur);
+    document.body.classList.remove("dnd-dragging");
+    if (commit && session.moved && dropIndexRef.current !== null) {
+      const ids = notesRef.current.map((n) => n.id);
+      const from = ids.indexOf(session.id);
+      if (from >= 0) {
+        const next = [...ids];
+        next.splice(from, 1);
+        // Removing the dragged item shifts later targets left by one.
+        const adjusted =
+          from < dropIndexRef.current
+            ? dropIndexRef.current - 1
+            : dropIndexRef.current;
+        if (adjusted !== from) {
+          next.splice(adjusted, 0, session.id);
+          onReorderRef.current(next);
+        }
+      }
+    }
+    dropIndexRef.current = null;
     setDragId(null);
     setDropIndex(null);
-  };
+  }
+
+  function onWindowPointerMove(e: PointerEvent) {
+    const session = dragSessionRef.current;
+    if (!session) return;
+    session.lastY = e.clientY;
+    if (!session.moved) {
+      // Click slop: a plain click on a note must still toggle expansion.
+      if (
+        Math.hypot(e.clientX - session.startX, e.clientY - session.startY) < 4
+      ) {
+        return;
+      }
+      session.moved = true;
+      setDragId(session.id);
+      dragRafRef.current = requestAnimationFrame(dragTick);
+    }
+  }
+
+  function onWindowPointerUp() {
+    const session = dragSessionRef.current;
+    if (!session) return;
+    if (session.moved) suppressClickRef.current = true;
+    endDragSession(true);
+  }
+
+  function onWindowPointerCancel() {
+    suppressClickRef.current = true;
+    endDragSession(false);
+  }
+
+  function onWindowKeyDown(e: KeyboardEvent) {
+    if (e.key === "Escape") endDragSession(false);
+  }
+
+  function onWindowBlur() {
+    endDragSession(false);
+  }
+
+  /** Start a drag session from the note handle's pointerdown. */
+  function handleDragHandlePointerDown(id: string, e: React.PointerEvent) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (dragSessionRef.current) return;
+    suppressClickRef.current = false;
+    dragSessionRef.current = {
+      id,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastY: e.clientY,
+      moved: false,
+    };
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("pointerup", onWindowPointerUp);
+    window.addEventListener("pointercancel", onWindowPointerCancel);
+    window.addEventListener("keydown", onWindowKeyDown);
+    window.addEventListener("blur", onWindowBlur);
+    document.body.classList.add("dnd-dragging");
+  }
+
+  // While a drag session is active, swallow stray pointer downs so they
+  // can't steal focus or trigger note interactions mid-drag.
+  useEffect(() => {
+    if (dragId === null) return;
+    const swallow = (e: PointerEvent) => e.preventDefault();
+    window.addEventListener("pointerdown", swallow, true);
+    return () => window.removeEventListener("pointerdown", swallow, true);
+  }, [dragId]);
 
   return (
-    <div
-      className="notes-panel"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+    <div className="notes-panel">
       {linkingNoteId && (
         <div className="notes-linking-banner">
           <span>{t["notes.linkingHint"]}</span>
@@ -177,21 +299,19 @@ export function NotesPanel({
               className={`note${isExpanded ? " note--expanded" : ""}${
                 dragId === note.id ? " note--dragging" : ""
               }${linkingNoteId === note.id ? " note--linking" : ""}${dropClass}`}
-              onClick={() => toggleExpanded(note.id)}
+              onClick={() => {
+                if (suppressClickRef.current) {
+                  suppressClickRef.current = false;
+                  return;
+                }
+                toggleExpanded(note.id);
+              }}
             >
               <span
                 className="note-drag"
                 title={t["notes.drag"]}
-                draggable
+                onPointerDown={(e) => handleDragHandlePointerDown(note.id, e)}
                 onClick={(e) => e.stopPropagation()}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = "move";
-                  setDragId(note.id);
-                }}
-                onDragEnd={() => {
-                  setDragId(null);
-                  setDropIndex(null);
-                }}
               >
                 <svg
                   className="note-drag-icon"

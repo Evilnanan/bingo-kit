@@ -307,13 +307,17 @@
 }
 
 /* Drop indicator for drag sorting — box-shadow avoids layout changes, so
-   virtualization measurements stay stable while dragging. */
+   virtualization measurements stay stable while dragging. The wrapper has
+   no visible box of its own, but mirroring the card's radius makes the
+   line hug the card's rounded corners (same look as the notes panel). */
 .ge-item-virtual--drop-before {
-  box-shadow: 0 -3px 0 -1px var(--accent);
+  box-shadow: 0 -2px 0 0 var(--accent);
+  border-radius: var(--radius);
 }
 
 .ge-item-virtual--drop-after {
-  box-shadow: 0 3px 0 -1px var(--accent);
+  box-shadow: 0 2px 0 0 var(--accent);
+  border-radius: var(--radius);
 }
 
 .ge-item-virtual--dragging {
@@ -381,6 +385,12 @@
 .ge-item-index--drag-disabled {
   opacity: 0.35;
   cursor: default;
+}
+
+/* Pointer-based drag: keep touch gestures from scrolling the page when the
+   drag starts on the handle. */
+.ge-item-index--drag {
+  touch-action: none;
 }
 
 .ge-item-index--drag-disabled:hover {

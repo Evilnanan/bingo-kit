@@ -86,6 +86,15 @@ body {
   min-height: 100vh;
 }
 
+/* While a pointer-based row drag is active (shared by the goal editor and
+   the notes panel), block text selection anywhere — the wheel still
+   scrolls the list natively during the drag. */
+body.dnd-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grabbing;
+}
+
 #root {
   min-height: 100vh;
 }

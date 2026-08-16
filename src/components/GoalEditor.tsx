@@ -772,10 +772,14 @@ interface GoalEditorItemProps {
   /** True while ANOTHER handle is being dragged (never the row's own
    *  handle) — neutralized so the pointer crossing it causes no
    *  hover/tooltip/cursor flicker. The source handle must stay untouched
-   *  during its own drag, or Chromium may cancel the drag session. */
+   *  during its own drag. */
   dragActive: boolean;
-  onDragStart: (index: number) => void;
-  onDragEnd: () => void;
+  /** Pointer-down on this row's drag handle (only called when the handle
+   *  is eligible). The parent runs the whole pointer-based drag session. */
+  onDragHandlePointerDown: (index: number, e: React.PointerEvent) => void;
+  /** Set by the parent right after a real drag ends, so the click event
+   *  that follows pointerup doesn't open the move-to input. */
+  suppressClickRef: { current: boolean };
   /** Move this goal to a 1-based position typed by the user. */
   onMoveTo: (index: number, position: number) => void;
 }
@@ -792,8 +796,8 @@ const GoalEditorItem = memo(function GoalEditorItem({
   uploadQueue,
   dragEnabled,
   dragActive,
-  onDragStart,
-  onDragEnd,
+  onDragHandlePointerDown,
+  suppressClickRef,
   onMoveTo,
 }: GoalEditorItemProps) {
   const [previewIdx, setPreviewIdx] = useState(-1);
@@ -960,20 +964,18 @@ const GoalEditorItem = memo(function GoalEditorItem({
       <span
         className={`ge-item-index${dragEnabled && !dragActive && moveText === null ? " ge-item-index--drag" : ""}${dragActive ? " ge-item-index--drag-inactive" : ""}${!dragEnabled ? " ge-item-index--drag-disabled" : ""}`}
         title={t["editor.moveToHint"]}
-        draggable={dragEnabled && !dragActive && moveText === null}
-        onClick={() => {
-          if (moveText === null) setMoveText(String(index + 1));
+        onPointerDown={(e) => {
+          if (dragEnabled && !dragActive && moveText === null) {
+            onDragHandlePointerDown(index, e);
+          }
         }}
-        onDragStart={(e) => {
-          if (!dragEnabled || dragActive || moveText !== null) {
-            e.preventDefault();
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
             return;
           }
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", String(index));
-          onDragStart(index);
+          if (moveText === null) setMoveText(String(index + 1));
         }}
-        onDragEnd={onDragEnd}
       >
         {index + 1}
         {moveText !== null && (
@@ -1351,7 +1353,8 @@ export function GoalEditor({
     key: GoalSortKey;
     dir: 1 | -1;
   } | null>(null);
-  /** Real goal index currently dragged (HTML5 DnD), null when idle. */
+  /** Real goal index currently dragged (pointer-based drag), null when
+   *  idle. */
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   /** Real insertion index for the drop indicator (0..goals.length). */
   const [dropIndex, setDropIndex] = useState<number | null>(null);
@@ -1677,103 +1680,183 @@ export function GoalEditor({
     [onChange, sortMode, resetListScroll],
   );
 
-  const handleDragStart = useCallback((index: number) => {
-    setDragIndex(index);
-    setDropIndex(null);
-  }, []);
+  // ── pointer-based drag sorting ────────────────────────────────────
+  // Pointer Events instead of HTML5 DnD: a native drag session swallows
+  // all input (including the wheel), while a pointer-based session leaves
+  // wheel scrolling alone so the list keeps scrolling mid-drag.
+  /** Active drag session; null when idle. `moved` flips once the pointer
+   *  leaves the click slop, distinguishing real drags from click-to-move. */
+  const dragSessionRef = useRef<{
+    index: number;
+    startX: number;
+    startY: number;
+    lastY: number;
+    moved: boolean;
+  } | null>(null);
+  const dragRafRef = useRef<number | null>(null);
+  /** Mirrors the dropIndex state so pointerup can commit synchronously. */
+  const dropIndexRef = useRef<number | null>(null);
+  /** Suppresses the click that follows a completed drag. */
+  const suppressClickRef = useRef(false);
+  const visibleGoalsRef = useRef(visibleGoals);
+  useEffect(() => {
+    visibleGoalsRef.current = visibleGoals;
+  });
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
 
-  const handleDragEnd = useCallback(() => {
-    setDragIndex(null);
-    setDropIndex(null);
-  }, []);
+  /** Map the pointer Y to a real insertion index using each mounted row's
+   *  midpoint, or null while the pointer is outside the list. The list is
+   *  virtualized, so only visible rows exist — dropping at the top/bottom
+   *  edges lands before/after the nearest mounted row. */
+  function computeDropIndex(clientY: number): number | null {
+    const list = listRef.current;
+    if (!list) return null;
+    const rect = list.getBoundingClientRect();
+    if (clientY < rect.top || clientY > rect.bottom) return null;
+    const rowEls = Array.from(
+      list.querySelectorAll<HTMLElement>(".ge-item-virtual"),
+    );
+    let visualIdx = rowEls.length;
+    for (let i = 0; i < rowEls.length; i++) {
+      const r = rowEls[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) {
+        visualIdx = i;
+        break;
+      }
+    }
+    const visible = visibleGoalsRef.current;
+    if (rowEls.length === 0) return 0;
+    if (visualIdx >= rowEls.length) {
+      const last = rowEls[rowEls.length - 1];
+      return visible[Number(last.dataset.rowIndex)].index + 1;
+    }
+    return visible[Number(rowEls[visualIdx].dataset.rowIndex)].index;
+  }
 
-  const handleDragOver = useCallback(
-    (e: React.DragEvent) => {
-      if (dragIndex === null) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      const list = listRef.current;
-      if (!list) return;
-      // Auto-scroll while hovering near the top/bottom edge.
+  /** Per-frame drag work: edge auto-scroll + drop-indicator refresh. The
+   *  indicator is recomputed every frame (not just on pointermove), so it
+   *  stays accurate when the wheel scrolls the list mid-drag. */
+  function dragTick() {
+    dragRafRef.current = null;
+    const session = dragSessionRef.current;
+    if (!session) return;
+    const list = listRef.current;
+    if (list) {
       const rect = list.getBoundingClientRect();
       const edge = 48;
-      if (e.clientY < rect.top + edge) list.scrollTop -= 14;
-      else if (e.clientY > rect.bottom - edge) list.scrollTop += 14;
-      // Map the pointer to an insertion index using each mounted row's
-      // midpoint. The list is virtualized, so only visible rows exist —
-      // dropping at the top/bottom edges lands before/after the nearest
-      // mounted row.
-      const rowEls = Array.from(
-        list.querySelectorAll<HTMLElement>(".ge-item-virtual"),
-      );
-      let visualIdx = rowEls.length;
-      for (let i = 0; i < rowEls.length; i++) {
-        const r = rowEls[i].getBoundingClientRect();
-        if (e.clientY < r.top + r.height / 2) {
-          visualIdx = i;
-          break;
-        }
+      if (session.lastY < rect.top + edge) list.scrollTop -= 16;
+      else if (session.lastY > rect.bottom - edge) list.scrollTop += 16;
+      const idx = computeDropIndex(session.lastY);
+      if (dropIndexRef.current !== idx) {
+        dropIndexRef.current = idx;
+        setDropIndex(idx);
       }
-      let realIdx: number;
-      if (rowEls.length === 0) {
-        realIdx = 0;
-      } else if (visualIdx >= rowEls.length) {
-        const last = rowEls[rowEls.length - 1];
-        realIdx = visibleGoals[Number(last.dataset.rowIndex)].index + 1;
-      } else {
-        realIdx =
-          visibleGoals[Number(rowEls[visualIdx].dataset.rowIndex)].index;
-      }
-      setDropIndex((prev) => (prev === realIdx ? prev : realIdx));
-    },
-    [dragIndex, visibleGoals, listRef],
-  );
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-      setDropIndex(null);
     }
-  }, []);
+    dragRafRef.current = requestAnimationFrame(dragTick);
+  }
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      if (dragIndex === null || dropIndex === null) {
-        handleDragEnd();
-        return;
-      }
-      const from = dragIndex;
+  function endDragSession(commit: boolean) {
+    const session = dragSessionRef.current;
+    if (!session) return;
+    dragSessionRef.current = null;
+    if (dragRafRef.current !== null) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = null;
+    }
+    window.removeEventListener("pointermove", onWindowPointerMove);
+    window.removeEventListener("pointerup", onWindowPointerUp);
+    window.removeEventListener("pointercancel", onWindowPointerCancel);
+    window.removeEventListener("keydown", onWindowKeyDown);
+    window.removeEventListener("blur", onWindowBlur);
+    document.body.classList.remove("dnd-dragging");
+    if (commit && session.moved && dropIndexRef.current !== null) {
+      const from = session.index;
       const next = [...goalsRef.current];
       const [moved] = next.splice(from, 1);
       // Removing the dragged item shifts later targets left by one.
-      const adjusted = from < dropIndex ? dropIndex - 1 : dropIndex;
+      const adjusted =
+        from < dropIndexRef.current
+          ? dropIndexRef.current - 1
+          : dropIndexRef.current;
       if (adjusted !== from) {
         next.splice(adjusted, 0, moved);
-        onChange(next);
+        onChangeRef.current(next);
       }
       // A manual reorder supersedes any previous one-click sort.
       setSortMode(null);
-      handleDragEnd();
-    },
-    [dragIndex, dropIndex, onChange, handleDragEnd],
-  );
+    }
+    dropIndexRef.current = null;
+    setDragIndex(null);
+    setDropIndex(null);
+  }
 
-  // While a goal drag is active, keep the whole window a valid drop zone.
-  // Otherwise the browser flashes the "no-drop" cursor whenever the pointer
-  // crosses elements that don't accept drops (inputs, toolbars, other rows).
+  function onWindowPointerMove(e: PointerEvent) {
+    const session = dragSessionRef.current;
+    if (!session) return;
+    session.lastY = e.clientY;
+    if (!session.moved) {
+      // Click slop: a plain click must still open the move-to input.
+      if (
+        Math.hypot(e.clientX - session.startX, e.clientY - session.startY) < 4
+      ) {
+        return;
+      }
+      session.moved = true;
+      setDragIndex(session.index);
+      dragRafRef.current = requestAnimationFrame(dragTick);
+    }
+  }
+
+  function onWindowPointerUp() {
+    const session = dragSessionRef.current;
+    if (!session) return;
+    if (session.moved) suppressClickRef.current = true;
+    endDragSession(true);
+  }
+
+  function onWindowPointerCancel() {
+    suppressClickRef.current = true;
+    endDragSession(false);
+  }
+
+  function onWindowKeyDown(e: KeyboardEvent) {
+    if (e.key === "Escape") endDragSession(false);
+  }
+
+  function onWindowBlur() {
+    endDragSession(false);
+  }
+
+  /** Start a drag session from a handle pointerdown. */
+  function handleDragHandlePointerDown(index: number, e: React.PointerEvent) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (dragSessionRef.current) return;
+    suppressClickRef.current = false;
+    dragSessionRef.current = {
+      index,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastY: e.clientY,
+      moved: false,
+    };
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("pointerup", onWindowPointerUp);
+    window.addEventListener("pointercancel", onWindowPointerCancel);
+    window.addEventListener("keydown", onWindowKeyDown);
+    window.addEventListener("blur", onWindowBlur);
+    document.body.classList.add("dnd-dragging");
+  }
+
+  // While a drag session is active, swallow stray pointer downs so they
+  // can't steal focus or trigger row interactions mid-drag.
   useEffect(() => {
     if (dragIndex === null) return;
-    const keepValid = (e: DragEvent) => {
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-    };
-    const swallowDrop = (e: DragEvent) => e.preventDefault();
-    window.addEventListener("dragover", keepValid);
-    window.addEventListener("drop", swallowDrop);
-    return () => {
-      window.removeEventListener("dragover", keepValid);
-      window.removeEventListener("drop", swallowDrop);
-    };
+    const swallow = (e: PointerEvent) => e.preventDefault();
+    window.addEventListener("pointerdown", swallow, true);
+    return () => window.removeEventListener("pointerdown", swallow, true);
   }, [dragIndex]);
 
   return (
@@ -2023,9 +2106,6 @@ export function GoalEditor({
               className="goal-editor-list"
               ref={listRef}
               onScroll={handleListScroll}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
             >
               {visibleGoals.length === 0 && (
                 <p className="goal-editor-empty">
@@ -2065,8 +2145,8 @@ export function GoalEditor({
                           uploadQueue={uploadQueue ?? null}
                           dragEnabled={!filterActive}
                           dragActive={dragIndex !== null && dragIndex !== index}
-                          onDragStart={handleDragStart}
-                          onDragEnd={handleDragEnd}
+                          onDragHandlePointerDown={handleDragHandlePointerDown}
+                          suppressClickRef={suppressClickRef}
                           onMoveTo={moveGoalTo}
                         />
                       </div>
