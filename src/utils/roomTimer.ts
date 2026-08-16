@@ -24,7 +24,13 @@ export function computeTimerSeconds(
   if (!current) return null;
   if (current.mode === "countdown") {
     if (timer.status === "running" && timer.endAt != null) {
-      return Math.max(0, Math.ceil((timer.endAt - nowMs) / 1000));
+      // Clamp to [0, duration]: the client's server-clock estimate can lag a
+      // few ms behind, and ceil() would otherwise flash duration+1 (a 40 s
+      // timer briefly showing 00:41) until the next clock sample corrects it.
+      return Math.min(
+        current.duration,
+        Math.max(0, Math.ceil((timer.endAt - nowMs) / 1000)),
+      );
     }
     if (timer.status === "finished") return timer.pausedRemaining ?? 0;
     return timer.pausedRemaining ?? current.duration;
