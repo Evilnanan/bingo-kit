@@ -16,14 +16,18 @@ import type {
   GameMode,
   GoalItem,
   PoolMetadata,
+  RoomTimer,
+  RoomTimerState,
 } from "../types";
 import {
   stripGoalMeta,
   stripConfigImageData,
   stripAttachments,
+  createEmptyTimerState,
 } from "../types";
 import { TEAM_COLORS } from "../utils/colors";
 import type { Team } from "../utils/colors";
+import { recordOneWaySample } from "../utils/serverClock";
 import {
   handleCommonAction,
   usePlayerCallbacks,
@@ -67,6 +71,7 @@ function createInitialState(
     countdownSeconds: null,
     bonusScores: {},
     owner: null,
+    timer: createEmptyTimerState(),
   };
 }
 
@@ -209,6 +214,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...(action.state.unreadChat !== undefined
           ? { unreadChat: action.state.unreadChat }
           : {}),
+        ...(action.state.timer !== undefined
+          ? { timer: action.state.timer }
+          : {}),
       };
     }
 
@@ -306,6 +314,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, notes: next };
     }
 
+    case "SET_TIMER": {
+      // Server-authoritative room timer state (queue + run).
+      return { ...state, timer: action.timer };
+    }
+
     case "CLEAR_SESSION":
       return {
         ...handleCommonAction(state, action),
@@ -316,6 +329,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         notes: [],
         unreadChat: false,
         myCode: null,
+        timer: createEmptyTimerState(),
       };
 
     case "SET_MY_CODE":
@@ -427,6 +441,12 @@ export function useGameState(
         dispatch({ type: "SET_CONNECTED" });
         setJoinError(null);
         setJoinPending(null);
+        // The state message is stamped with the server clock — use it to
+        // seed/refine the offset estimate for the shared room timer.
+        const stateServerTime = (msg as { serverTime?: number }).serverTime;
+        if (typeof stateServerTime === "number") {
+          recordOneWaySample(stateServerTime, Date.now());
+        }
         // The server knows the authoritative name for this connection (it may
         // differ from the homepage name after a retry join).
         const myName = (msg as { myName?: string }).myName;
@@ -474,6 +494,7 @@ export function useGameState(
               .myCounters,
             notes: (msg as { myNotes?: PlayerNote[] }).myNotes,
             unreadChat: (msg as { myUnreadChat?: boolean }).myUnreadChat,
+            timer: (msg as { timer?: RoomTimerState }).timer,
           },
         });
         // Cache the server-assigned identity code locally so a reload or a
@@ -665,6 +686,26 @@ export function useGameState(
       case "notes_reordered": {
         if (msg.name !== stateRef.current.localPlayerName) break;
         dispatch({ type: "REORDER_NOTES", ids: msg.ids });
+        break;
+      }
+
+      case "timer_state": {
+        // Fresh authoritative room-timer state, stamped with the server
+        // clock — re-estimate the offset right when the timer changes so
+        // every player's display stays aligned.
+        recordOneWaySample(msg.serverTime, Date.now());
+        dispatch({
+          type: "SET_TIMER",
+          timer: {
+            timers: msg.timers,
+            currentIndex: msg.currentIndex,
+            status: msg.status,
+            endAt: msg.endAt,
+            startedAt: msg.startedAt,
+            pausedRemaining: msg.pausedRemaining,
+            pausedElapsed: msg.pausedElapsed,
+          },
+        });
         break;
       }
     }
@@ -1128,6 +1169,46 @@ export function useGameState(
     dispatch({ type: "REORDER_NOTES", ids });
   }
 
+  /** Room owner: replace or extend the serial timer queue. */
+  function submitTimers(timers: RoomTimer[], submitMode: "append" | "overwrite") {
+    const ws = wsRef.current;
+    const current = stateRef.current;
+    if (!ws || current.localPlayerName !== current.owner) return;
+    ws.send(JSON.stringify({ type: "timer_submit", timers, submitMode }));
+  }
+
+  /** Room owner: start the run (or resume when paused). */
+  function timerStart() {
+    const ws = wsRef.current;
+    const current = stateRef.current;
+    if (!ws || current.localPlayerName !== current.owner) return;
+    ws.send(JSON.stringify({ type: "timer_start" }));
+  }
+
+  /** Room owner: pause the running timer. */
+  function timerPause() {
+    const ws = wsRef.current;
+    const current = stateRef.current;
+    if (!ws || current.localPlayerName !== current.owner) return;
+    ws.send(JSON.stringify({ type: "timer_pause" }));
+  }
+
+  /** Room owner: end the current timer now; the next one starts automatically. */
+  function timerStop() {
+    const ws = wsRef.current;
+    const current = stateRef.current;
+    if (!ws || current.localPlayerName !== current.owner) return;
+    ws.send(JSON.stringify({ type: "timer_stop" }));
+  }
+
+  /** Room owner: skip the current timer and start the next one. */
+  function timerNext() {
+    const ws = wsRef.current;
+    const current = stateRef.current;
+    if (!ws || current.localPlayerName !== current.owner) return;
+    ws.send(JSON.stringify({ type: "timer_next" }));
+  }
+
   // Only allow restart if this device's config hash matches the server's.
   const localHash = (initialConfig as BoardConfig | HexConfig).configHash;
   const canRestart = (() => {
@@ -1152,6 +1233,11 @@ export function useGameState(
     updateNote,
     deleteNote,
     reorderNotes,
+    submitTimers,
+    timerStart,
+    timerPause,
+    timerStop,
+    timerNext,
     requestRestart,
     canRestart,
     joinError,

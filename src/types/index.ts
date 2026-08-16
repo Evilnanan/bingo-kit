@@ -22,6 +22,58 @@ export interface PlayerNote {
   linkedCells?: number[];
 }
 
+// ---------- room timer ----------
+
+/** Whether a room timer counts down to zero or up from zero. */
+export type TimerMode = "countdown" | "countup";
+/** Overall state of the serial timer queue. */
+export type TimerStatus = "idle" | "running" | "paused" | "finished";
+
+/** One entry of the serial timer queue, set up by the room owner. */
+export interface RoomTimer {
+  /** Client-generated unique id. */
+  id: string;
+  /** Human-readable description shown to all players. */
+  name: string;
+  mode: TimerMode;
+  /** Countdown length in seconds; always 0 for count-up timers. */
+  duration: number;
+}
+
+/**
+ * Server-authoritative room timer state. All wall-clock fields use the
+ * *server's* clock; clients render from absolute timestamps and only need
+ * their offset to the server clock (see src/utils/serverClock.ts).
+ */
+export interface RoomTimerState {
+  /** The full serial queue. */
+  timers: RoomTimer[];
+  /** Index of the current timer in `timers`, -1 when nothing is active. */
+  currentIndex: number;
+  status: TimerStatus;
+  /** Server-clock time (ms) when a running countdown reaches 0. */
+  endAt: number | null;
+  /** Server-clock time (ms) when a running count-up segment started. */
+  startedAt: number | null;
+  /** Seconds remaining on a paused (or just-finished) countdown. */
+  pausedRemaining: number | null;
+  /** Seconds elapsed on a paused (or just-finished) count-up. */
+  pausedElapsed: number | null;
+}
+
+/** Fresh, empty timer state (nothing queued, nothing running). */
+export function createEmptyTimerState(): RoomTimerState {
+  return {
+    timers: [],
+    currentIndex: -1,
+    status: "idle",
+    endAt: null,
+    startedAt: null,
+    pausedRemaining: null,
+    pausedElapsed: null,
+  };
+}
+
 export interface ImageAttachment {
   /** SHA-256 hex digest — used as R2 storage key and dedup identifier. */
   hash: string;
@@ -313,6 +365,8 @@ export interface GameState {
   bonusScores: Record<string, number>;
   /** Room owner — the player who first provided the board config. */
   owner: string | null;
+  /** Serial room timer queue + run state (server-authoritative). */
+  timer: RoomTimerState;
 }
 
 export type GameAction =
@@ -349,6 +403,8 @@ export type GameAction =
         myName?: string;
         /** This player's identity code, sent only to the matching connection. */
         myCode?: string | null;
+        /** Serial room timer queue + run state. */
+        timer?: RoomTimerState;
       };
     }
   | {
@@ -372,7 +428,8 @@ export type GameAction =
   | { type: "ADD_NOTE"; note: PlayerNote }
   | { type: "UPDATE_NOTE"; id: string; note: PlayerNote }
   | { type: "DELETE_NOTE"; id: string }
-  | { type: "REORDER_NOTES"; ids: string[] };
+  | { type: "REORDER_NOTES"; ids: string[] }
+  | { type: "SET_TIMER"; timer: RoomTimerState };
 
 export type PlayerCallbackAction = Extract<
   GameAction,
@@ -404,6 +461,10 @@ export type ServerMessage =
       myName?: string;
       /** This player's identity code, present only in per-player state. */
       myCode?: string | null;
+      /** Serial room timer queue + run state. */
+      timer?: RoomTimerState;
+      /** Server clock at send time — lets clients estimate their clock offset. */
+      serverTime?: number;
     }
   | {
       type: "join_rejected";
@@ -449,7 +510,19 @@ export type ServerMessage =
   | { type: "notes_reordered"; name: string; ids: string[] }
   | { type: "chat_unread"; name: string; unread: boolean }
   | { type: "chat_history"; chats: ChatMessage[] }
-  | { type: "pong" };
+  | {
+      type: "timer_state";
+      timers: RoomTimer[];
+      currentIndex: number;
+      status: TimerStatus;
+      endAt: number | null;
+      startedAt: number | null;
+      pausedRemaining: number | null;
+      pausedElapsed: number | null;
+      /** Server clock at send time — lets clients estimate their clock offset. */
+      serverTime: number;
+    }
+  | { type: "pong"; serverTime?: number; t?: number };
 
 /** Messages sent to the PartyServer. */
 export type ClientMessage =
@@ -477,7 +550,7 @@ export type ClientMessage =
   | { type: "set_counter"; name: string; index: number; value: number }
   | { type: "add_note"; name: string; note: PlayerNote }
   | { type: "set_chat_unread"; name: string; unread: boolean }
-  | { type: "ping" }
+  | { type: "ping"; t?: number }
   | { type: "leave"; name: string }
   | { type: "kick"; name: string }
   | {
@@ -491,4 +564,15 @@ export type ClientMessage =
       linkedCells?: number[] | null;
     }
   | { type: "delete_note"; name: string; id: string }
-  | { type: "reorder_notes"; name: string; ids: string[] };
+  | { type: "reorder_notes"; name: string; ids: string[] }
+  | {
+      type: "timer_submit";
+      timers: RoomTimer[];
+      /** "append" keeps the current queue and adds at the end; "overwrite"
+       *  replaces the queue and ends any current run. */
+      submitMode: "append" | "overwrite";
+    }
+  | { type: "timer_start" }
+  | { type: "timer_pause" }
+  | { type: "timer_stop" }
+  | { type: "timer_next" };

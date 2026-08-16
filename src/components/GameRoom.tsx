@@ -10,6 +10,8 @@ import { PlayerList } from "./PlayerList";
 import { ReadyPanel } from "./ReadyPanel";
 import { RoomHeader } from "./RoomHeader";
 import { RoomSidebar } from "./RoomSidebar";
+import { TimerPanel } from "./TimerPanel";
+import { TimerHeaderChip } from "./TimerHeaderChip";
 import { JoinRejectedModal } from "./JoinRejectedModal";
 import { TEAM_COLORS } from "../utils/colors";
 import type { BoardConfig, GameMode } from "../types";
@@ -77,6 +79,11 @@ export function GameRoom({
     updateNote,
     deleteNote,
     reorderNotes,
+    submitTimers,
+    timerStart,
+    timerPause,
+    timerStop,
+    timerNext,
     requestRestart,
     canRestart,
     joinError,
@@ -103,6 +110,20 @@ export function GameRoom({
   );
   const { t } = useT();
   const { settings, updateSetting } = useRoomSettings();
+
+  // Room-timer UI state: floating window vs minimized-to-top-bar, and whether
+  // the floating window is expanded. Not persisted — every room entry starts
+  // with the timer minimized to the top bar; the floating window only appears
+  // when explicitly restored (and opens expanded).
+  const [timerPlacement, setTimerPlacement] = useState<"floating" | "header">(
+    "header",
+  );
+  const [timerExpanded, setTimerExpanded] = useState(true);
+
+  const restoreTimerWindow = () => {
+    setTimerPlacement("floating");
+    setTimerExpanded(true);
+  };
 
   const handleTabChange = (next: "chat" | "notes") => {
     setChatTab(next);
@@ -207,6 +228,28 @@ export function GameRoom({
         onSettingsChange={updateSetting}
         myCode={myCode}
         onChangeCode={changeCode}
+        headerTimer={
+          timerPlacement === "header" ? (
+            <TimerHeaderChip
+              timer={state.timer}
+              onClick={restoreTimerWindow}
+            />
+          ) : undefined
+        }
+      />
+
+      <TimerPanel
+        timer={state.timer}
+        isOwner={isOwner}
+        placement={timerPlacement}
+        expanded={timerExpanded}
+        onExpandedChange={setTimerExpanded}
+        onPlacementChange={setTimerPlacement}
+        onStart={timerStart}
+        onPause={timerPause}
+        onStop={timerStop}
+        onNext={timerNext}
+        onSubmit={submitTimers}
       />
 
       <div className="room-body">

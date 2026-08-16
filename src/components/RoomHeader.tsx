@@ -1,10 +1,12 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useT } from "../i18n/useT";
 import type { GamePhase, PoolMetadata } from "../types";
 import type { RoomSettings } from "../hooks/useRoomSettings";
 import { RoomSettingsPanel } from "./RoomSettingsPanel";
 import { PoolMetadataPanel } from "./PoolMetadataPanel";
+import { SettingsIcon, InfoIcon } from "./icons";
 import { DEFAULT_SERVER_URL, IMAGE_URL } from "../config";
+import "./TimerPanel.css";
 
 interface Props {
   roomName: string;
@@ -25,6 +27,12 @@ interface Props {
   myCode?: string | null;
   /** Persist a new identity code entered in the settings panel. */
   onChangeCode?: (code: string) => void;
+  /**
+   * Minimized room-timer chip, rendered at the end of the header's right
+   * group. When the toolbar-avoidance logic forces the right group onto its
+   * own row, the chip moves to the first row, right of the leave button.
+   */
+  headerTimer?: ReactNode;
 }
 
 export function RoomHeader({
@@ -41,6 +49,7 @@ export function RoomHeader({
   onSettingsChange,
   myCode,
   onChangeCode,
+  headerTimer,
 }: Props) {
   const { t } = useT();
   const [copied, setCopied] = useState(false);
@@ -48,6 +57,9 @@ export function RoomHeader({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelMounted, setPanelMounted] = useState(false);
   const [poolInfoOpen, setPoolInfoOpen] = useState(false);
+  // True while the toolbar-avoidance forces the right group to its own row:
+  // the minimized timer chip then lives in the first row instead.
+  const [timerInLeft, setTimerInLeft] = useState(false);
   const settingsWrapRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
 
@@ -86,6 +98,27 @@ export function RoomHeader({
       if (!toolbar || !left || !right) return;
       // Measure the natural layout: no forced wrap.
       right.style.flexBasis = "";
+      // The decision must not depend on which group currently holds the
+      // visible chip, or the chip moving between groups would flip the
+      // measurement and oscillate. Always measure the true "chip in the right
+      // group" layout: when the chip sits in the left group, temporarily hide
+      // it so the natural wrap/coverage checks match the right-group
+      // placement. (The hidden twin in the right group keeps that group's
+      // width identical to the real chip's in both modes.) The hide is
+      // reverted synchronously before paint, so no flash or gap appears.
+      const chipInLeft =
+        left.querySelector<HTMLElement>("button.timer-header-chip");
+      const prevDisplay = chipInLeft ? chipInLeft.style.display : null;
+      if (chipInLeft) chipInLeft.style.display = "none";
+      // The measurement twin normally takes no space (display: none) so the
+      // painted second row isn't squeezed by invisible width. While measuring,
+      // give it its real chip footprint — the wrap/coverage checks below must
+      // match the "chip in the right group" layout. It stays visible through
+      // the chipToLeft width read below and is restored synchronously before
+      // paint (same as the left-group hide above), so no flash appears.
+      const twin = right.querySelector<HTMLElement>(".timer-header-measure");
+      const prevTwinDisplay = twin ? twin.style.display : null;
+      if (twin) twin.style.display = "inline-flex";
       const t = toolbar.getBoundingClientRect();
       const leftRect = left.getBoundingClientRect();
       const rightRect = right.getBoundingClientRect();
@@ -94,10 +127,15 @@ export function RoomHeader({
       // align-items:center offsets same-row tops by only a few px — the
       // bottom + 4px threshold separates the two reliably.
       const wrapped = rightRect.top >= leftRect.bottom + 4;
+      let avoid = false;
       if (!wrapped) {
         const controls = [
           ...left.querySelectorAll("button, a, select"),
           ...right.querySelectorAll("button, a, select"),
+          // The hidden layout twin of the minimized timer chip: it occupies
+          // the chip's position in the right group, so the coverage check is
+          // the same whether the visible chip sits there or in the first row.
+          ...right.querySelectorAll(".timer-header-measure"),
         ] as HTMLElement[];
         const covered = controls.some((el) => {
           const r = el.getBoundingClientRect();
@@ -108,8 +146,36 @@ export function RoomHeader({
             r.top < t.bottom
           );
         });
-        if (covered) right.style.flexBasis = "100%";
+        if (covered) {
+          right.style.flexBasis = "100%";
+          avoid = true;
+        }
       }
+      if (chipInLeft) chipInLeft.style.display = prevDisplay ?? "";
+      // The minimized chip belongs on the first row, right of the leave
+      // button, whenever the right group can't stay there — whether it wraps
+      // naturally at narrow widths or is forced down to avoid the toolbar.
+      // Only exception: at extreme widths the chip itself would land under
+      // the toolbar there (e.g. the restart button widens the first row), so
+      // it stays with the right group instead. All values are from the
+      // mode-invariant measurement above, so the decision can't oscillate.
+      let chipToLeft = false;
+      if (headerTimer !== undefined && (wrapped || avoid)) {
+        const gap = parseFloat(getComputedStyle(header).gap) || 12;
+        const rightChip =
+          right.querySelector<HTMLElement>(".timer-header-chip");
+        const chipWidth = rightChip
+          ? rightChip.getBoundingClientRect().width
+          : 76;
+        const chipLeft = leftRect.right + gap;
+        const chipRight = chipLeft + chipWidth;
+        const chipCovered = chipLeft < t.right && chipRight > t.left;
+        chipToLeft = !chipCovered;
+      }
+      // Drop the twin's temporary measurement footprint (back to display:
+      // none via CSS) before the browser paints this frame.
+      if (twin) twin.style.display = prevTwinDisplay ?? "";
+      setTimerInLeft(chipToLeft);
     };
     const schedule = () => {
       if (!raf && !disposed) raf = requestAnimationFrame(update);
@@ -203,6 +269,7 @@ export function RoomHeader({
             {restartConfirm ? t["room.restartConfirm"] : t["room.restart"]}
           </button>
         )}
+        {headerTimer && timerInLeft && headerTimer}
       </div>
       <div className="room-header-right">
         <span className="room-name-label">
@@ -221,8 +288,9 @@ export function RoomHeader({
             className="room-settings-btn"
             onClick={() => (settingsOpen ? closePanel() : openPanel())}
             title={t["settings.title"]}
+            aria-label={t["settings.title"]}
           >
-            ⚙
+            <SettingsIcon />
           </button>
           {panelMounted && (
             <RoomSettingsPanel
@@ -245,9 +313,24 @@ export function RoomHeader({
             title={t["tooltip.info"]}
             aria-label={t["tooltip.info"]}
           >
-            !
+            <InfoIcon />
           </button>
         )}
+        {headerTimer &&
+          (timerInLeft ? (
+            // Hidden layout twin: keeps the avoidance measurement stable
+            // while the visible chip sits in the left group. "88:88:88" is
+            // the widest time the chip can show (tabular-nums), so the twin
+            // always matches or exceeds the real chip's width.
+            <span
+              className="timer-header-chip timer-header-measure"
+              aria-hidden="true"
+            >
+              88:88:88
+            </span>
+          ) : (
+            headerTimer
+          ))}
       </div>
       {poolInfoOpen && metadata && (
         <PoolMetadataPanel

@@ -3,6 +3,11 @@ import PartySocket from "partysocket";
 import { compressJson } from "../utils/compressMessage";
 import { DEFAULT_SERVER_URL } from "../config";
 import { getPlayerCode } from "../utils/playerCodeStorage";
+import {
+  recordClockSample,
+  recordOneWaySample,
+  resetClockEstimate,
+} from "../utils/serverClock";
 import type {
   ChatMessage,
   PlayerCallbackAction,
@@ -237,6 +242,9 @@ export function usePartyConnection(params: {
     if (!enabled) return;
     const gen = ++genRef.current;
     dispatch({ type: "CLEAR_SESSION" });
+    // Fresh connection: drop any clock-offset estimate from a previous
+    // session (the server may be a different host now).
+    resetClockEstimate();
     joinParamsRef.current = {
       name: playerName,
       code: code ?? getPlayerCode(roomName, playerName) ?? undefined,
@@ -303,6 +311,13 @@ export function usePartyConnection(params: {
 
       // Announce ourselves to the server — compress config to save bandwidth
       sendJoin(rejoinName, joinParamsRef.current.code);
+
+      // Kick off the server-clock estimation right away (the heartbeat then
+      // repeats it every 30s): the room timer is accurate from the first
+      // second instead of waiting for the first scheduled heartbeat.
+      ws.send(
+        JSON.stringify({ type: "ping", t: Date.now() } satisfies ClientMessage),
+      );
     });
 
     ws.addEventListener("message", (event: Event) => {
@@ -315,8 +330,18 @@ export function usePartyConnection(params: {
         return;
       }
       // Heartbeat ack — just refreshes liveness, nothing for game state.
+      // Also feeds the server-clock estimator: the pong carries the server
+      // time and echoes the client's send time, giving an RTT-based offset
+      // sample used to render the shared room timer in sync.
       if (data.type === "pong") {
         lastPong = Date.now();
+        if (typeof data.serverTime === "number") {
+          if (typeof data.t === "number") {
+            recordClockSample(data.t, data.serverTime, Date.now());
+          } else {
+            recordOneWaySample(data.serverTime, Date.now());
+          }
+        }
         return;
       }
       onMessageRef.current(data);
@@ -335,19 +360,34 @@ export function usePartyConnection(params: {
       if (genRef.current !== gen) return;
       const socket = wsRef.current;
       if (!socket || socket.readyState !== socket.OPEN) return;
-      socket.send(JSON.stringify({ type: "ping" } satisfies ClientMessage));
+      // Timestamp the ping so the pong can be turned into a clock-offset
+      // sample (keeps the room timer in sync across players).
+      socket.send(
+        JSON.stringify({ type: "ping", t: Date.now() } satisfies ClientMessage),
+      );
       if (Date.now() - lastPong > HEARTBEAT_STALE_MS) {
         socket.reconnect();
       }
     }, HEARTBEAT_INTERVAL_MS);
 
     // When the tab becomes visible again after a drop, reconnect immediately
-    // instead of waiting for PartySocket's backoff timer.
+    // instead of waiting for PartySocket's backoff timer. On a healthy
+    // connection, send a fresh ping right away so the clock-offset estimate
+    // re-converges after background throttling.
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") return;
       if (genRef.current !== gen) return;
       const socket = wsRef.current;
-      if (socket && socket.readyState !== socket.OPEN) socket.reconnect();
+      if (!socket) return;
+      if (socket.readyState !== socket.OPEN) socket.reconnect();
+      else {
+        socket.send(
+          JSON.stringify({
+            type: "ping",
+            t: Date.now(),
+          } satisfies ClientMessage),
+        );
+      }
     };
     document.addEventListener("visibilitychange", handleVisibility);
 

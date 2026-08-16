@@ -52,6 +52,65 @@ function sanitizeLinkedCells(value: unknown): { linkedCells?: number[] } {
 }
 
 // ============================================================
+// Room timer constants & validation
+// ============================================================
+
+/** Longest allowed countdown (24 h). */
+const MAX_TIMER_SECONDS = 24 * 60 * 60;
+/** Hard cap on queued timers per room (anti-abuse). */
+const MAX_ROOM_TIMERS = 100;
+/** Max length of a timer name/description. */
+const MAX_TIMER_NAME = 100;
+/** Max length of a client-generated timer id. */
+const MAX_TIMER_ID = 64;
+
+/**
+ * Validate an owner-submitted timer list: keep only well-formed timers and
+ * drop everything else (wrong types, empty ids, countdowns without a
+ * duration, ...). Never trusts the client.
+ */
+function sanitizeTimers(value: unknown): RoomTimer[] {
+  if (!Array.isArray(value)) return [];
+  const out: RoomTimer[] = [];
+  for (const item of value) {
+    if (out.length >= MAX_ROOM_TIMERS) break;
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Record<string, unknown>;
+    if (
+      typeof raw.id !== "string" ||
+      !raw.id ||
+      raw.id.length > MAX_TIMER_ID
+    ) {
+      continue;
+    }
+    const mode =
+      raw.mode === "countup"
+        ? "countup"
+        : raw.mode === "countdown"
+          ? "countdown"
+          : null;
+    if (!mode) continue;
+    const name =
+      typeof raw.name === "string" ? raw.name.trim().slice(0, MAX_TIMER_NAME) : "";
+    if (mode === "countdown") {
+      const duration = raw.duration;
+      if (
+        typeof duration !== "number" ||
+        !Number.isInteger(duration) ||
+        duration < 1 ||
+        duration > MAX_TIMER_SECONDS
+      ) {
+        continue;
+      }
+      out.push({ id: raw.id, name, mode, duration });
+    } else {
+      out.push({ id: raw.id, name, mode, duration: 0 });
+    }
+  }
+  return out;
+}
+
+// ============================================================
 // Data types
 // ============================================================
 
@@ -80,6 +139,46 @@ export interface PlayerNote {
   /** Board cell indices linked to this todo. Checking/unchecking the todo
    *  triggers a mark/unmark on these cells (todo acts as a trigger only). */
   linkedCells?: number[];
+}
+
+// ---------- room timer ----------
+
+/** Whether a room timer counts down to zero or up from zero. */
+export type TimerMode = "countdown" | "countup";
+/** Overall state of the serial timer queue. */
+export type TimerStatus = "idle" | "running" | "paused" | "finished";
+
+/** One entry of the serial timer queue, set up by the room owner. */
+export interface RoomTimer {
+  /** Client-generated unique id. */
+  id: string;
+  /** Human-readable description shown to all players. */
+  name: string;
+  mode: TimerMode;
+  /** Countdown length in seconds; always 0 for count-up timers. */
+  duration: number;
+}
+
+/**
+ * Server-authoritative room timer state. All wall-clock fields use the
+ * *server's* clock: clients render from absolute timestamps and only need
+ * their offset to the server clock (see src/utils/serverClock.ts), which
+ * keeps players in sync even with wrong local clocks or high latency.
+ */
+export interface RoomTimerState {
+  /** The full serial queue. */
+  timers: RoomTimer[];
+  /** Index of the current timer in `timers`, -1 when nothing is active. */
+  currentIndex: number;
+  status: TimerStatus;
+  /** Server-clock time (ms) when a running countdown reaches 0. */
+  endAt: number | null;
+  /** Server-clock time (ms) when a running count-up segment started. */
+  startedAt: number | null;
+  /** Seconds remaining on a paused (or just-finished) countdown. */
+  pausedRemaining: number | null;
+  /** Seconds elapsed on a paused (or just-finished) count-up. */
+  pausedElapsed: number | null;
 }
 
 /** A stored chat message, timestamped by the server when it arrives. */
@@ -115,6 +214,8 @@ export interface RoomState {
   unreadChat: Record<string, boolean>;
   /** Room chat history, replayed to late joiners and reconnecting players. */
   chats: ChatRecord[];
+  /** Serial room timer queue + run state. */
+  timer: RoomTimerState;
 }
 
 // Client → Server messages
@@ -149,9 +250,20 @@ export type ClientMsg =
   | { type: "add_note"; name: string; note: PlayerNote }
   | { type: "set_chat_unread"; name: string; unread: boolean }
   | { type: "change_code"; name: string; code: string }
-  | { type: "ping" }
+  | { type: "ping"; t?: number }
   | { type: "leave"; name: string }
   | { type: "kick"; name: string }
+  | {
+      type: "timer_submit";
+      timers: RoomTimer[];
+      /** "append" keeps the current queue and adds at the end; "overwrite"
+       *  replaces the queue and ends any current run. */
+      submitMode: "append" | "overwrite";
+    }
+  | { type: "timer_start" }
+  | { type: "timer_pause" }
+  | { type: "timer_stop" }
+  | { type: "timer_next" }
   | {
       type: "update_note";
       name: string;
@@ -188,6 +300,10 @@ export type ServerMsg =
       myName?: string;
       /** This player's identity code — only sent back to the matching connection. */
       myCode?: string | null;
+      /** Serial room timer queue + run state. */
+      timer?: RoomTimerState;
+      /** Server clock at send time — lets clients estimate their clock offset. */
+      serverTime?: number;
     }
   | {
       type: "join_rejected";
@@ -227,7 +343,19 @@ export type ServerMsg =
   | { type: "notes_reordered"; name: string; ids: string[] }
   | { type: "chat_unread"; name: string; unread: boolean }
   | { type: "chat_history"; chats: ChatRecord[] }
-  | { type: "pong" };
+  | {
+      type: "timer_state";
+      timers: RoomTimer[];
+      currentIndex: number;
+      status: TimerStatus;
+      endAt: number | null;
+      startedAt: number | null;
+      pausedRemaining: number | null;
+      pausedElapsed: number | null;
+      /** Server clock at send time — lets clients estimate their clock offset. */
+      serverTime: number;
+    }
+  | { type: "pong"; serverTime: number; t?: number };
 
 // ============================================================
 // Transport interface
@@ -265,6 +393,17 @@ export interface GameRoomSnapshot {
    * restore, letting a zombie player live forever.
    */
   disconnectDeadlines?: Record<string, number>;
+  /**
+   * Serial room timer queue + run state. Optional so snapshots written by an
+   * older build (without the timer) still restore cleanly.
+   */
+  timers?: RoomTimer[];
+  timerIndex?: number;
+  timerStatus?: TimerStatus;
+  timerEndAt?: number | null;
+  timerStartedAt?: number | null;
+  timerPausedRemaining?: number | null;
+  timerPausedElapsed?: number | null;
 }
 
 /**
@@ -329,6 +468,22 @@ export class GameRoom {
   unreadChat: Record<string, boolean> = {};
   /** Room chat history — replayed so no player ever misses a message. */
   chats: ChatRecord[] = [];
+  /** Serial room timer queue — configured by the room owner. */
+  timers: RoomTimer[] = [];
+  /** Index of the current timer in `timers` (-1 when nothing is active). */
+  timerIndex = -1;
+  /** Overall state of the serial timer queue. */
+  timerStatus: TimerStatus = "idle";
+  /** Server-clock time (ms) when a running countdown reaches 0. */
+  timerEndAt: number | null = null;
+  /** Server-clock time (ms) when a running count-up segment started. */
+  timerStartedAt: number | null = null;
+  /** Seconds remaining on a paused (or just-finished) countdown. */
+  timerPausedRemaining: number | null = null;
+  /** Seconds elapsed on a paused (or just-finished) count-up. */
+  timerPausedElapsed: number | null = null;
+  /** Auto-advance timer: fires when a running countdown reaches 0. */
+  timerAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private transport: GameTransport) {}
 
@@ -365,6 +520,8 @@ export class GameRoom {
       bonusScores: this.bonusScores,
       owner: this.owner,
       configHash: this.configHash,
+      timer: this.timerState,
+      serverTime: Date.now(),
     };
   }
 
@@ -382,6 +539,8 @@ export class GameRoom {
       bonusScores: this.bonusScores,
       owner: this.owner,
       configHash: this.configHash,
+      timer: this.timerState,
+      serverTime: Date.now(),
     };
   }
 
@@ -483,6 +642,150 @@ export class GameRoom {
     this.transport.persist?.(this.serialize());
   }
 
+  // ---------- room timer ----------
+
+  private get timerState(): RoomTimerState {
+    return {
+      timers: this.timers.map((t) => ({ ...t })),
+      currentIndex: this.timerIndex,
+      status: this.timerStatus,
+      endAt: this.timerEndAt,
+      startedAt: this.timerStartedAt,
+      pausedRemaining: this.timerPausedRemaining,
+      pausedElapsed: this.timerPausedElapsed,
+    };
+  }
+
+  /**
+   * Broadcast the authoritative timer state. `serverTime` lets every client
+   * (re-)estimate its offset to the server clock right when the timer
+   * changes — this is what keeps all players' displays in sync despite
+   * wrong local clocks or high network latency.
+   */
+  private broadcastTimerState(): void {
+    this.transport.broadcast({
+      type: "timer_state",
+      ...this.timerState,
+      serverTime: Date.now(),
+    });
+  }
+
+  /** Reset the run: no current timer, status idle, all run fields cleared. */
+  private clearTimerRun(): void {
+    if (this.timerAdvanceTimer) {
+      clearTimeout(this.timerAdvanceTimer);
+      this.timerAdvanceTimer = null;
+    }
+    this.timerIndex = -1;
+    this.timerStatus = "idle";
+    this.timerEndAt = null;
+    this.timerStartedAt = null;
+    this.timerPausedRemaining = null;
+    this.timerPausedElapsed = null;
+  }
+
+  /**
+   * Snapshot the current timer's remaining/elapsed seconds into the paused
+   * fields. Called when pausing and when a timer ends, so a paused or
+   * finished run can still display its last value.
+   */
+  private captureTimerValue(): void {
+    const timer = this.timers[this.timerIndex];
+    if (!timer) return;
+    if (timer.mode === "countdown") {
+      this.timerPausedRemaining =
+        this.timerEndAt != null
+          ? Math.max(0, Math.ceil((this.timerEndAt - Date.now()) / 1000))
+          : (this.timerPausedRemaining ?? 0);
+    } else {
+      this.timerPausedElapsed =
+        this.timerStartedAt != null
+          ? Math.max(0, Math.floor((Date.now() - this.timerStartedAt) / 1000))
+          : (this.timerPausedElapsed ?? 0);
+    }
+  }
+
+  /** Start (or resume) the timer at `timerIndex` and arm auto-advance. */
+  private startCurrentTimer(): void {
+    const timer = this.timers[this.timerIndex];
+    if (!timer) return;
+    if (this.timerAdvanceTimer) {
+      clearTimeout(this.timerAdvanceTimer);
+      this.timerAdvanceTimer = null;
+    }
+    this.timerStatus = "running";
+    if (timer.mode === "countdown") {
+      // Resume uses the paused snapshot, a fresh start the full duration.
+      const remaining = this.timerPausedRemaining ?? timer.duration;
+      this.timerEndAt = Date.now() + remaining * 1000;
+      this.timerStartedAt = null;
+      this.timerPausedRemaining = null;
+      this.timerPausedElapsed = null;
+      this.timerAdvanceTimer = setTimeout(() => {
+        this.timerAdvanceTimer = null;
+        // The countdown has expired: clamp the deadline to "now" so the
+        // captured remaining time is exactly 0 (ms rounding can otherwise
+        // leave endAt a hair ahead and the finish snapshot shows 1s left).
+        if (this.timerEndAt != null) {
+          this.timerEndAt = Math.min(this.timerEndAt, Date.now());
+        }
+        // Countdown reached zero: auto-start the next timer (or finish).
+        this.advanceTimer();
+        this.transport.persist?.(this.serialize());
+      }, remaining * 1000);
+    } else {
+      // Count-up: resume from the paused elapsed, else from 0. It never
+      // ends on its own — only the owner's stop advances past it.
+      const elapsed = this.timerPausedElapsed ?? 0;
+      this.timerStartedAt = Date.now() - elapsed * 1000;
+      this.timerEndAt = null;
+      this.timerPausedRemaining = null;
+      this.timerPausedElapsed = null;
+    }
+  }
+
+  /**
+   * End the current timer and move to the next one, or finish the run when
+   * the queue is exhausted. Fired by the auto-advance timer (a countdown
+   * reaching 0) and by the owner's stop control (count-up timers never end
+   * on their own, so the owner stops them to advance).
+   */
+  private advanceTimer(): void {
+    if (this.timerAdvanceTimer) {
+      clearTimeout(this.timerAdvanceTimer);
+      this.timerAdvanceTimer = null;
+    }
+    this.captureTimerValue();
+    if (this.timerIndex < this.timers.length - 1) {
+      this.timerIndex += 1;
+      // Fresh start for the next timer — drop the previous one's snapshot.
+      this.timerPausedRemaining = null;
+      this.timerPausedElapsed = null;
+      this.startCurrentTimer();
+    } else {
+      this.timerStatus = "finished";
+      this.timerEndAt = null;
+      this.timerStartedAt = null;
+    }
+    this.broadcastTimerState();
+    this.transport.persist?.(this.serialize());
+  }
+
+  /** Freeze a running timer; resume later with the same remaining/elapsed. */
+  private pauseTimer(): void {
+    if (this.timerStatus !== "running") return;
+    this.captureTimerValue();
+    if (this.timerAdvanceTimer) {
+      clearTimeout(this.timerAdvanceTimer);
+      this.timerAdvanceTimer = null;
+    }
+    this.timerEndAt = null;
+    this.timerStartedAt = null;
+    this.timerStatus = "paused";
+    this.broadcastTimerState();
+    this.transport.persist?.(this.serialize());
+  }
+
   // ---------- mark / unmark ----------
 
   private handleMark(index: number, by: string): boolean {
@@ -545,6 +848,8 @@ export class GameRoom {
     this.bonusScores = {};
     this.owner = null;
     this.configHash = null;
+    this.timers = [];
+    this.clearTimerRun();
     if (this.countdownTimer) {
       clearTimeout(this.countdownTimer);
       this.countdownTimer = null;
@@ -579,6 +884,13 @@ export class GameRoom {
       chats: this.chats,
       playerCodes: this.playerCodes,
       disconnectDeadlines: this.disconnectDeadlines,
+      timers: this.timers,
+      timerIndex: this.timerIndex,
+      timerStatus: this.timerStatus,
+      timerEndAt: this.timerEndAt,
+      timerStartedAt: this.timerStartedAt,
+      timerPausedRemaining: this.timerPausedRemaining,
+      timerPausedElapsed: this.timerPausedElapsed,
     };
   }
 
@@ -629,6 +941,72 @@ export class GameRoom {
     // Persist the restored deadlines right away: if the runtime is evicted
     // again before the next message/alarm, the deadlines must survive.
     this.transport.persist?.(this.serialize());
+
+    // Restore the serial room timer. The run uses absolute server-clock
+    // timestamps, so it can be rebuilt exactly: a running count-up keeps
+    // counting from its start time (elapsed includes the offline time), a
+    // running countdown gets its auto-advance timer re-armed. A countdown
+    // whose deadline passed while the runtime was down advances once — the
+    // next timer starts fresh (or the run finishes).
+    this.timers = Array.isArray(snapshot.timers)
+      ? snapshot.timers.map((t) => ({ ...t }))
+      : [];
+    this.timerIndex =
+      Number.isInteger(snapshot.timerIndex) && (snapshot.timerIndex ?? -1) >= 0
+        ? (snapshot.timerIndex ?? -1)
+        : -1;
+    const restoredStatus = snapshot.timerStatus;
+    this.timerStatus =
+      restoredStatus === "running" ||
+      restoredStatus === "paused" ||
+      restoredStatus === "finished"
+        ? restoredStatus
+        : "idle";
+    this.timerEndAt =
+      typeof snapshot.timerEndAt === "number" ? snapshot.timerEndAt : null;
+    this.timerStartedAt =
+      typeof snapshot.timerStartedAt === "number"
+        ? snapshot.timerStartedAt
+        : null;
+    this.timerPausedRemaining =
+      typeof snapshot.timerPausedRemaining === "number"
+        ? snapshot.timerPausedRemaining
+        : null;
+    this.timerPausedElapsed =
+      typeof snapshot.timerPausedElapsed === "number"
+        ? snapshot.timerPausedElapsed
+        : null;
+    if (
+      this.timerStatus === "running" &&
+      (this.timerIndex < 0 || this.timerIndex >= this.timers.length)
+    ) {
+      this.clearTimerRun();
+    } else if (
+      this.timerStatus === "running" &&
+      this.timerIndex >= 0 &&
+      this.timerIndex < this.timers.length
+    ) {
+      const current = this.timers[this.timerIndex];
+      if (current.mode === "countdown" && this.timerEndAt != null) {
+        const wait = this.timerEndAt - Date.now();
+        if (wait > 0) {
+          this.timerAdvanceTimer = setTimeout(() => {
+            this.timerAdvanceTimer = null;
+            // Clamp the deadline to "now" so the finish snapshot reads 0
+            // remaining (see startCurrentTimer for the same trick).
+            if (this.timerEndAt != null) {
+              this.timerEndAt = Math.min(this.timerEndAt, Date.now());
+            }
+            this.advanceTimer();
+            this.transport.persist?.(this.serialize());
+          }, wait);
+        } else {
+          this.advanceTimer();
+          this.transport.persist?.(this.serialize());
+        }
+      }
+      // Count-up: nothing to re-arm — the display derives from startedAt.
+    }
 
     // Restore an in-flight countdown: re-arm the "start" timer when the
     // deadline is still ahead; otherwise the game should already be playing.
@@ -859,7 +1237,13 @@ export class GameRoom {
       case "ping": {
         // Heartbeat ack — keeps the connection alive through proxies with an
         // idle timeout (e.g. Cloudflare ~100s) without waking game logic.
-        this.transport.send(connId, { type: "pong" });
+        // The server timestamp (plus the echoed client send time) lets the
+        // client estimate its clock offset for the shared room timer.
+        this.transport.send(connId, {
+          type: "pong",
+          serverTime: Date.now(),
+          ...(typeof msg.t === "number" ? { t: msg.t } : {}),
+        });
         break;
       }
 
@@ -900,6 +1284,82 @@ export class GameRoom {
           }
         }
         this.removePlayer(target);
+        break;
+      }
+
+      case "timer_submit": {
+        // Only the room owner may (re)configure the timer queue.
+        const sender = this.connPlayers.get(connId);
+        if (!sender || sender !== this.owner) return;
+        const cleaned = sanitizeTimers(msg.timers);
+        if (msg.submitMode === "overwrite") {
+          // Replace the queue (an empty list clears it) and end any run.
+          this.timers = cleaned;
+          this.clearTimerRun();
+        } else {
+          // Append to the end of the existing queue (a running timer keeps
+          // running; the new timers come after it). Appending nothing is a
+          // no-op.
+          if (cleaned.length === 0) return;
+          this.timers.push(...cleaned);
+          if (this.timers.length > MAX_ROOM_TIMERS) {
+            this.timers = this.timers.slice(
+              this.timers.length - MAX_ROOM_TIMERS,
+            );
+          }
+        }
+        this.broadcastTimerState();
+        this.transport.persist?.(this.serialize());
+        break;
+      }
+
+      case "timer_start": {
+        const sender = this.connPlayers.get(connId);
+        if (!sender || sender !== this.owner) return;
+        if (this.timers.length === 0 || this.timerStatus === "running") return;
+        if (this.timerStatus !== "paused") {
+          // idle / finished: begin a fresh run from the first timer.
+          this.timerIndex = 0;
+          this.timerPausedRemaining = null;
+          this.timerPausedElapsed = null;
+        }
+        // paused: resume the current timer with its snapshot.
+        this.startCurrentTimer();
+        this.broadcastTimerState();
+        this.transport.persist?.(this.serialize());
+        break;
+      }
+
+      case "timer_pause": {
+        const sender = this.connPlayers.get(connId);
+        if (!sender || sender !== this.owner) return;
+        this.pauseTimer();
+        break;
+      }
+
+      case "timer_stop": {
+        const sender = this.connPlayers.get(connId);
+        if (!sender || sender !== this.owner) return;
+        if (this.timerStatus !== "running" && this.timerStatus !== "paused") {
+          return;
+        }
+        // Truly stop the run: no current timer, status back to idle, the
+        // queue itself survives so the owner can start a fresh run later.
+        this.clearTimerRun();
+        this.broadcastTimerState();
+        this.transport.persist?.(this.serialize());
+        break;
+      }
+
+      case "timer_next": {
+        const sender = this.connPlayers.get(connId);
+        if (!sender || sender !== this.owner) return;
+        if (this.timerStatus !== "running" && this.timerStatus !== "paused") {
+          return;
+        }
+        // Skip the current timer: end it and start the next one (or finish
+        // the run when the queue is exhausted).
+        this.advanceTimer();
         break;
       }
 
@@ -974,6 +1434,9 @@ export class GameRoom {
         this.notes = {};
         this.phase = "lobby";
         this.bonusScores = {};
+        // End any running room timer (the queue itself survives, so the
+        // host can reuse the same plan or overwrite it for the new game).
+        this.clearTimerRun();
 
         // Clear all ready flags
         for (const p of Object.values(this.players)) {

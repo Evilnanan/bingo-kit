@@ -101,36 +101,26 @@
   pointer-events: none;
 }
 
-.room-settings-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 6px 10px;
-  font-size: 16px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  line-height: 1;
-}
-
-.room-settings-btn:hover {
-  background: var(--accent-focus);
-  color: var(--text);
-}
-
+/* Square icon buttons in the header — settings and pool info; the idle
+   timer chip (TimerPanel.css) matches the same 32×32 size. All render
+   minimal stroke SVG icons. */
+.room-settings-btn,
 .room-pool-info-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 6px 10px;
-  font-size: 16px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  line-height: 1;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  cursor: pointer;
 }
 
+.room-settings-btn:hover,
 .room-pool-info-btn:hover {
   background: var(--accent-focus);
   color: var(--text);
@@ -138,11 +128,6 @@
 
 .room-settings-wrap {
   position: relative;
-}
-
-.room-settings-btn:hover {
-  background: var(--accent-focus);
-  color: var(--text);
 }
 
 .room-body {
