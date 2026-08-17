@@ -52,6 +52,7 @@ import {
   normalizeGoalItem,
   parsePoolJson,
 } from "../utils/poolJson";
+import { clusterSortByGroups } from "../utils/groupClusterSort";
 import "./GoalEditor.css";
 
 function LineNumberedTextArea({
@@ -299,7 +300,10 @@ function compareSortText(a: string, b: string): number {
  *  always sort last (both directions) so rated goals stay together at the
  *  top. Goals without a group still participate in the group sort with an
  *  empty key, so they land first in ascending order and last in descending
- *  order, keeping their original relative order among themselves. */
+ *  order, keeping their original relative order among themselves.
+ *
+ *  The group / globalGroup keys are normally routed to `clusterSortByGroups`
+ *  in `handleSort`; these branches remain only as a generic fallback. */
 function compareGoalsBy(
   key: GoalSortKey,
   dir: 1 | -1,
@@ -1662,7 +1666,13 @@ export function GoalEditor({
 
   /** One-click stable sort of the whole pool. Re-clicking the active key
    *  toggles between ascending and descending. Reordering the goals array is
-   *  what makes the JSON export follow the sorted order. */
+   *  what makes the JSON export follow the sorted order.
+   *
+   *  Group / globalGroup keys use shared-group clustering (see
+   *  `clusterSortByGroups`): goals sharing a group are pulled together and a
+   *  multi-group goal lands between the blocks of every group it belongs to,
+   *  independent of the order its group names are stored in. Text and
+   *  difficulty keep the plain stable comparator. */
   const handleSort = useCallback(
     (key: GoalSortKey) => {
       const next =
@@ -1670,11 +1680,18 @@ export function GoalEditor({
           ? { key, dir: sortMode.dir === 1 ? (-1 as const) : (1 as const) }
           : { key, dir: 1 as const };
       setSortMode(next);
-      onChange(
-        stableSortGoals(goalsRef.current, (a, b) =>
-          compareGoalsBy(key, next.dir, a, b),
-        ),
-      );
+      const current = goalsRef.current;
+      const sorted =
+        key === "group" || key === "globalGroup"
+          ? clusterSortByGroups(
+              current,
+              key === "group" ? getGoalGroup : getGoalGlobalGroup,
+              next.dir,
+            )
+          : stableSortGoals(current, (a, b) =>
+              compareGoalsBy(key, next.dir, a, b),
+            );
+      onChange(sorted);
       resetListScroll();
     },
     [onChange, sortMode, resetListScroll],
