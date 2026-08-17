@@ -199,6 +199,7 @@ export interface Translations {
   "settings.hideCounters": string;
   "settings.hideTooltips": string;
   "settings.hideStars": string;
+  "settings.hideDifficulty": string;
   "settings.fontScale": string;
   "settings.codeLabel": string;
   "settings.codeCopy": string;

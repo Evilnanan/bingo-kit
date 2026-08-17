@@ -4,6 +4,7 @@ export interface RoomSettings {
   hideCounters: boolean;
   hideTooltips: boolean;
   hideStars: boolean;
+  hideDifficulty: boolean;
   fontScale: number;
 }
 
@@ -12,6 +13,7 @@ const DEFAULTS: RoomSettings = {
   hideCounters: false,
   hideTooltips: false,
   hideStars: false,
+  hideDifficulty: false,
   fontScale: 1.0,
 };
 
@@ -33,6 +35,10 @@ function readSettings(): RoomSettings {
           typeof parsed.hideStars === "boolean"
             ? parsed.hideStars
             : DEFAULTS.hideStars,
+        hideDifficulty:
+          typeof parsed.hideDifficulty === "boolean"
+            ? parsed.hideDifficulty
+            : DEFAULTS.hideDifficulty,
         fontScale:
           typeof parsed.fontScale === "number" &&
           !isNaN(parsed.fontScale) &&

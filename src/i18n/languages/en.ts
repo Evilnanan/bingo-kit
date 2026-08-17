@@ -192,6 +192,7 @@ export const en: Translations = {
   "settings.hideCounters": "Hide Counters",
   "settings.hideTooltips": "Hide Tooltips",
   "settings.hideStars": "Hide Stars",
+  "settings.hideDifficulty": "Hide Difficulty Badges",
   "settings.fontScale": "Font Scale",
   "settings.codeLabel": "Identity Code",
   "settings.codeCopy": "Copy identity code",

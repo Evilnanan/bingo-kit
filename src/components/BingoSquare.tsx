@@ -41,6 +41,7 @@ interface Props {
   hideCounter?: boolean;
   hideTooltip?: boolean;
   hideStar?: boolean;
+  hideDifficulty?: boolean;
   /** True while the board is in todo-linking mode and this cell is linked. */
   isLinked?: boolean;
   /** When true (linking mode), counter/tooltip widgets don't capture clicks. */
@@ -71,6 +72,7 @@ export function BingoSquare({
   hideCounter = false,
   hideTooltip = false,
   hideStar = false,
+  hideDifficulty = false,
   isLinked = false,
   widgetsDisabled = false,
   userFontScale = 1,
@@ -90,7 +92,9 @@ export function BingoSquare({
     isSingle ? "square--single-mark" : "",
     isMulti ? "square--multi-mark" : "",
     isLinked ? "square--linked" : "",
-    difficulty && difficulty >= 2 ? `square--diff-${difficulty}` : "",
+    !hideDifficulty && difficulty && difficulty >= 2
+      ? `square--diff-${difficulty}`
+      : "",
   ]
     .filter(Boolean)
     .join(" ");

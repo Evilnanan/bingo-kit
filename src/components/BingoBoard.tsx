@@ -244,6 +244,7 @@ export function BingoBoard({
             hideCounter={settings.hideCounters}
             hideTooltip={settings.hideTooltips}
             hideStar={settings.hideStars}
+            hideDifficulty={settings.hideDifficulty}
             isLinked={linking ? (linkedCells?.has(i) ?? false) : false}
             widgetsDisabled={linking}
             userFontScale={settings.fontScale}

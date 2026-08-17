@@ -188,6 +188,7 @@ export const zh: Translations = {
   "settings.hideCounters": "隐藏计数器",
   "settings.hideTooltips": "隐藏详细说明",
   "settings.hideStars": "隐藏星标",
+  "settings.hideDifficulty": "隐藏难度角标",
   "settings.fontScale": "字体缩放",
   "settings.codeLabel": "身份识别码",
   "settings.codeCopy": "复制识别码",

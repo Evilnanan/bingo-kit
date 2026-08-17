@@ -240,6 +240,18 @@ export function RoomSettingsPanel({
           />
         </label>
 
+        <label className="settings-row">
+          <span className="settings-label">
+            {t["settings.hideDifficulty"]}
+          </span>
+          <input
+            type="checkbox"
+            className="settings-toggle"
+            checked={settings.hideDifficulty}
+            onChange={(e) => onChange("hideDifficulty", e.target.checked)}
+          />
+        </label>
+
         <div className="settings-row">
           <label className="settings-label" htmlFor="settings-font-scale">
             {t["settings.fontScale"]}
