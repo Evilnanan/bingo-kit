@@ -263,7 +263,7 @@ export const zh: Translations = {
   "timer.seconds": "秒",
   "timer.countdown": "倒计时",
   "timer.countup": "正计时",
-  "timer.countupHint": "运行至房主手动停止",
+  "timer.countupHint": "手动停止",
   "timer.empty": "尚未设置计时器",
   "timer.idle": "未开始",
   "timer.running": "运行中",

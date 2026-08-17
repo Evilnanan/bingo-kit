@@ -270,7 +270,7 @@ export const en: Translations = {
   "timer.seconds": "sec",
   "timer.countdown": "Countdown",
   "timer.countup": "Count-up",
-  "timer.countupHint": "Runs until the host stops it",
+  "timer.countupHint": "Manual stop",
   "timer.empty": "No timer set",
   "timer.idle": "Idle",
   "timer.running": "Running",

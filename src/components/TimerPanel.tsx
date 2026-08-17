@@ -329,16 +329,12 @@ export function TimerPanel({
                       : i === timer.currentIndex
                         ? "current"
                         : "upcoming";
-                  const modeLabel =
-                    tm.mode === "countdown"
-                      ? t["timer.countdown"]
-                      : t["timer.countup"];
                   const meta =
                     i === timer.currentIndex
-                      ? `${modeLabel} ${formatTimer(seconds ?? 0)}`
+                      ? formatTimer(seconds ?? 0)
                       : tm.mode === "countdown"
-                        ? `${modeLabel} ${formatTimer(tm.duration)}`
-                        : modeLabel;
+                        ? formatTimer(tm.duration)
+                        : "";
                   return (
                     <li
                       key={tm.id}
@@ -354,7 +350,9 @@ export function TimerPanel({
                       <span className="timer-queue-name">
                         {tm.name || t["timer.unnamed"]}
                       </span>
-                      <span className="timer-queue-meta">{meta}</span>
+                      {meta && (
+                        <span className="timer-queue-meta">{meta}</span>
+                      )}
                     </li>
                   );
                 })}
