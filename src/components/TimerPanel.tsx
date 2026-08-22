@@ -27,7 +27,8 @@ interface Props {
   onStop: () => void;
   /** Owner: skip the current timer and start the next one. */
   onNext: () => void;
-  onSubmit: (timers: RoomTimer[], submitMode: "append" | "overwrite") => void;
+  /** Owner: replace or extend the timer queue (may carry auto-start). */
+  onSubmit: (timers: RoomTimer[], autoStart?: boolean) => void;
 }
 
 interface Pos {
@@ -430,8 +431,9 @@ export function TimerPanel({
       {setupOpen && isOwner && (
         <TimerSetupDialog
           existing={timer.timers}
-          onSubmit={(timers, submitMode) => {
-            onSubmit(timers, submitMode);
+          autoStart={timer.autoStart}
+          onSubmit={(timers, autoStart) => {
+            onSubmit(timers, autoStart);
             setSetupOpen(false);
           }}
           onClose={() => setSetupOpen(false)}

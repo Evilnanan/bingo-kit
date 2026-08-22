@@ -368,6 +368,7 @@
 
 .timer-dialog-title {
   margin: 0 0 6px;
+  padding: 8px 0 10px;
   font-size: 18px;
   color: var(--text);
 }
@@ -382,14 +383,14 @@
 .timer-dialog-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .timer-dialog-index {
   flex-shrink: 0;
-  width: 20px;
-  text-align: right;
+  width: 14px;
+  text-align: center;
   font-size: 12px;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
@@ -475,6 +476,55 @@
   margin-bottom: 4px;
 }
 
+/* "+ Add Timer": full-width dashed box, matching the GoalEditor add slot.
+   Indented by the index column (14px) + row gap (6px) so its left edge aligns
+   with the timer-name input, keeping the number a column of its own. */
+.timer-dialog-add {
+  width: calc(100% - 20px);
+  margin-left: 20px;
+  padding: 10px;
+  font-size: 13px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.timer-dialog-add:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--square-mine-bg);
+}
+
+.timer-dialog-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Auto-start: a single small checkbox in the setup dialog. */
+.timer-dialog-autostart {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 4px;
+  padding: 6px 2px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.timer-dialog-autostart input {
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .timer-dialog-btn {
   padding: 7px 12px;
   border: 1px solid var(--border);
@@ -507,6 +557,16 @@
 .timer-dialog-btn--clear:hover:not(:disabled) {
   background: var(--danger, #dc2626);
   color: #fff;
+}
+
+.timer-dialog-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.timer-dialog-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 .timer-dialog-error {

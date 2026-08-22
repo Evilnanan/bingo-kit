@@ -5,7 +5,10 @@ import type { RoomTimer, TimerMode } from "../types";
 interface Props {
   /** The queue currently on the server (read-only, shown as context). */
   existing: RoomTimer[];
-  onSubmit: (timers: RoomTimer[], submitMode: "append" | "overwrite") => void;
+  /** Current auto-start setting on the server — the checkbox starts here
+   *  (new queues default to enabled). */
+  autoStart: boolean;
+  onSubmit: (timers: RoomTimer[], autoStart: boolean) => void;
   onClose: () => void;
 }
 
@@ -37,29 +40,57 @@ function rowSeconds(row: Row): number {
 /**
  * Owner-only dialog to compose the serial timer queue. Every row is one
  * timer: an optional name/description (so players know what it is for), a
- * mode (countdown / count-up) and — for countdowns — a duration. Submitting
- * either appends the rows to the existing queue or overwrites it entirely.
+ * mode (countdown / count-up) and — for countdowns — a duration. The dialog
+ * opens pre-filled with the current queue (inheriting it), and "Confirm"
+ * replaces the queue with what's shown. An auto-start checkbox rides along:
+ * when enabled, the queue runs by itself the moment the game starts.
  */
-export function TimerSetupDialog({ existing, onSubmit, onClose }: Props) {
+export function TimerSetupDialog({
+  existing,
+  autoStart: initialAutoStart,
+  onSubmit,
+  onClose,
+}: Props) {
   const { t } = useT();
-  const [rows, setRows] = useState<Row[]>(() => [
-    { id: newId(), name: "", mode: "countdown", minutes: "1", seconds: "0" },
-  ]);
+  const [rows, setRows] = useState<Row[]>(() =>
+    existing.length > 0
+      ? existing.map((t) => ({
+          id: t.id,
+          name: t.name,
+          mode: t.mode,
+          minutes:
+            t.mode === "countdown" ? String(Math.floor(t.duration / 60)) : "0",
+          seconds:
+            t.mode === "countdown" ? String(t.duration % 60) : "0",
+        }))
+      : [
+          {
+            id: newId(),
+            name: "",
+            mode: "countdown",
+            minutes: "1",
+            seconds: "0",
+          },
+        ],
+  );
+  const [autoStart, setAutoStart] = useState(initialAutoStart);
 
   const valid =
-    rows.length > 0 &&
-    rows.every((r) => {
-      if (r.mode === "countup") return true;
-      const total = rowSeconds(r);
-      return total >= 1 && total <= MAX_TOTAL_SECONDS;
-    });
+  // Empty is a valid state: confirming it clears the queue.
+  rows.length === 0 ||
+  rows.every((r) => {
+    if (r.mode === "countup") return true;
+    const total = rowSeconds(r);
+    return total >= 1 && total <= MAX_TOTAL_SECONDS;
+  });
 
   const updateRow = (id: string, patch: Partial<Row>) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   };
 
+  // The last row may be removed too — the list may end up empty.
   const removeRow = (id: string) => {
-    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== id) : prev));
+    setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
   const addRow = () => {
@@ -73,7 +104,7 @@ export function TimerSetupDialog({ existing, onSubmit, onClose }: Props) {
     );
   };
 
-  const submit = (submitMode: "append" | "overwrite") => {
+  const submit = () => {
     if (!valid) return;
     onSubmit(
       rows.map((r) => ({
@@ -82,8 +113,15 @@ export function TimerSetupDialog({ existing, onSubmit, onClose }: Props) {
         mode: r.mode,
         duration: r.mode === "countdown" ? rowSeconds(r) : 0,
       })),
-      submitMode,
+      autoStart,
     );
+  };
+
+  /** Clear the draft rows shown in this dialog. Nothing is submitted — the
+   *  cleared list only reaches the server when the owner confirms, so they
+   *  can freely rebuild the queue before that. */
+  const clearAll = () => {
+    setRows([]);
   };
 
   return (
@@ -149,7 +187,6 @@ export function TimerSetupDialog({ existing, onSubmit, onClose }: Props) {
                 type="button"
                 className="timer-dialog-remove"
                 onClick={() => removeRow(row.id)}
-                disabled={rows.length <= 1}
                 title={t["timer.remove"]}
                 aria-label={t["timer.remove"]}
               >
@@ -162,13 +199,22 @@ export function TimerSetupDialog({ existing, onSubmit, onClose }: Props) {
         <div className="timer-dialog-actions">
           <button
             type="button"
-            className="timer-dialog-btn"
+            className="timer-dialog-add"
             onClick={addRow}
             disabled={rows.length >= MAX_ROWS}
           >
             {t["timer.add"]}
           </button>
         </div>
+
+        <label className="timer-dialog-autostart">
+          <input
+            type="checkbox"
+            checked={autoStart}
+            onChange={(e) => setAutoStart(e.target.checked)}
+          />
+          {t["timer.autoStart"]}
+        </label>
 
         {!valid && (
           <p className="timer-dialog-error" role="alert">
@@ -177,16 +223,15 @@ export function TimerSetupDialog({ existing, onSubmit, onClose }: Props) {
         )}
 
         <div className="timer-dialog-footer">
-          {existing.length > 0 && (
-            <button
-              type="button"
-              className="timer-dialog-btn timer-dialog-btn--clear"
-              onClick={() => onSubmit([], "overwrite")}
-              title={t["timer.clearHint"]}
-            >
-              {t["timer.clear"]}
-            </button>
-          )}
+          <button
+            type="button"
+            className="timer-dialog-btn timer-dialog-btn--clear"
+            onClick={clearAll}
+            disabled={rows.length === 0}
+            title={t["timer.clearHint"]}
+          >
+            {t["timer.clear"]}
+          </button>
           <button
             type="button"
             className="timer-dialog-btn timer-dialog-btn--cancel"
@@ -196,21 +241,11 @@ export function TimerSetupDialog({ existing, onSubmit, onClose }: Props) {
           </button>
           <button
             type="button"
-            className="timer-dialog-btn"
-            onClick={() => submit("append")}
+            className="timer-dialog-btn timer-dialog-btn--primary"
+            onClick={submit}
             disabled={!valid}
-            title={t["timer.appendHint"]}
           >
-            {t["timer.append"]}
-          </button>
-          <button
-            type="button"
-            className="timer-dialog-btn"
-            onClick={() => submit("overwrite")}
-            disabled={!valid}
-            title={t["timer.overwriteHint"]}
-          >
-            {t["timer.overwrite"]}
+            {t["timer.confirm"]}
           </button>
         </div>
       </div>

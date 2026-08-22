@@ -262,10 +262,7 @@ export interface Translations {
   "timer.setup": string;
   "timer.setupTitle": string;
   "timer.add": string;
-  "timer.append": string;
-  "timer.appendHint": string;
-  "timer.overwrite": string;
-  "timer.overwriteHint": string;
+  "timer.confirm": string;
   "timer.cancel": string;
   "timer.namePlaceholder": string;
   "timer.mode": string;
@@ -290,4 +287,5 @@ export interface Translations {
   "timer.minimize": string;
   "timer.next": string;
   "timer.drag": string;
+  "timer.autoStart": string;
 }

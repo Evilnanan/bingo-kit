@@ -476,6 +476,12 @@ export function useGameState(
         if (scHash !== undefined) {
           setServerConfigHash(scHash);
         }
+        // Normalize the timer state (a state message from an older server
+        // build may lack the autoStart field).
+        const serverTimer = (msg as { timer?: RoomTimerState }).timer;
+        const normalizedTimer: RoomTimerState | undefined = serverTimer
+          ? { ...serverTimer, autoStart: serverTimer.autoStart === true }
+          : undefined;
         dispatch({
           type: "SET_STATE",
           state: {
@@ -494,7 +500,7 @@ export function useGameState(
               .myCounters,
             notes: (msg as { myNotes?: PlayerNote[] }).myNotes,
             unreadChat: (msg as { myUnreadChat?: boolean }).myUnreadChat,
-            timer: (msg as { timer?: RoomTimerState }).timer,
+            timer: normalizedTimer,
           },
         });
         // Cache the server-assigned identity code locally so a reload or a
@@ -704,6 +710,7 @@ export function useGameState(
             startedAt: msg.startedAt,
             pausedRemaining: msg.pausedRemaining,
             pausedElapsed: msg.pausedElapsed,
+            autoStart: msg.autoStart === true,
           },
         });
         break;
@@ -1169,12 +1176,19 @@ export function useGameState(
     dispatch({ type: "REORDER_NOTES", ids });
   }
 
-  /** Room owner: replace or extend the serial timer queue. */
-  function submitTimers(timers: RoomTimer[], submitMode: "append" | "overwrite") {
+  /** Room owner: replace the serial timer queue. An optional auto-start flag
+   *  travels with the submit (runs the queue when the game starts). */
+  function submitTimers(timers: RoomTimer[], autoStart?: boolean) {
     const ws = wsRef.current;
     const current = stateRef.current;
     if (!ws || current.localPlayerName !== current.owner) return;
-    ws.send(JSON.stringify({ type: "timer_submit", timers, submitMode }));
+    ws.send(
+      JSON.stringify({
+        type: "timer_submit",
+        timers,
+        ...(typeof autoStart === "boolean" ? { autoStart } : {}),
+      }),
+    );
   }
 
   /** Room owner: start the run (or resume when paused). */

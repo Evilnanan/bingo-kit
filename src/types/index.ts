@@ -59,6 +59,11 @@ export interface RoomTimerState {
   pausedRemaining: number | null;
   /** Seconds elapsed on a paused (or just-finished) count-up. */
   pausedElapsed: number | null;
+  /** When true, a fresh queue run starts automatically the moment the game
+   *  starts (all players ready → countdown ends, or a single player), so the
+   *  timer runs together with the room without the owner pressing start.
+   *  Enabled by default for new rooms. */
+  autoStart: boolean;
 }
 
 /** Fresh, empty timer state (nothing queued, nothing running). */
@@ -71,6 +76,7 @@ export function createEmptyTimerState(): RoomTimerState {
     startedAt: null,
     pausedRemaining: null,
     pausedElapsed: null,
+    autoStart: true,
   };
 }
 
@@ -519,6 +525,8 @@ export type ServerMessage =
       startedAt: number | null;
       pausedRemaining: number | null;
       pausedElapsed: number | null;
+      /** Whether the queue auto-starts with the game. */
+      autoStart: boolean;
       /** Server clock at send time — lets clients estimate their clock offset. */
       serverTime: number;
     }
@@ -568,9 +576,12 @@ export type ClientMessage =
   | {
       type: "timer_submit";
       timers: RoomTimer[];
-      /** "append" keeps the current queue and adds at the end; "overwrite"
-       *  replaces the queue and ends any current run. */
-      submitMode: "append" | "overwrite";
+      /** Always replaces the queue. Deleting rows never disturbs a run
+       *  unless the currently running/paused timer itself is removed: the
+       *  run carries on and tracks the timer's new position. Submitting an
+       *  empty list ends the run; the owner may also interrupt explicitly
+       *  via `timer_stop`. */
+      autoStart?: boolean;
     }
   | { type: "timer_start" }
   | { type: "timer_pause" }

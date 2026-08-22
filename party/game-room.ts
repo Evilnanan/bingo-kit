@@ -179,6 +179,10 @@ export interface RoomTimerState {
   pausedRemaining: number | null;
   /** Seconds elapsed on a paused (or just-finished) count-up. */
   pausedElapsed: number | null;
+  /** When true, a fresh queue run starts automatically the moment the game
+   *  starts (all players ready → countdown ends, or a single player), so the
+   *  timer runs together with the room without the owner pressing start. */
+  autoStart: boolean;
 }
 
 /** A stored chat message, timestamped by the server when it arrives. */
@@ -256,9 +260,12 @@ export type ClientMsg =
   | {
       type: "timer_submit";
       timers: RoomTimer[];
-      /** "append" keeps the current queue and adds at the end; "overwrite"
-       *  replaces the queue and ends any current run. */
-      submitMode: "append" | "overwrite";
+      /** Always replaces the queue. Deleting rows never disturbs a run
+       *  unless the currently running/paused timer itself is removed: the
+       *  run carries on and tracks the timer's new position. Submitting an
+       *  empty list ends the run; the owner may also interrupt explicitly
+       *  via `timer_stop`. */
+      autoStart?: boolean;
     }
   | { type: "timer_start" }
   | { type: "timer_pause" }
@@ -352,6 +359,8 @@ export type ServerMsg =
       startedAt: number | null;
       pausedRemaining: number | null;
       pausedElapsed: number | null;
+      /** Whether the queue auto-starts with the game. */
+      autoStart: boolean;
       /** Server clock at send time — lets clients estimate their clock offset. */
       serverTime: number;
     }
@@ -404,6 +413,8 @@ export interface GameRoomSnapshot {
   timerStartedAt?: number | null;
   timerPausedRemaining?: number | null;
   timerPausedElapsed?: number | null;
+  /** Whether the queue auto-starts with the game (survives restart). */
+  timerAutoStart?: boolean;
 }
 
 /**
@@ -482,6 +493,9 @@ export class GameRoom {
   timerPausedRemaining: number | null = null;
   /** Seconds elapsed on a paused (or just-finished) count-up. */
   timerPausedElapsed: number | null = null;
+  /** Whether the queue auto-starts when the game starts. On by default for
+   *  new rooms; the owner can turn it off in the queue setup dialog. */
+  timerAutoStart = true;
   /** Auto-advance timer: fires when a running countdown reaches 0. */
   timerAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -637,6 +651,10 @@ export class GameRoom {
       delete p.ready;
     }
     this.transport.broadcast({ type: "start" });
+    // Auto-start the room timer together with the game when the owner
+    // enabled it (the timer_state broadcast follows the "start" one, so
+    // clients see both transitions in order).
+    this.autoStartTimerIfConfigured();
     // Timer-driven transition: persist so a runtime recycle right after
     // "start" restores the room as playing, not countdown.
     this.transport.persist?.(this.serialize());
@@ -653,6 +671,7 @@ export class GameRoom {
       startedAt: this.timerStartedAt,
       pausedRemaining: this.timerPausedRemaining,
       pausedElapsed: this.timerPausedElapsed,
+      autoStart: this.timerAutoStart,
     };
   }
 
@@ -682,6 +701,23 @@ export class GameRoom {
     this.timerStartedAt = null;
     this.timerPausedRemaining = null;
     this.timerPausedElapsed = null;
+  }
+
+  /**
+   * Start a fresh queue run when auto-start is enabled and the game starts.
+   * Called from the game-start paths ("start"); runs the timer together with
+   * the room without the owner pressing start. A run that is already running
+   * or paused was started explicitly by the owner and is left alone.
+   */
+  private autoStartTimerIfConfigured(): void {
+    if (!this.timerAutoStart || this.timers.length === 0) return;
+    if (this.timerStatus === "running" || this.timerStatus === "paused") return;
+    this.timerIndex = 0;
+    this.timerPausedRemaining = null;
+    this.timerPausedElapsed = null;
+    this.startCurrentTimer();
+    this.broadcastTimerState();
+    this.transport.persist?.(this.serialize());
   }
 
   /**
@@ -891,6 +927,7 @@ export class GameRoom {
       timerStartedAt: this.timerStartedAt,
       timerPausedRemaining: this.timerPausedRemaining,
       timerPausedElapsed: this.timerPausedElapsed,
+      timerAutoStart: this.timerAutoStart,
     };
   }
 
@@ -976,6 +1013,9 @@ export class GameRoom {
       typeof snapshot.timerPausedElapsed === "number"
         ? snapshot.timerPausedElapsed
         : null;
+    // Auto-start is on by default (a missing flag in older snapshots keeps
+    // the default — disabled only when the owner explicitly turned it off).
+    this.timerAutoStart = snapshot.timerAutoStart !== false;
     if (
       this.timerStatus === "running" &&
       (this.timerIndex < 0 || this.timerIndex >= this.timers.length)
@@ -1025,6 +1065,9 @@ export class GameRoom {
       for (const p of Object.values(this.players)) {
         delete p.ready;
       }
+      // The game started while the runtime was down: honor auto-start the
+      // same way finishCountdown would have.
+      this.autoStartTimerIfConfigured();
       return;
     }
 
@@ -1292,21 +1335,37 @@ export class GameRoom {
         const sender = this.connPlayers.get(connId);
         if (!sender || sender !== this.owner) return;
         const cleaned = sanitizeTimers(msg.timers);
-        if (msg.submitMode === "overwrite") {
-          // Replace the queue (an empty list clears it) and end any run.
-          this.timers = cleaned;
+        // Replace the queue. Deleting rows never disturbs a run unless the
+        // currently running/paused timer itself is removed: the run carries
+        // on, and its pointer follows the timer to its new position. Only
+        // removing that timer — or submitting an empty list — ends the run.
+        const currentId =
+          this.timerIndex >= 0 && this.timerIndex < this.timers.length
+            ? this.timers[this.timerIndex]!.id
+            : null;
+        this.timers = cleaned;
+        const active =
+          this.timerStatus === "running" || this.timerStatus === "paused";
+        if (!active) {
           this.clearTimerRun();
-        } else {
-          // Append to the end of the existing queue (a running timer keeps
-          // running; the new timers come after it). Appending nothing is a
-          // no-op.
-          if (cleaned.length === 0) return;
-          this.timers.push(...cleaned);
-          if (this.timers.length > MAX_ROOM_TIMERS) {
-            this.timers = this.timers.slice(
-              this.timers.length - MAX_ROOM_TIMERS,
-            );
+        } else if (currentId != null) {
+          const nextIndex = cleaned.findIndex((t) => t.id === currentId);
+          if (nextIndex < 0) {
+            // The running timer itself was deleted — the run cannot
+            // continue; end it (idle, awaiting a fresh start).
+            this.clearTimerRun();
+          } else {
+            // Keep the run going; re-point it at the timer's new position
+            // so the display and the auto-advance follow the new queue.
+            this.timerIndex = nextIndex;
           }
+        } else {
+          // No identifiable current timer — defensive reset.
+          this.clearTimerRun();
+        }
+        // The submit carries the auto-start setting from the setup dialog.
+        if (typeof msg.autoStart === "boolean") {
+          this.timerAutoStart = msg.autoStart;
         }
         this.broadcastTimerState();
         this.transport.persist?.(this.serialize());
@@ -1400,6 +1459,8 @@ export class GameRoom {
             // shows "Loading board…" forever because state.config is null.
             this.transport.broadcast(this.stateMsg);
             this.transport.broadcast({ type: "start" });
+            // Auto-start the room timer together with the game when enabled.
+            this.autoStartTimerIfConfigured();
           } else {
             this.startCountdown();
           }
